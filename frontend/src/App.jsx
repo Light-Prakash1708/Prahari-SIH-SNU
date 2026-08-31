@@ -24,6 +24,8 @@ import { Alerts, Forecast, Profile, Rescan, Traps } from './screens/More'
 import Saathi from './screens/Saathi'
 import Crop from './screens/Crop'
 import CropJourney from './screens/CropJourney'
+import Privacy from './screens/Privacy'
+import { HowItWorks as HowItWorksSection } from './screens/Sections'
 import Tools, { Expenses, Fertilizer } from './screens/Tools'
 import Community from './screens/Community'
 import CommunityPost from './screens/CommunityPost'
@@ -113,7 +115,58 @@ export default function App() {
   const go = useCallback((name, params = {}) => {
     setRoute({ name, params })
     window.scrollTo({ top: 0 })
+    /* Mirror the route into the address bar.
+       ───────────────────────────────────────────────────────────────────────
+       Routing was in-memory only, which meant a refresh dropped a farmer back
+       on Home, the phone's back button left the app entirely, and nobody could
+       send a teammate a link to the screen they were describing. The hash is
+       written as a MIRROR of state, never as its source — the switch below
+       still reads `route` — so a hash that cannot be honoured (a stale link to
+       a deleted follow-up) degrades to its base screen instead of crashing. */
+    const q = new URLSearchParams()
+    for (const [k, v] of Object.entries(params || {})) {
+      if (v == null) continue
+      if (typeof v === 'object') { if (v.id != null) q.set(k, String(v.id)) }
+      else q.set(k, String(v))
+    }
+    const next = '#/' + name + (q.toString() ? '?' + q : '')
+    if (window.location.hash !== next) {
+      window.history.pushState(null, '', next)
+    }
   }, [])
+
+  /* The back button, and a link opened cold.
+     ─────────────────────────────────────────────────────────────────────────
+     Only routes whose parameters are scalars can be restored from a URL. A
+     screen handed a whole object by its caller (Rescan takes the follow-up
+     record itself) is restored to its tab instead — a wrong screen is a bug,
+     an empty screen is a worse one. */
+  const RESTORABLE = React.useMemo(() => new Set([
+    'home', 'crop', 'cropRecord', 'scan', 'community', 'communityNew', 'agridoc',
+    'saathi', 'fields', 'more', 'soil', 'water', 'weeds', 'tools', 'expenses',
+    'fertilizer', 'privacy', 'howItWorks', 'alerts', 'profile', 'history',
+    'forecast', 'traps', 'addField', 'officer', 'expert',
+  ]), [])
+  useEffect(() => {
+    const fromHash = () => {
+      const raw = window.location.hash.replace(/^#\/?/, '')
+      if (!raw) return { name: 'home', params: {} }
+      const [name, qs] = raw.split('?')
+      if (!RESTORABLE.has(name)) return null
+      return { name, params: Object.fromEntries(new URLSearchParams(qs || '')) }
+    }
+    const apply = () => {
+      const r = fromHash()
+      if (r) { setRoute(r); window.scrollTo({ top: 0 }) }
+    }
+    apply()
+    window.addEventListener('popstate', apply)
+    window.addEventListener('hashchange', apply)
+    return () => {
+      window.removeEventListener('popstate', apply)
+      window.removeEventListener('hashchange', apply)
+    }
+  }, [RESTORABLE])
 
   const setScenario = async (key) => {
     try {
@@ -225,6 +278,19 @@ export default function App() {
                              onDone={() => reload(plotId)} />
       case 'alerts':
         return <Alerts lang={lang} plot={plot} go={go} onRead={() => setUnread(0)} />
+      case 'howItWorks':
+        /* Its own screen now, rather than 2 500 pixels at the foot of Home.
+           Same component, same content — only the place it is read. */
+        return (
+          <div className="pad stack">
+            <HowItWorksSection lang={lang} go={go} />
+          </div>
+        )
+      case 'privacy':
+        /* Deliberately reachable from the drawer and the account sheet, and
+           deliberately not from a tab: it is a rare, consequential screen, and
+           a bottom-bar slot spent on it is a slot not spent on scouting. */
+        return <Privacy lang={lang} go={go} />
       case 'profile':
         return <Profile lang={lang} onLang={setLangState} me={me} plots={plots} go={go}
                         health={health} demo={demo} onScenario={setScenario} />

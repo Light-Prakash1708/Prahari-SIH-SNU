@@ -37,6 +37,9 @@ import './shell/shell.css'
    rather than from ui.jsx, because the Camera primitive lives in ui.jsx and a
    stylesheet import there would load on every screen that uses any primitive. */
 import './screens/saurjya.css'
+/* Last: the polish layer re-skins the components above with Saurjya's card
+   language — 26px radii, his wide soft shadow, the pooled-light ground. */
+import './polish.css'
 import App from './App'
 
 createRoot(document.getElementById('root')).render(<App />)

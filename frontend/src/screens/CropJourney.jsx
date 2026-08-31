@@ -107,7 +107,10 @@ export default function CropJourney({ lang, plot, plots, onPlot, go }) {
             <Watchlist cal={cal} lang={lang} />
             <ThreatByStage cal={cal} lang={lang} onPick={setOpenStage} />
             <History cal={cal} lang={lang} />
-            <p className="tiny faint cj-method">{cal.method}</p>
+            <details className="method-fold">
+              <summary>{bi(lang, 'How this screen is built', 'हा पडदा कसा तयार होतो')}</summary>
+              <p className="small muted">{bi(lang, cal.method, cal.method_mr)}</p>
+            </details>
           </>
         )}
       </div>
@@ -262,7 +265,10 @@ function PreventionWindow({ cal, lang, go }) {
         </div>
       )}
 
-      <p className="tiny faint cj-pw__method">{pw.method}</p>
+      <details className="method-fold">
+        <summary>{bi(lang, 'How this window is set', 'ही मुदत कशी ठरते')}</summary>
+        <p className="small muted">{bi(lang, pw.method, pw.method_mr)}</p>
+      </details>
     </Card>
   )
 }
@@ -351,7 +357,10 @@ function ThreatByStage({ cal, lang, onPick }) {
       </div>
       {/* The reason the later stages carry no disease colour, stated on the
           screen rather than buried in the API response. */}
-      <p className="tiny faint cj-method">{cal.disease_note}</p>
+      <details className="method-fold">
+        <summary>{bi(lang, 'Why later stages are blank', 'पुढच्या अवस्था रिकाम्या का')}</summary>
+        <p className="small muted">{bi(lang, cal.disease_note, cal.disease_note_mr)}</p>
+      </details>
     </section>
   )
 }

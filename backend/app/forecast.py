@@ -146,7 +146,10 @@ def headline(series: list[dict[str, Any]], crop_stage: dict[str, Any]) -> dict[s
             "lead_days": rising["offset"] if rising else 0,
             "method": ("Each day is scored by running the same published infection models on the "
                        "weather record ending that day — observed weather for today, forecast "
-                       "weather beyond. Nothing is extrapolated or learned.")}
+                       "weather beyond. Nothing is extrapolated or learned."),
+            "method_mr": ("प्रत्येक दिवसाचा गुण त्या दिवसापर्यंतच्या हवामान नोंदीवर तीच "
+                          "प्रकाशित संसर्ग मॉडेल चालवून काढला जातो — आजसाठी प्रत्यक्ष हवामान, "
+                          "पुढे अंदाज. काहीही ताणून किंवा शिकून काढलेले नाही.")}
 
 
 def _names(drivers: list[dict]) -> str:

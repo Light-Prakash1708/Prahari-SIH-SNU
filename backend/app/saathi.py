@@ -28,6 +28,7 @@ Every answer carries where it came from. An answer with no source is a bug.
 """
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -889,3 +890,78 @@ SUGGESTIONS = {
            "काढणी कधी करू शकतो?", "तपासणी करताना काय पहावे?",
            "इतर शेतकऱ्यांना पण हेच दिसत आहे का?"],
 }
+
+
+# ── the context an optional language model is allowed to see ────────────────
+def field_facts(db: Database, rt, plot: dict[str, Any] | None,
+                limit: int = 6) -> dict[str, Any]:
+    """A compact, already-computed picture of THIS field.
+
+    Assembled entirely from rows that exist. Nothing here is derived for the
+    purpose of the assistant, and nothing is estimated to fill a gap — a field
+    with no trap counts appears with no trap counts, which is what allows the
+    model to be told, truthfully, that these facts are all there is.
+
+    Kept small on purpose. A model handed everything answers from the largest
+    number it can see; a model handed the field's current state answers about
+    the field.
+    """
+    if not plot:
+        return {"note": "The farmer has no field registered, so PRAHARI holds no field data."}
+
+    out: dict[str, Any] = {
+        "field": {
+            "name": plot.get("name"), "crop": plot.get("crop"),
+            "area_acre": plot.get("area_acre"), "taluka": plot.get("taluka"),
+            "village": plot.get("village"), "sown_on": plot.get("sown_on"),
+        },
+    }
+    if rt:
+        # A stage needs a sowing date and a crop cycle. A field without one is
+        # a real state, not an error, and the bundle simply carries no stage.
+        with contextlib.suppress(Exception):
+            out["crop_stage"] = rt.risk.crop_stage(plot)
+
+    snap = db.one("SELECT * FROM health_snapshots WHERE plot_id = :p "
+                  "ORDER BY day DESC LIMIT 1", {"p": plot["id"]})
+    if snap:
+        out["crop_health"] = {
+            "day": snap["day"], "score_out_of_100": round(snap["score"]),
+            "penalties": {k: round(snap[k]) for k in ("disease", "pest", "weather", "nearby")
+                          if snap.get(k) is not None},
+            "meaning": ("A composite RISK indicator. It is not a yield estimate and not a "
+                        "percentage of the crop affected."),
+        }
+
+    out["recent_diagnoses"] = db.rows(
+        "SELECT top_problem, top_posterior, abstained, abstain_reason, created_at"
+        "  FROM diagnoses WHERE plot_id = :p ORDER BY created_at DESC LIMIT :n",
+        {"p": plot["id"], "n": limit})
+    out["recent_trap_counts"] = db.rows(
+        "SELECT t.pest, o.count, o.counted_on FROM trap_observations o"
+        "  JOIN traps t ON t.id = o.trap_id WHERE t.plot_id = :p"
+        "  ORDER BY o.counted_on DESC LIMIT :n",
+        {"p": plot["id"], "n": limit})
+    out["recent_threshold_checks"] = db.rows(
+        "SELECT pest, count, etl_effective, band, chemical_authorised, checked_on"
+        "  FROM threshold_checks WHERE plot_id = :p ORDER BY checked_on DESC LIMIT :n",
+        {"p": plot["id"], "n": limit})
+    out["recent_sprays"] = db.rows(
+        "SELECT product, dose_text, applied_on FROM applications"
+        "  WHERE plot_id = :p ORDER BY applied_on DESC LIMIT :n",
+        {"p": plot["id"], "n": limit})
+    out["open_followups"] = db.rows(
+        "SELECT id, due_on, escalated FROM followups WHERE plot_id = :p"
+        "  AND done_observation IS NULL AND outcome IS NULL ORDER BY due_on LIMIT :n",
+        {"p": plot["id"], "n": limit})
+
+    if rt:
+        try:
+            wx = rt.risk.weather_series(plot)
+            out["risk_board"] = rt.risk.board(plot, wx)
+        except Exception:
+            # Weather is allowed to be unavailable and is never invented. The
+            # model simply does not get a risk board, and cannot produce one.
+            out["risk_board_note"] = ("Weather is unavailable, so PRAHARI has no risk board "
+                                      "for this field right now. Do not estimate one.")
+    return out

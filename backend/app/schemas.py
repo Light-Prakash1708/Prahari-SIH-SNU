@@ -391,3 +391,25 @@ class IrrigationIn(BaseModel):
     mm_applied: float | None = Field(default=None, ge=0, le=500)
     hours: float | None = Field(default=None, ge=0, le=48)
     note: str | None = Field(default=None, max_length=300)
+
+
+# ── privacy: deleting your own records ──────────────────────────────────────
+#
+# `community_mode` is a genuine choice rather than a setting. A post three
+# neighbours corroborated is at once the farmer's writing and the evidence
+# behind a regional signal, so the account holder decides which matters more to
+# them and the screen states the consequence of each. There is no default in
+# the UI; the default here exists only so a malformed request removes rather
+# than silently retains.
+class DeleteRecordsIn(BaseModel):
+    categories: list[str] = Field(min_length=1, max_length=12)
+    password: str = Field(min_length=1, max_length=200)
+    confirm: str = Field(min_length=1, max_length=40)
+    community_mode: Literal["delete", "anonymise"] = "delete"
+
+
+class DeleteAccountIn(BaseModel):
+    password: str = Field(min_length=1, max_length=200)
+    confirm: str = Field(min_length=1, max_length=40)
+    community_mode: Literal["delete", "anonymise"] = "delete"
+    reason: str | None = Field(default=None, max_length=300)

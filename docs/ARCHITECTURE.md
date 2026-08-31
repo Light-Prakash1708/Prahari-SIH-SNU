@@ -101,6 +101,7 @@ Three things are swapped by configuration, never by an `if` in a handler:
 |---|---|---|
 | `WEATHER_PROVIDER` | `openmeteo` / `demo` / `none` | **503, never generated data** |
 | `VISION_PROVIDER` | `onnx` / `api` / `none` | reports "no evaluated model" |
+| `LLM_PROVIDER` | `gemini` / `openai` / `none` | AgriDoc stays templated |
 | `STORAGE_PROVIDER` | `local` / `s3` | — |
 
 `config.py` refuses to start in production with a demo provider, a short JWT
@@ -158,7 +159,7 @@ the whole exercise: PlantVillage-trained models score ~99% on PlantVillage and
 
 ## Testing
 
-237 tests. The interesting ones assert things that must **never** happen:
+265 tests. The interesting ones assert things that must **never** happen:
 
 | File | Guards |
 |---|---|
@@ -169,6 +170,8 @@ the whole exercise: PlantVillage-trained models score ~99% on PlantVillage and
 | `test_crop_calendar.py` | disease bands never appear on a stage with no weather |
 | `test_followup_outcome.py` | a self-report is never presented as a measurement |
 | `test_weather.py` | an unreachable provider produces an error, not a number |
+| `test_privacy.py` | deleting my account never touches another farmer's records |
+| `test_llm_seam.py` | a language model cannot introduce a number or a product name |
 
 When one of these fails, the feature is wrong, not the test.
 

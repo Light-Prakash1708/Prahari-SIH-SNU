@@ -23,7 +23,8 @@ import {
   Band, Card, ErrorNote, Gauge, Loading, Prov, WeatherStrip, Why,
   bi, fmtDate, levelLabel,
 } from '../ui'
-import { HowItWorks, QuickActions } from './Sections'
+import { QuickActions } from './Sections'
+import Icon from '../shell/Icon'
 
 const GREET = (h, lang) => {
   if (lang === 'mr') return h < 12 ? 'सुप्रभात' : h < 17 ? 'नमस्कार' : 'शुभ संध्याकाळ'
@@ -202,11 +203,15 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
                 </div>
               </Card>
             )}
+            {/* The method paragraph is the app showing its working — it has
+                to stay, and it does not have to be four lines of standing
+                text on the screen a farmer opens every morning. Folded, and
+                now in the language the rest of the screen is in. */}
             {todo?.method && (
-              <Card className="tight" style={{ marginTop: 2 }}>
-                <Prov label={lang === 'mr' ? 'ही यादी कशी बनते' : 'How this list is built'}
-                      value={todo.method} />
-              </Card>
+              <details className="method-fold">
+                <summary>{lang === 'mr' ? 'ही यादी कशी बनते' : 'How this list is built'}</summary>
+                <p className="small muted">{bi(lang, todo.method, todo.method_mr)}</p>
+              </details>
             )}
 
             {/* ── WHAT'S COMING ───────────────────────────────────────── */}
@@ -233,7 +238,12 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
                       .map((r, i) => <li key={i} style={{ marginTop: 3 }}>{r}</li>)}
                   </ul>
                 </div>
-                <Prov label="Method" value={fc.headline.method} />
+                <details className="method-fold">
+                  <summary>{lang === 'mr' ? 'हे कसे मोजले' : 'How this is scored'}</summary>
+                  <p className="small muted">
+                    {bi(lang, fc.headline.method, fc.headline.method_mr)}
+                  </p>
+                </details>
               </Card>
             )}
 
@@ -259,9 +269,23 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
                 first. Every tile goes somewhere that works. */}
             <QuickActions lang={lang} go={go} />
 
-            {/* And the loop itself, spelled out. A farmer who cannot see why
-                the app asked them to walk the field will not walk it. */}
-            <HowItWorks lang={lang} go={go} />
+            {/* The seven-step loop used to be printed in full here. It is a
+                good explanation and it was the wrong place for it: it more
+                than doubled the length of the screen a farmer opens every
+                morning, pushing the day's actions above a wall of text nobody
+                re-reads. It moved to its own screen, and this is the door. */}
+            <button className="card tappable hiw-link" onClick={() => go('howItWorks')}>
+              <span className="hiw-link__ic"><Icon name="radar" size={18} /></span>
+              <span className="hiw-link__txt">
+                <b>{lang === 'mr' ? 'प्रहरी कसे काम करते' : 'How PRAHARI works'}</b>
+                <span className="small muted">
+                  {lang === 'mr'
+                    ? 'शोधापासून कृतीपर्यंत — सात पायऱ्या'
+                    : 'Prediction to action, in seven steps'}
+                </span>
+              </span>
+              <Icon name="chevron" size={14} />
+            </button>
 
             <div className="tiny faint center" style={{ padding: '18px 8px 4px', lineHeight: 1.6 }}>
               {lang === 'mr'

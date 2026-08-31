@@ -1,0 +1,197 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRAHARI · the polish layer
+
+   Saurjya's site carries a specific card language, and it is not the one the
+   original design system shipped with. From `css/prahari-features.css` on his
+   build, verbatim:
+
+       --prh-radius-card : 26px
+       --prh-shadow-card : 0 10px 25px -4px rgba(11,61,44,.05),
+                           0 2px 6px  -1px rgba(0,0,0,.02)
+       --prh-shadow-hover: 0 20px 40px -8px rgba(11,61,44,.12),
+                           0 0 0 1px rgba(16,185,129,.35)
+       section ground    : #F4F6F2 under three soft radial gradients
+
+   Three things make his surfaces read as more expensive than ours did: the
+   radius is larger, the shadow is a WIDE soft one offset downward rather than a
+   tight ring, and the page is never flat white — it sits on a warm off-green
+   with light pooling in two corners.
+
+   This file applies that language to the components that already exist, so
+   every screen inherits it without being rewritten. It is imported last and
+   therefore wins on equal specificity. Nothing here changes a number, a state
+   or a route — it is surface only, which is why it can be this broad.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --prh-vibrant: #10B981;
+  --prh-accent:  #059669;
+  --prh-mint:    #ECFDF5;
+  --prh-mint-2:  #D1FAE5;
+  --prh-ground:  #F4F6F2;
+  --prh-border:  rgba(220, 228, 218, .85);
+
+  --r-lg: 22px;
+  --r-xl: 26px;
+
+  --shadow:    0 10px 25px -4px rgba(11,61,44,.055), 0 2px 6px -1px rgba(0,0,0,.02);
+  --shadow-md: 0 16px 34px -6px rgba(11,61,44,.09),  0 3px 8px -1px rgba(0,0,0,.03);
+  --shadow-lg: 0 26px 52px -10px rgba(11,61,44,.16), 0 4px 12px -2px rgba(0,0,0,.04);
+  --shadow-hover: 0 20px 40px -8px rgba(11,61,44,.12), 0 0 0 1px rgba(16,185,129,.35);
+
+  --ease: cubic-bezier(.16, 1, .3, 1);
+}
+
+/* ── the ground ─────────────────────────────────────────────────────────────
+   His feature section is not a flat colour: light pools at 10%/15% and
+   90%/85%, which is what stops a long scroll of white cards from flattening
+   out. Fixed attachment so the pools stay put while the page moves. */
+body {
+  background-color: var(--prh-ground);
+  background-image:
+    radial-gradient(circle at 8% 12%,  rgba(16,185,129,.07) 0%, transparent 42%),
+    radial-gradient(circle at 94% 78%, rgba(5,150,105,.055) 0%, transparent 46%),
+    radial-gradient(circle at 50% 42%, rgba(240,253,244,.7) 0%, transparent 62%);
+  background-attachment: fixed;
+}
+
+/* ── cards ───────────────────────────────────────────────────────────────── */
+.card {
+  border-radius: var(--r-xl);
+  border: 1px solid var(--prh-border);
+  box-shadow: var(--shadow);
+  transition: transform .3s var(--ease), box-shadow .3s var(--ease),
+              border-color .3s var(--ease);
+}
+/* Only a card that DOES something lifts. A card that lifts under the finger
+   and then does nothing is a promise the interface does not keep. */
+.card[role="button"], .card.tappable, a.card, button.card {
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .card[role="button"]:hover, .card.tappable:hover, a.card:hover, button.card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-hover);
+    border-color: rgba(16,185,129,.35);
+  }
+}
+.card[role="button"]:active, .card.tappable:active, a.card:active, button.card:active {
+  transform: translateY(0) scale(.995);
+}
+
+/* ── section headings get his eyebrow badge ──────────────────────────────────
+   A small white pill with a mint dot, rather than uppercase grey lettering.
+   It reads as a label rather than as leftover chrome. */
+.sect-title {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #fff;
+  border: 1px solid rgba(16,185,129,.3);
+  box-shadow: 0 2px 8px rgba(16,185,129,.08);
+  border-radius: var(--r-pill);
+  padding: 6px 14px 6px 8px;
+  font-size: 12px; font-weight: 700; letter-spacing: .02em;
+  text-transform: none; color: #15803D;
+  margin: 26px 0 12px;
+}
+.sect-title::before {
+  content: ''; flex: none;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--prh-mint) center / 9px 9px no-repeat
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2316A34A'%3E%3Cpath d='M12 2 4 6v6c0 5 3.4 9.4 8 10 4.6-.6 8-5 8-10V6l-8-4z'/%3E%3C/svg%3E");
+}
+/* The "view all" affordance some sections put beside the title must not be
+   swallowed by the pill. */
+.sect-title.plain {
+  display: block; background: none; border: 0; box-shadow: none;
+  padding: 0; color: var(--muted); text-transform: uppercase;
+  letter-spacing: .07em; font-size: 13px;
+}
+
+/* ── buttons ─────────────────────────────────────────────────────────────── */
+.btn {
+  background: linear-gradient(135deg, var(--prh-vibrant) 0%, var(--prh-accent) 55%, #047857 100%);
+  box-shadow: 0 4px 14px rgba(5,150,105,.28), inset 0 1px 0 rgba(255,255,255,.18);
+  border-radius: var(--r-pill);
+  letter-spacing: -.1px;
+  transition: transform .12s var(--ease), box-shadow .25s var(--ease), filter .2s;
+}
+@media (hover: hover) { .btn:hover { box-shadow: 0 8px 22px rgba(5,150,105,.34); filter: brightness(1.04); } }
+.btn:active { transform: translateY(1px) scale(.99); }
+.btn.ghost {
+  background: #fff; color: var(--g-700);
+  border: 1.5px solid rgba(16,185,129,.35);
+  box-shadow: 0 2px 8px rgba(16,185,129,.08);
+}
+.btn.quiet { background: var(--sunk); color: var(--ink-2); box-shadow: none; }
+.btn.danger {
+  background: linear-gradient(135deg, #EF4444 0%, #DC2626 60%, #B91C1C 100%);
+  box-shadow: 0 4px 14px rgba(220,38,38,.26);
+}
+.btn.link { background: none; box-shadow: none; border-radius: 0; }
+
+/* ── chips ───────────────────────────────────────────────────────────────── */
+.chip {
+  border-radius: var(--r-pill);
+  border: 1px solid var(--prh-border);
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(11,61,44,.04);
+  transition: all .2s var(--ease);
+}
+.chip[aria-pressed="true"] {
+  background: var(--prh-mint);
+  border-color: rgba(16,185,129,.45);
+  color: #14603F;
+  box-shadow: 0 2px 10px rgba(16,185,129,.16);
+}
+
+/* ── the greeting, as a hero ────────────────────────────────────────────────
+   His hero is `--primary-color url(hero-bg.png)`. Ours carries a real crop and
+   a real stage, so the image stays behind at low opacity and the text keeps
+   its contrast — the greeting is where the farmer confirms the app is showing
+   the right field, and that must be legible in sunlight. */
+.hdr-greet { font-size: 23px; font-weight: 800; letter-spacing: -.5px; }
+.cropline {
+  border-radius: var(--r-pill);
+  background: rgba(255,255,255,.14);
+  border: 1px solid rgba(255,255,255,.22);
+  backdrop-filter: blur(6px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14);
+}
+
+/* ── the sticky brand header ────────────────────────────────────────────── */
+.px-header {
+  background:
+    linear-gradient(180deg, rgba(11,61,44,.98) 0%, rgba(11,61,44,.92) 100%);
+  backdrop-filter: saturate(1.4) blur(10px);
+  box-shadow: 0 6px 22px -8px rgba(11,61,44,.45);
+}
+
+/* ── the floating bottom bar ────────────────────────────────────────────── */
+.px-botnav__bar {
+  box-shadow: 0 10px 30px -6px rgba(11,61,44,.22), 0 2px 8px rgba(11,61,44,.10);
+  border: 1px solid var(--prh-border);
+}
+.px-botnav__fab {
+  background: linear-gradient(135deg, var(--prh-vibrant) 0%, var(--prh-accent) 60%, #047857 100%);
+  box-shadow: 0 8px 22px rgba(5,150,105,.4), inset 0 1px 0 rgba(255,255,255,.22);
+}
+
+/* ── gauges and numbers ─────────────────────────────────────────────────── */
+.num { letter-spacing: -1px; }
+
+/* ── quiet entrance ─────────────────────────────────────────────────────────
+   Cards fade up 10px, once, on first paint. Deliberately short and
+   deliberately not staggered per item: a long staggered cascade looks
+   impressive on a laptop and feels broken on a phone that is already waiting
+   on a network request. Anyone who has asked their system not to animate gets
+   nothing at all. */
+@keyframes prh-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.stack > * { animation: prh-rise .34s var(--ease) both; }
+.stack > *:nth-child(1) { animation-delay: .02s; }
+.stack > *:nth-child(2) { animation-delay: .06s; }
+.stack > *:nth-child(3) { animation-delay: .10s; }
+.stack > *:nth-child(n+4) { animation-delay: .13s; }
+@media (prefers-reduced-motion: reduce) {
+  .stack > * { animation: none; }
+  .card { transition: none; }
+}

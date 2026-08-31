@@ -148,7 +148,10 @@ def test_suggestions_declare_what_it_will_not_do(client, farmer):
     assert r.status_code == 200
     body = r.json()
     assert body["suggestions"]
-    assert any("Invent a pesticide" in x for x in body["will_not_do"])
+    # Each refusal is now a bilingual pair, because a promise the reader cannot
+    # read is not one. Both halves must be present.
+    assert any("Invent a pesticide" in x["en"] for x in body["will_not_do"])
+    assert all(x.get("en") and x.get("mr") for x in body["will_not_do"])
 
 
 # ── the hazard of a keyword that fires on any sentence ──────────────────────

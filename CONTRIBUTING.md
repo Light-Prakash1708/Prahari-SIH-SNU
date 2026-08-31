@@ -28,7 +28,7 @@ it, which is correct behaviour and a confusing first experience.
 Run the tests before you push:
 
 ```bash
-cd backend && python -m pytest tests -q      # 237 tests, ~100s
+cd backend && python -m pytest tests -q      # 265 tests, ~135s
 cd frontend && npm run build                 # must be clean
 ```
 
@@ -140,7 +140,7 @@ data/<crop-or-pest>       knowledge-base additions
 Branch from `main`, keep it small, open a PR. The template asks four questions;
 answer them honestly — "I did not test this on a phone" is a useful answer.
 
-CI runs backend lint + 237 tests, applies the migrations to a real PostgreSQL,
+CI runs backend lint + 265 tests, applies the migrations to a real PostgreSQL,
 checks the production config guards actually refuse bad settings, builds the
 frontend, **fails if the gzipped bundle exceeds 200 kB**, and builds and boots
 the Docker image. All of it must pass.

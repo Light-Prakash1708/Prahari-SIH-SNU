@@ -49,6 +49,16 @@ class Storage(ABC):
     @abstractmethod
     def get(self, key: str) -> bytes: ...
 
+    def delete(self, key: str) -> None:
+        """Remove one object.
+
+        Added for the privacy path: when a farmer deletes their photographs the
+        rows go, and the bytes have to go with them or the deletion is a lie
+        told to the person most entitled to a true answer. A key that is
+        already gone is not an error — the desired state is 'absent'.
+        """
+        raise NotImplementedError
+
     def health(self) -> dict[str, Any]:
         return {"provider": self.name, "ok": True}
 
@@ -77,6 +87,11 @@ class LocalStorage(Storage):
 
     def get(self, key):
         return self._path(key).read_bytes()
+
+    def delete(self, key):
+        # `_path` resolves inside the storage root and raises otherwise, so a
+        # crafted key cannot reach a file outside it.
+        self._path(key).unlink(missing_ok=True)
 
     def url(self, key):
         return f"{self.public_base}/{key}"
@@ -112,6 +127,9 @@ class S3Storage(Storage):
 
     def get(self, key):
         return self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+
+    def delete(self, key):
+        self.client.delete_object(Bucket=self.bucket, Key=key)
 
     def url(self, key):
         return self.client.generate_presigned_url(

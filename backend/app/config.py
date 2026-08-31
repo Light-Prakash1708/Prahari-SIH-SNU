@@ -73,6 +73,17 @@ class Settings(BaseSettings):
     vision_api_url: str | None = None
     vision_api_key: str | None = None
     vision_timeout_seconds: float = 20.0
+
+    # ── the assistant's optional language-model seam ───────────────────────
+    # Off by default and off in every test. When a key is present the model is
+    # allowed to REPHRASE what PRAHARI retrieved and nothing else; see llm.py
+    # for the guard that enforces it. A deployment-wide key here is the
+    # fallback — a farmer's own key, stored per account, takes precedence.
+    llm_provider: str = "none"                 # none | gemini | openai
+    llm_api_key: str | None = None
+    llm_model: str | None = None
+    llm_timeout_seconds: float = 20.0
+    llm_max_output_tokens: int = 600
     # The symptom-feature classifier is NOT a neural network. It is allowed to
     # produce a ranked differential when no trained model is configured, but it
     # is always labelled as what it is, and a deployment can switch it off.

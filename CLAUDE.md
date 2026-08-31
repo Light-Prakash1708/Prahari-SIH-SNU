@@ -57,6 +57,12 @@ These are enforced by tests. If a test blocks you, the code is wrong.
 - `stage_factor` values only mean anything **relative to the same pest**.
   Banding them against fixed cutoffs makes almost every stage red and says
   nothing. This was fixed once; do not reintroduce it.
+- `community_posts.author_user_id` is NOT NULL and cascades from `users`. A
+  post cannot be detached from its author — an anonymised one is re-pointed at
+  the shared tombstone account in `privacy.py`.
+- The language model in `llm.py` may only REPHRASE retrieved facts. Never give
+  it the question without the facts, never call it when retrieval came back
+  empty, and never relax `_numbers_agree` to let an answer through.
 
 ## Offline is not optional
 
@@ -69,7 +75,7 @@ gzipped.
 ## Testing
 
 ```bash
-cd backend && python -m pytest tests -q     # 237 tests, ~100s
+cd backend && python -m pytest tests -q     # 265 tests, ~135s
 cd frontend && npm run build                # must be clean
 ```
 

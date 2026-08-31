@@ -26,6 +26,8 @@ const T = {
     profile: 'प्रोफाइल', history: 'इतिहास', fieldsCount: 'शेते', queued: 'रांगेत',
     unread: 'न वाचलेल्या', ipm: 'निर्णय', guest: 'वापरकर्ता',
     cropRecord: 'पीक नोंद', tools: 'जलद साधने', expenses: 'शेती खर्च', fert: 'खत मार्गदर्शक',
+    fieldGroup: 'माझे शेत', accountGroup: 'खाते', privacy: 'तुमची माहिती',
+    howItWorks: 'प्रहरी कसे काम करते',
   },
   en: {
     home: 'Home', crop: 'Crop', scan: 'Scan', community: 'Community', agridoc: 'AgriDoc',
@@ -35,6 +37,8 @@ const T = {
     profile: 'Profile', history: 'History', fieldsCount: 'Fields', queued: 'Queued',
     unread: 'Unread', ipm: 'Decide', guest: 'User',
     cropRecord: 'Crop record', tools: 'Quick tools', expenses: 'Farm expenses', fert: 'Fertilizer guide',
+    fieldGroup: 'My field', accountGroup: 'Account', privacy: 'Your data',
+    howItWorks: 'How PRAHARI works',
   },
 }
 const t = (lang, k) => (T[lang] || T.en)[k] ?? T.en[k]
@@ -95,23 +99,36 @@ export function Drawer({ open, onClose, lang, route, go, role }) {
       ]
     : [['home', 'home', t(lang, 'home')]]
 
-  const tools = role === 'farmer'
+  /* Twelve destinations in one flat list is a wall, and a wall on a phone is
+     read as "nothing here". They are the same twelve, grouped by the question
+     being asked — my field / a tool / my account — so the eye can skip two
+     thirds of them. Grouping is the whole fix: nothing was removed, and the
+     five things a farmer does daily are on the bottom bar and never in here. */
+  const groups = role === 'farmer'
     ? [
-        ['tools', 'toolbox', t(lang, 'tools')],
-        ['fields', 'map', t(lang, 'fields')],
-        /* The Crop tab leads with the journey; the older per-field record —
-           traps, passport, season detail — stays reachable here rather than
-           being removed. */
-        ['cropRecord', 'clipboard', t(lang, 'cropRecord')],
-        ['forecast', 'radar', t(lang, 'forecast')],
-        ['traps', 'bug', t(lang, 'traps')],
-        ['soil', 'leaf', t(lang, 'soil')],
-        ['fertilizer', 'calc', t(lang, 'fert')],
-        ['expenses', 'wallet', t(lang, 'expenses')],
-        ['water', 'drop', t(lang, 'water')],
-        ['alerts', 'bell', t(lang, 'alerts')],
-        ['history', 'history', t(lang, 'history')],
-        ['profile', 'gear', t(lang, 'profile')],
+        [t(lang, 'fieldGroup'), [
+          ['fields', 'map', t(lang, 'fields')],
+          /* The Crop tab leads with the journey; the older per-field record —
+             traps, passport, season detail — stays reachable here rather than
+             being removed. */
+          ['cropRecord', 'clipboard', t(lang, 'cropRecord')],
+          ['forecast', 'radar', t(lang, 'forecast')],
+          ['traps', 'bug', t(lang, 'traps')],
+          ['history', 'history', t(lang, 'history')],
+        ]],
+        [t(lang, 'toolsGroup'), [
+          ['tools', 'toolbox', t(lang, 'tools')],
+          ['soil', 'leaf', t(lang, 'soil')],
+          ['water', 'drop', t(lang, 'water')],
+          ['fertilizer', 'calc', t(lang, 'fert')],
+          ['expenses', 'wallet', t(lang, 'expenses')],
+        ]],
+        [t(lang, 'accountGroup'), [
+          ['alerts', 'bell', t(lang, 'alerts')],
+          ['profile', 'gear', t(lang, 'profile')],
+          ['privacy', 'shield', t(lang, 'privacy')],
+          ['howItWorks', 'info', t(lang, 'howItWorks')],
+        ]],
       ]
     : []
 
@@ -143,12 +160,12 @@ export function Drawer({ open, onClose, lang, route, go, role }) {
 
         <div className="px-drawer__body">
           <ul className="px-drawer__menu">{primary.map(item)}</ul>
-          {tools.length > 0 && (
-            <>
-              <div className="px-drawer__group-title">{t(lang, 'toolsGroup')}</div>
-              <ul className="px-drawer__menu">{tools.map(item)}</ul>
-            </>
-          )}
+          {groups.map(([title, entries]) => (
+            <React.Fragment key={title}>
+              <div className="px-drawer__group-title">{title}</div>
+              <ul className="px-drawer__menu">{entries.map(item)}</ul>
+            </React.Fragment>
+          ))}
         </div>
       </aside>
     </>
@@ -234,6 +251,12 @@ export function AccountSheet({ open, onClose, lang, me, plots, unread = 0, queue
                 <button type="button" className="px-sheet__item" onClick={() => pick('history')}>
                   <span className="ic"><Icon name="history" size={13} /></span>
                   <span className="txt">{t(lang, 'history')}</span>
+                </button>
+              </li>
+              <li>
+                <button type="button" className="px-sheet__item" onClick={() => pick('privacy')}>
+                  <span className="ic"><Icon name="shield" size={13} /></span>
+                  <span className="txt">{t(lang, 'privacy')}</span>
                 </button>
               </li>
             </ul>

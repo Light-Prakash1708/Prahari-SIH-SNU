@@ -132,3 +132,83 @@ accept a threshold without a citation — and CODEOWNERS marking `data/`,
 
 `origin` is set to the GitHub repository. The push has to be run from a machine
 with GitHub credentials; this build environment has none.
+
+## Your data — deletion, and closing an account
+
+`/api/privacy` in four routes: what is held (counted by category, bilingual),
+an export of all of it as JSON, deletion by category, and closing the account.
+`app/privacy.py` owns the rules; the router only authenticates and confirms.
+
+Three decisions worth knowing about:
+
+- **The confirmation is two guards, not one.** The password proves who is
+  holding the phone; a typed DELETE (or डिलीट / हटवा) proves they meant this
+  particular thing. Either alone is refused, and a test asserts each.
+- **Community posts are the farmer's choice.** A post three neighbours
+  corroborated is at once their writing and the evidence behind a regional
+  signal. Delete removes it entirely; keep re-points it at a shared tombstone
+  account so it survives as "Deleted account" with no farmer link. There is no
+  quiet default — the sheet asks, and states the consequence of each.
+- **"It is gone" is measured, not asserted.** The server re-counts after the
+  deletion and returns the counts; the receipt shows them, and a non-zero row
+  is displayed as a failure rather than hidden.
+
+Regional signals are NOT reversed, and the screen says so: those rows hold
+counts by taluka and problem — no name, no field, no location — and they are
+what an officer's outbreak response was based on.
+
+Staff accounts cannot self-delete: an expert's verdicts are the basis of other
+farmers' records.
+
+## AgriDoc · an optional language-model key
+
+A farmer (or a teammate) can paste a Gemini or OpenAI key. What it buys is
+**fluency, not knowledge**:
+
+```
+retrieval (unchanged) ─▶ FACTS ─▶ model rewrites the FACTS as prose
+                          │
+                          └─ nothing retrieved ─▶ refusal, model never called
+```
+
+The model is never asked a question. It is handed what PRAHARI already
+retrieved and asked to phrase it. Three guards, all tested:
+
+1. **No context, no call.** An empty retrieval returns the refusal directly.
+2. **Every number must already exist in the facts.** A dose, threshold or PHI
+   the model produced on its own fails the check and its whole answer is
+   discarded — the retrieved one, which was always correct, is shown instead.
+3. **No new product names.** A capitalised word that is not in the facts and
+   not in PRAHARI's own vocabulary is treated as invented.
+
+A discarded rewrite is visible in the response (`llm.discarded_draft`) and
+marked on screen, so a silent fallback cannot hide the one event worth seeing.
+Keys are verified against the provider before storage, encrypted with a key
+derived from `JWT_SECRET`, never returned by any endpoint, and deleted with the
+account. Default is `VISION_PROVIDER`-style off: `LLM_PROVIDER=none`.
+
+## Mobile pass — what moved, and why
+
+Nothing was removed. Home was 7 500 px on a 400 px phone; it is now ~2 700.
+
+- **"How PRAHARI works"** — the seven-step loop — became its own screen with a
+  one-line door on Home. It is a good explanation and it was pushing the day's
+  actions under a wall of text nobody re-reads.
+- **Method paragraphs fold.** The app must always be able to show its working;
+  it does not have to shout it every morning. Four of them (`agenda`, the
+  forecast headline, the prevention window, the disease note) are now
+  `<details>` — and are in Marathi, which they were not: the one paragraph a
+  farmer most needs to audit was the one they could not read.
+- **The drawer is grouped** — My field / Tools / Account — instead of twelve
+  flat rows, which read as "nothing here".
+- **AgriDoc's limits fold** into a summary, and the four refusals are bilingual.
+- **Hash routing.** Routing was in-memory only: a refresh dropped a farmer on
+  Home, the back button left the app, and no one could send a teammate a link
+  to a screen. The hash mirrors state; a hash that cannot be honoured degrades
+  to its base screen.
+
+Checked at 360 px: no horizontal overflow on any screen.
+
+TESTS: 265 passed (260 before this work). Bundle 121 kB gzipped, ceiling 200.
+DATABASE: one additive migration, `005_llm_keys.sql`. Nothing dropped, renamed
+or reseeded.

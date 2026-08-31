@@ -83,11 +83,14 @@ def list_entries(plot_id: str = Query(...),
     sql = "SELECT * FROM farm_entries WHERE plot_id = :p"
     args: dict[str, Any] = {"p": plot_id, "n": limit}
     if since:
-        sql += " AND spent_on >= :since"; args["since"] = since
+        sql += " AND spent_on >= :since"
+        args["since"] = since
     if until:
-        sql += " AND spent_on <= :until"; args["until"] = until
+        sql += " AND spent_on <= :until"
+        args["until"] = until
     if cycle_id:
-        sql += " AND crop_cycle_id = :c"; args["c"] = cycle_id
+        sql += " AND crop_cycle_id = :c"
+        args["c"] = cycle_id
     sql += " ORDER BY spent_on DESC, id DESC LIMIT :n"
     rows = [_row(r) for r in db.rows(sql, args)]
     return {"plot_id": plot_id, "entries": rows, "count": len(rows),

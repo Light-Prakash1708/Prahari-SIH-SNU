@@ -10,6 +10,8 @@ PyJWT>=2.8
 numpy>=1.26
 pillow>=10.2
 httpx>=0.27
+# AES-GCM for the language-model keys a farmer stores on their own account
+cryptography>=42
 
 # PostgreSQL — required for deployment, unused by the SQLite dev/demo build
 psycopg[binary]>=3.1

@@ -37,7 +37,6 @@ from typing import Any
 from . import forecast as fc_mod
 from . import reference
 from .agenda import agenda
-from .clock import today as _today
 
 # A stage_factor is a multiplier on the economic threshold: 0.7 means act at
 # 70% of the usual count, which is a statement that the crop is more vulnerable
@@ -264,6 +263,9 @@ def _prevention_window(series: list[dict[str, Any]], head: dict[str, Any],
         "method": ("The window is the forecast horizon of the published infection models — the "
                    "days on which acting is still prevention rather than treatment. Factors are "
                    "listed only where a record exists; none are inferred."),
+        "method_mr": ("ही मुदत प्रकाशित संसर्ग मॉडेलच्या अंदाज कालावधीएवढी आहे — ज्या दिवसांत "
+                      "केलेली कृती अजून प्रतिबंध ठरते, उपचार नाही. जिथे नोंद आहे तेच घटक "
+                      "दाखवले आहेत; काहीही गृहीत धरलेले नाही."),
     }
 
 
@@ -442,6 +444,11 @@ def build(db, rt, plot: dict[str, Any], *, lang: str = "en") -> dict[str, Any]:
             "satisfies a published infection model, so whether one will threaten a stage six "
             "weeks away is a question about weather that does not exist yet. PRAHARI leaves "
             "those stages blank rather than colouring them in."),
+        "disease_note_mr": (
+            "रोगाची पातळी फक्त सध्याच्या अवस्थेसाठी दाखवली जाते. हवामान प्रकाशित संसर्ग "
+            "मॉडेलच्या अटी पूर्ण करते तेव्हाच रोग सुरू होतो, त्यामुळे सहा आठवड्यांनंतरच्या "
+            "अवस्थेचा धोका हा अजून अस्तित्वात नसलेल्या हवामानाचा प्रश्न आहे. प्रहरी त्या "
+            "अवस्था रंगवण्याऐवजी रिकाम्या ठेवते."),
         "prevention_window": _prevention_window(series, head, traps, stage, nearby),
         "weather_context": {
             "source": wx.get("source"), "generated": wx.get("generated", False),
@@ -460,4 +467,10 @@ def build(db, rt, plot: dict[str, Any], *, lang: str = "en") -> dict[str, Any]:
             "models run on this field's weather, pest vulnerability per stage from the ICAR "
             "threshold tables' stage factors, and history from the field's own records. "
             "Nothing on this screen is generated prose."),
+        "method_mr": (
+            "हे आकडे आधीच तयार होणाऱ्या सेवांमधून एकत्र केले आहेत: पेरणीच्या तारखेवरून व "
+            "पिकाच्या अवस्था तक्त्यावरून पीक अवस्था, तुमच्या शेतावरील हवामानावर चालवलेल्या "
+            "प्रकाशित संसर्ग मॉडेलमधून रोगाची पातळी, ICAR उंबरठा तक्त्यांतील अवस्था-घटकांवरून "
+            "प्रत्येक अवस्थेतील किडीचा धोका, आणि शेताच्या स्वतःच्या नोंदींवरून इतिहास. "
+            "या पडद्यावरील काहीही मजकूर आपोआप लिहिलेले नाही."),
     }

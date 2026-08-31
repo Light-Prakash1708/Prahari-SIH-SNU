@@ -189,6 +189,14 @@ def agenda(db: Database, rt, plot: dict[str, Any], *, health: dict[str, Any] | N
                    "overdue follow-ups, threshold crossings, infection models firing on this "
                    "field's weather, corroborated community signals, then routine scouting. "
                    "Every item names the row it came from."),
+        # The method sentence is the app showing its working, and it was
+        # English-only on a screen that is otherwise entirely Marathi — which
+        # makes the one paragraph a farmer most needs to be able to audit the
+        # one paragraph they cannot read.
+        "method_mr": ("नोंदींवरून, परिणामाच्या क्रमाने तयार केलेले: काढणीपूर्व प्रतीक्षा काळ, "
+                      "थकीत पुनर्तपासणी, उंबरठा ओलांडणे, तुमच्या शेतावरील हवामानावर चालणारी "
+                      "संसर्ग मॉडेल, शेजाऱ्यांनी दुजोरा दिलेले संकेत, आणि नंतर नियमित तपासणी. "
+                      "प्रत्येक बाब कोणत्या नोंदीवरून आली ते सांगते."),
     }
 
 
