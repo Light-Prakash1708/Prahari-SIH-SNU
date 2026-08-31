@@ -77,7 +77,14 @@ export default function Crop({ lang, plot, plots, onPlot, go }) {
         {busy && plot && <Loading lines={3} />}
         {err && <ErrorNote error={err} lang={lang} />}
 
-        {/* ── the crop calendar ───────────────────────────────────────── */}
+        {/* ── the crop calendar ─────────────────────────────────────────
+            This screen is the field RECORD — traps, passport, season detail.
+            The calendar itself lives on the Crop tab, where the same stage
+            table is resolved into real dates and carries threat windows, the
+            prevention window and the field's history. Keeping a second,
+            date-less copy here was the reason the calendar read as static: a
+            farmer landing on this screen saw a bare five-stage bar with no
+            dates on it and reasonably concluded nothing was computed. */}
         {crop?.stages && (
           <Card>
             <div className="card-title" style={{ marginBottom: 4 }}>
@@ -85,21 +92,27 @@ export default function Crop({ lang, plot, plots, onPlot, go }) {
             </div>
             <p className="tiny muted" style={{ marginBottom: 10 }}>
               {stage?.days != null
-                ? (lang === 'mr' ? `पेरणीनंतर ${stage.days} दिवस` : `Day ${stage.days} after sowing`)
+                ? (lang === 'mr' ? `पेरणीनंतर ${stage.days} दिवस · ${bi(lang, stage.label, stage.label_mr)}`
+                                 : `Day ${stage.days} after sowing · ${bi(lang, stage.label, stage.label_mr)}`)
                 : (lang === 'mr' ? 'पेरणीची तारीख नोंदवा' : 'Add a sowing date to place the crop')}
             </p>
+
             <div className="calbar">
               {crop.stages.map(([key, lo, hi, label]) => {
                 const d = stage?.days
                 const cls = d == null ? '' : d > hi ? 'done' : (d >= lo && d <= hi) ? 'now' : ''
-                return <div className={`st ${cls}`} key={key}>{label}</div>
+                return (
+                  <div className={`st ${cls}`} key={key}>
+                    <span>{label}</span>
+                    {/* the day band, so the bar is never a row of bare words */}
+                    <small style={{ display: 'block', fontSize: 9.5, opacity: .7, marginTop: 2 }}>
+                      {lo}–{hi}d
+                    </small>
+                  </div>
+                )
               })}
             </div>
-            <div className="tiny faint" style={{ marginTop: 8, lineHeight: 1.5 }}>
-              {lang === 'mr'
-                ? 'अवस्था आर्थिक नुकसान मर्यादा बदलते आणि फवारणी किडीपर्यंत पोहोचेल का हे ठरवते.'
-                : 'The stage scales the economic threshold and decides whether a spray can physically reach the pest — it is not decoration.'}
-            </div>
+
             {stage?.days_to_harvest != null && (
               <div className="note" style={{ marginTop: 10 }}>
                 {lang === 'mr'
@@ -107,6 +120,19 @@ export default function Crop({ lang, plot, plots, onPlot, go }) {
                   : `About ${stage.days_to_harvest} days to harvest.`}
               </div>
             )}
+
+            <button className="btn block ghost" style={{ marginTop: 12 }}
+                    onClick={() => go('crop')}>
+              {lang === 'mr'
+                ? 'संपूर्ण पीक प्रवास पहा — धोक्याचा कालावधी व इतिहास'
+                : 'Open the full Crop Journey — dates, threat windows, history'}
+            </button>
+
+            <div className="tiny faint" style={{ marginTop: 10, lineHeight: 1.5 }}>
+              {lang === 'mr'
+                ? 'अवस्था आर्थिक नुकसान मर्यादा बदलते आणि फवारणी किडीपर्यंत पोहोचेल का हे ठरवते.'
+                : 'The stage scales the economic threshold and decides whether a spray can physically reach the pest — it is not decoration.'}
+            </div>
           </Card>
         )}
 

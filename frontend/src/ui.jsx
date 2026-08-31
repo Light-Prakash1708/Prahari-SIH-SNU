@@ -393,7 +393,19 @@ export function Camera({ onCapture, onClose, title = 'Scan Crop', tips, lang = '
                 </div>
               </div>
             : <video ref={videoRef} playsInline muted />}
-        {!preview && <div className="cam-frame"><i /><i /><i /><i /></div>}
+        {!preview && !err && (
+          <>
+            {/* Saurjya's viewfinder: a dimmed surround with a lit cut-out,
+                mint corner brackets and a travelling line. The line is
+                decoration — it reports nothing about the frame. The real
+                verdict is the server's quality gate, which runs after the
+                shutter and can refuse the photograph outright. */}
+            <div className="cam-reticle"><b /><b /><b /><b /><span className="cam-scanline" /></div>
+            <div className="cam-hint">
+              {lang === 'mr' ? 'एकच पान चौकटीत भरा' : 'Fill the frame with one leaf'}
+            </div>
+          </>
+        )}
         {!preview && (
           <div className="cam-tips">
             <div className="t">{lang === 'mr' ? 'चांगल्या निकालासाठी' : 'Tips for best result'}</div>

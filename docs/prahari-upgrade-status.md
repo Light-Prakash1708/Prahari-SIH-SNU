@@ -72,6 +72,37 @@ renamed. No primary ID changed.
 
 TESTS: 237 passed (199 before this work). `npm run build` clean.
 
+## UI pass — Saurjya's surfaces, after review
+
+Six things came back from a look at the running app against Saurjya's site:
+
+1. **The calendar read as static.** The Crop tab was already the dynamic
+   journey; what looked static was a SECOND, date-less copy of the stage bar on
+   the Crop *record* screen. That copy now shows each stage's day band and the
+   current stage, and links to the journey instead of pretending to be it.
+2. **Quick Actions** now sit on Home in Saurjya's exact bento — mint hero tile
+   spanning two rows, two compacts beside it, two below, one wide at the foot,
+   with "View All". Every tile routes somewhere that works.
+3. **AgriDoc** rebuilt as his AI-agronomist sheet: forest header with avatar and
+   live dot, bubble thread, suggestion rail, pill composer with a round send
+   button. The grounding is unchanged — an ungrounded answer still renders as a
+   visibly different bubble and every source is printed under the bubble.
+4. **"How PRAHARI works"** added to Home. His version is five marketing claims
+   side by side; ours is the seven-step loop in order, numbered, with a
+   connector rail, because the sequence is the argument. Each step names what
+   in the app performs it and links to it.
+5. **The scanner** got his viewfinder: dimmed surround, mint corner brackets,
+   travelling scanline, mint shutter ring. The scanline is decoration and says
+   nothing about the frame — the honest verdict is the server-side quality gate
+   that runs after the shutter.
+6. **Soil** got his score dial on the self-test and his N/P/K/pH/OC nutrient
+   cards on the lab tab. The plan itself was already correct — verified against
+   the API and in the browser — so this was presentation, and a nutrient the
+   farmer did not enter now reads "not measured" rather than being coloured as
+   though it were adequate.
+
+New files: `screens/Sections.jsx` (QuickActions, HowItWorks), `screens/saurjya.css`.
+
 ## Known limitations — stated, not hidden
 
 - **No trained vision weights.** The Kaggle dataset is behind an account and

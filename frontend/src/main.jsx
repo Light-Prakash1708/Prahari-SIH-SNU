@@ -32,6 +32,11 @@ import './styles.css'
    chrome. Both come after styles.css so they win on equal specificity. */
 import './brand.css'
 import './shell/shell.css'
+/* Saurjya's recurring surfaces — the Quick Actions bento, the AgriDoc sheet,
+   the how-it-works pipeline and the scanner viewfinder — are imported here
+   rather than from ui.jsx, because the Camera primitive lives in ui.jsx and a
+   stylesheet import there would load on every screen that uses any primitive. */
+import './screens/saurjya.css'
 import App from './App'
 
 createRoot(document.getElementById('root')).render(<App />)

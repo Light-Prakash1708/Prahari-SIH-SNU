@@ -23,6 +23,7 @@ import {
   Band, Card, ErrorNote, Gauge, Loading, Prov, WeatherStrip, Why,
   bi, fmtDate, levelLabel,
 } from '../ui'
+import { HowItWorks, QuickActions } from './Sections'
 
 const GREET = (h, lang) => {
   if (lang === 'mr') return h < 12 ? 'सुप्रभात' : h < 17 ? 'नमस्कार' : 'शुभ संध्याकाळ'
@@ -253,6 +254,14 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
                   : 'Every scan, count, decision and application this season. At harvest, this is the record that shows what was used and when.'}
               </p>
             </Card>
+
+            {/* Saurjya's Quick Actions bento, on the screen a farmer opens
+                first. Every tile goes somewhere that works. */}
+            <QuickActions lang={lang} go={go} />
+
+            {/* And the loop itself, spelled out. A farmer who cannot see why
+                the app asked them to walk the field will not walk it. */}
+            <HowItWorks lang={lang} go={go} />
 
             <div className="tiny faint center" style={{ padding: '18px 8px 4px', lineHeight: 1.6 }}>
               {lang === 'mr'

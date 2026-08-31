@@ -1,17 +1,47 @@
-/* PRAHARI · साथी — the assistant screen.
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRAHARI · AgriDoc (साथी) — the assistant screen
 
-   Every answer arrives with the rows it came from, and the screen renders them.
-   An answer with no source renders as a refusal, visibly different from a
-   grounded one — because a farmer who cannot tell those two apart will trust
-   both equally, and one of them does not deserve it. */
+   Saurjya's AI-agronomist sheet: the dark forest header with its avatar and
+   live dot, the bubble thread, the suggestion rail, the pill composer with its
+   round send button.
+
+   What is NOT Saurjya's is the thing that matters. His mock replies with
+   confident dosages. This one answers only from rows the server can point at,
+   and an ungrounded answer renders as a visibly different bubble — because a
+   farmer who cannot tell a sourced answer from an unsourced one will trust
+   both equally, and one of them does not deserve it. Every source the server
+   returns is printed under the bubble that used it.
+   ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
-import { Card, ErrorNote, Prov, bi } from '../ui'
+import { ErrorNote, bi } from '../ui'
+import Icon from '../shell/Icon'
+import './saurjya.css'
 
 const SRC_ICON = {
   threshold: '📏', model: '🌦', weather: '🌦', ipm: '🌿',
   field_record: '📋', reference: '📖', policy: '🛡️', label_claim: '🧪',
 }
+
+const T = {
+  mr: {
+    name: 'प्रहरी अ‍ॅग्रीडॉक', status: 'ऑनलाइन · शेताच्या नोंदींवरून',
+    greet: 'नमस्कार. मी तुमच्या शेताच्या नोंदी, हवामान मॉडेल आणि तपासलेल्या शिफारशी वापरून उत्तर देतो — दुसरे काहीही नाही.',
+    ask: 'तुमच्या शेताबद्दल विचारा…', thinking: 'नोंदी तपासत आहे…',
+    cannot: 'याचे उत्तर देता येत नाही', where: 'हे कुठून आले',
+    noField: 'शेत निवडलेले नाही', wont: 'अ‍ॅग्रीडॉक हे करणार नाही',
+    foot: 'अ‍ॅग्रीडॉक फक्त तपासलेल्या नोंदींवरून उत्तर देते — औषधाची मात्रा स्वतःहून सांगत नाही.',
+  },
+  en: {
+    name: 'PRAHARI AgriDoc', status: 'Online · answers from your field records',
+    greet: 'Namaste. I answer from your own field records, the weather models running on this plot, and verified recommendations — nothing else.',
+    ask: 'Ask about your field…', thinking: 'Looking through your records…',
+    cannot: 'Cannot answer this', where: 'Where this came from',
+    noField: 'no field selected', wont: 'What AgriDoc will not do',
+    foot: 'AgriDoc answers only from verified records. It will not invent a pesticide dose.',
+  },
+}
+const t = (lang, k) => (T[lang] || T.en)[k] ?? T.en[k]
 
 export default function Saathi({ lang, plot, go }) {
   const [turns, setTurns] = useState([])
@@ -31,95 +61,72 @@ export default function Saathi({ lang, plot, go }) {
     const question = (text ?? q).trim()
     if (!question || busy) return
     setQ(''); setErr(null); setBusy(true)
-    setTurns(t => [...t, { role: 'me', text: question }])
+    setTurns(prev => [...prev, { role: 'me', text: question }])
     try {
       const out = await api.saathiAsk(question, plot?.id, lang)
-      setTurns(t => [...t, { role: 'saathi', ...out }])
+      setTurns(prev => [...prev, { role: 'saathi', ...out }])
     } catch (e) { setErr(e) } finally { setBusy(false) }
   }
 
   return (
     <>
-      <div className="topbar">
-        <button className="icon-btn" onClick={() => go('home')} aria-label="Back">‹</button>
-        <div className="grow">
-          <h1>{lang === 'mr' ? 'प्रहरी साथी' : 'PRAHARI Saathi'}</h1>
-          <div className="tiny faint" style={{ marginTop: 1 }}>
-            {plot ? plot.name : (lang === 'mr' ? 'शेत निवडलेले नाही' : 'no field selected')}
+      {/* Saurjya's agronomist header */}
+      <div className="ad-head">
+        <span className="ad-head__avatar"><Icon name="robot" size={22} /></span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="ad-head__name">{t(lang, 'name')}</div>
+          <div className="ad-head__status">
+            <span className="ad-dot" />
+            {plot ? `${plot.name} · ${t(lang, 'status')}` : t(lang, 'noField')}
           </div>
         </div>
       </div>
 
-      <div className="pad stack" style={{ paddingTop: 14 }}>
-        {turns.length === 0 && (
-          <>
-            <Card style={{ background: 'var(--g-050)', borderColor: 'var(--g-300)' }}>
-              <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
-                <div style={{ fontSize: 26 }}>🌿</div>
-                <div className="grow">
-                  <div className="card-title">
-                    {lang === 'mr' ? 'नमस्कार. काय विचारायचे आहे?' : 'Ask me about your field'}
-                  </div>
-                  <p className="small" style={{ marginTop: 6 }}>{meta?.scope}</p>
-                </div>
-              </div>
-            </Card>
+      <div className="ad-thread">
+        {/* The greeting is a claim about scope, so it carries the server's own
+            description of what this assistant may answer rather than a
+            friendly sentence written here. */}
+        <div className="ad-bubble ad-bubble--bot">
+          {t(lang, 'greet')}
+          {meta?.scope && (
+            <div className="tiny muted" style={{ marginTop: 8, lineHeight: 1.5 }}>{meta.scope}</div>
+          )}
+        </div>
 
-            {meta?.suggestions && (
-              <div style={{ display: 'grid', gap: 8 }}>
-                {meta.suggestions.map((s, i) => (
-                  <button key={i} className="chip" style={{
-                    textAlign: 'left', width: '100%', minHeight: 44, padding: '11px 14px',
-                  }} onClick={() => send(s)}>{s}</button>
-                ))}
+        {turns.length === 0 && meta?.will_not_do?.length > 0 && (
+          <div className="ad-bubble ad-bubble--bot" style={{ maxWidth: '92%' }}>
+            <div className="tiny" style={{ fontWeight: 800, color: 'var(--muted)',
+                                           letterSpacing: '.05em', marginBottom: 7,
+                                           textTransform: 'uppercase' }}>
+              {t(lang, 'wont')}
+            </div>
+            {meta.will_not_do.map((w, i) => (
+              <div key={i} className="evid" style={{ padding: '3px 0' }}>
+                <span className="cross">✗</span><span className="small">{w}</span>
               </div>
-            )}
-
-            {meta?.will_not_do && (
-              <Card className="tight">
-                <div className="tiny" style={{ fontWeight: 700, color: 'var(--muted)',
-                                               letterSpacing: '.05em', marginBottom: 7 }}>
-                  {lang === 'mr' ? 'साथी हे करणार नाही' : 'WHAT SAATHI WILL NOT DO'}
-                </div>
-                {meta.will_not_do.map((w, i) => (
-                  <div className="evid" key={i} style={{ padding: '4px 0' }}>
-                    <span className="cross">✗</span><span className="small">{w}</span>
-                  </div>
-                ))}
-              </Card>
-            )}
-          </>
+            ))}
+          </div>
         )}
 
-        {turns.map((t, i) => t.role === 'me' ? (
-          <div key={i} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <div style={{
-              background: 'var(--g-600)', color: '#fff', borderRadius: '16px 16px 4px 16px',
-              padding: '10px 14px', maxWidth: '85%', fontSize: 14.5, lineHeight: 1.45,
-            }}>{t.text}</div>
-          </div>
+        {turns.map((turn, i) => turn.role === 'me' ? (
+          <div key={i} className="ad-bubble ad-bubble--me">{turn.text}</div>
         ) : (
-          <Card key={i} style={{
-            borderColor: t.grounded ? 'var(--rule-soft)' : 'var(--warn-line)',
-            background: t.grounded ? 'var(--card)' : 'var(--warn-bg)',
-          }}>
-            {!t.grounded && (
-              <div className="row" style={{ gap: 7, marginBottom: 8 }}>
-                <span style={{ fontSize: 16 }}>🤷</span>
-                <span className="tiny" style={{ fontWeight: 800, color: 'var(--warn)',
-                                                letterSpacing: '.05em' }}>
-                  {lang === 'mr' ? 'याचे उत्तर देता येत नाही' : 'CANNOT ANSWER THIS'}
-                </span>
+          <div key={i}
+               className={'ad-bubble ad-bubble--bot' + (turn.grounded ? '' : ' ad-bubble--refusal')}
+               style={{ maxWidth: '92%' }}>
+            {!turn.grounded && (
+              <div className="tiny" style={{ fontWeight: 800, letterSpacing: '.05em',
+                                             textTransform: 'uppercase', marginBottom: 7 }}>
+                🤷 {t(lang, 'cannot')}
               </div>
             )}
-            <div style={{ fontSize: 14.5, lineHeight: 1.6, whiteSpace: 'pre-line' }}>
-              {t.answer}
-            </div>
 
-            {t.actions?.length > 0 && (
+            <div style={{ whiteSpace: 'pre-line' }}>{turn.answer}</div>
+
+            {turn.actions?.length > 0 && (
               <div className="row wrap" style={{ gap: 8, marginTop: 12 }}>
-                {t.actions.map((a, j) => (
-                  <button key={j} className="btn sm ghost"
+                {turn.actions.map((a, j) => (
+                  <button key={j} className="ad-chip"
                           onClick={() => go(a.do, a.target ? { target: a.target } : {})}>
                     {a.label} ›
                   </button>
@@ -127,73 +134,66 @@ export default function Saathi({ lang, plot, go }) {
               </div>
             )}
 
-            {t.sources?.length > 0 && (
-              <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--rule-soft)' }}>
-                <div className="tiny" style={{ fontWeight: 700, color: 'var(--muted)',
-                                               letterSpacing: '.05em', marginBottom: 6 }}>
-                  {lang === 'mr' ? 'हे कुठून आले' : 'WHERE THIS CAME FROM'}
+            {turn.sources?.filter(s => s.detail).length > 0 && (
+              <div className="ad-sources">
+                <div className="tiny" style={{ fontWeight: 800, color: 'var(--muted)',
+                                               letterSpacing: '.05em', textTransform: 'uppercase' }}>
+                  {t(lang, 'where')}
                 </div>
-                {t.sources.filter(s => s.detail).map((s, j) => (
-                  <div key={j} className="row" style={{
-                    gap: 7, alignItems: 'flex-start', padding: '3px 0',
-                  }}>
-                    <span style={{ fontSize: 12 }}>{SRC_ICON[s.kind] || '·'}</span>
-                    <span className="tiny" style={{ color: 'var(--muted)', lineHeight: 1.45 }}>
+                {turn.sources.filter(s => s.detail).map((s, j) => (
+                  <div key={j} className="ad-source">
+                    <span>{SRC_ICON[s.kind] || '·'}</span>
+                    <span>
                       {s.detail}
                       {s.status === 'draft' && (
-                        <span className="badge warn" style={{
-                          marginLeft: 6, padding: '1px 6px', fontSize: 10,
-                        }}>unverified</span>
+                        <span className="badge warn" style={{ marginLeft: 6, padding: '1px 6px',
+                                                              fontSize: 10 }}>unverified</span>
                       )}
                       {s.generated && (
-                        <span className="badge warn" style={{
-                          marginLeft: 6, padding: '1px 6px', fontSize: 10,
-                        }}>generated weather</span>
+                        <span className="badge warn" style={{ marginLeft: 6, padding: '1px 6px',
+                                                              fontSize: 10 }}>generated weather</span>
                       )}
                     </span>
                   </div>
                 ))}
               </div>
             )}
-          </Card>
+          </div>
         ))}
 
         {busy && (
-          <Card className="tight">
-            <div className="row" style={{ gap: 9 }}>
-              <span style={{ fontSize: 15 }}>🌿</span>
-              <span className="small muted">
-                {lang === 'mr' ? 'नोंदी तपासत आहे…' : 'Looking through your records…'}
-              </span>
-            </div>
-          </Card>
+          <div className="ad-bubble ad-bubble--bot">
+            <span className="ad-typing"><i /><i /><i /></span>
+            <span className="small muted" style={{ marginLeft: 8 }}>{t(lang, 'thinking')}</span>
+          </div>
         )}
 
         {err && <ErrorNote error={err} lang={lang} />}
         <div ref={endRef} />
       </div>
 
-      {/* composer, docked above the tab bar */}
-      <div style={{
-        position: 'fixed', bottom: 'calc(76px + env(safe-area-inset-bottom))',
-        left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 'var(--shell)',
-        padding: '10px 12px', background: 'var(--card)', borderTop: '1px solid var(--rule)',
-        zIndex: 35,
-      }}>
-        <form className="row" style={{ gap: 8 }} onSubmit={e => { e.preventDefault(); send() }}>
-          <input className="input grow" value={q} onChange={e => setQ(e.target.value)}
-                 placeholder={lang === 'mr' ? 'तुमचा प्रश्न लिहा…' : 'Ask about your field…'}
-                 style={{ minHeight: 44 }} />
-          <button className="btn" type="submit" disabled={busy || !q.trim()}
-                  style={{ minWidth: 52, padding: '10px 16px' }} aria-label="Send">↑</button>
-        </form>
-        <p className="tiny faint center" style={{ marginTop: 6 }}>
-          {lang === 'mr'
-            ? 'साथी फक्त तपासलेल्या माहितीवरून उत्तर देते — औषधाची मात्रा स्वतःहून सांगत नाही.'
-            : 'Saathi answers only from verified records. It will not invent a pesticide dose.'}
-        </p>
-      </div>
-      <div style={{ height: 92 }} />
+      {meta?.suggestions?.length > 0 && (
+        <div className="ad-chips">
+          {meta.suggestions.map((s, i) => (
+            <button key={i} className="ad-chip" onClick={() => send(s)}>{s}</button>
+          ))}
+        </div>
+      )}
+
+      <form className="ad-composer" onSubmit={e => { e.preventDefault(); send() }}>
+        <input value={q} onChange={e => setQ(e.target.value)}
+               placeholder={t(lang, 'ask')} aria-label={t(lang, 'ask')} />
+        <button className="ad-send" type="submit" disabled={busy || !q.trim()} aria-label="Send">
+          <Icon name="send" size={18} />
+        </button>
+      </form>
+
+      {/* the floating bar sits over the foot of every screen, so this line
+          reserves room for it rather than being half-hidden behind it */}
+      <p className="tiny faint center"
+         style={{ padding: '10px 16px calc(var(--botnav-h) + 8px)', lineHeight: 1.5 }}>
+        {bi(lang, T.en.foot, T.mr.foot)}
+      </p>
     </>
   )
 }

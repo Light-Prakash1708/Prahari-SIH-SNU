@@ -89,13 +89,36 @@ export default function Soil({ lang, plot, go }) {
             </button>
 
             {result && (
-              <Card>
-                <div className="row between" style={{ marginBottom: 10 }}>
-                  <div className="card-title">{bi(lang, result.label, result.label_mr)}</div>
-                  <span className={`badge ${result.tone}`}>
-                    {result.score} / {result.out_of}
-                  </span>
+              <Card style={{ padding: 0, overflow: 'hidden', border: 'none', background: 'none' }}>
+                {/* Saurjya's score dial. The number is the VSA score out of
+                    twelve, not a laboratory grade, and the pill under it says
+                    which of the two this is. */}
+                <div className="sh-score">
+                  <div className="sh-score__col">
+                    <div className="sh-score__label">
+                      {lang === 'mr' ? 'निरीक्षण गुण' : 'Visual assessment score'}
+                    </div>
+                    <div className="sh-score__val">
+                      {result.score}<small> / {result.out_of}</small>
+                    </div>
+                    <span className="sh-score__pill">
+                      {bi(lang, result.label, result.label_mr)}
+                    </span>
+                  </div>
+                  <div className="sh-gauge">
+                    <svg viewBox="0 0 92 92" width="92" height="92">
+                      <circle className="sh-gauge__bg" cx="46" cy="46" r="38" />
+                      <circle className="sh-gauge__val" cx="46" cy="46" r="38"
+                              strokeDasharray={`${(result.percent / 100) * 238.8} 238.8`} />
+                    </svg>
+                    <div style={{ position: 'absolute', inset: 0, display: 'grid',
+                                  placeItems: 'center', fontWeight: 800, fontSize: 17 }}>
+                      {result.percent}%
+                    </div>
+                  </div>
                 </div>
+
+                <Card style={{ marginTop: 12 }}>
                 <p className="small">{result.summary}</p>
                 {result.findings.map(f => (
                   <div className="note warn" style={{ marginTop: 10 }} key={f.id}>
@@ -105,6 +128,7 @@ export default function Soil({ lang, plot, go }) {
                 ))}
                 <Prov label={lang === 'mr' ? 'हे का महत्त्वाचे' : 'Why this matters'}
                       value={result.why_it_matters} />
+                </Card>
               </Card>
             )}
           </>
@@ -132,6 +156,31 @@ export default function Soil({ lang, plot, go }) {
             <button className="btn block" disabled={busy} onClick={submitLab}>
               {lang === 'mr' ? 'खत नियोजन पहा' : 'See the nutrient plan'}
             </button>
+
+            {/* Saurjya's nutrient cards. Each one shows the ICAR class the
+                server assigned and the value it was assigned from; a nutrient
+                the farmer did not enter reads "not measured" rather than
+                being coloured as though it were adequate. */}
+            {plan?.ratings && (
+              <div className="sh-nutgrid">
+                {[['nitrogen_kg_ha', 'N'], ['phosphorus_kg_ha', 'P'], ['potassium_kg_ha', 'K'],
+                  ['ph', 'pH'], ['organic_carbon_pct', 'OC']].map(([key, sym]) => {
+                  const r = plan.ratings[key]
+                  const cls = r?.class
+                  return (
+                    <div key={key}
+                         className={'sh-nut' + (!r ? ' sh-nut--empty'
+                           : cls === 'low' ? ' sh-nut--low' : cls === 'high' ? ' sh-nut--high' : '')}>
+                      <span className="sh-nut__sym">{sym}</span>
+                      <span className="sh-nut__class">
+                        {r ? cls : (lang === 'mr' ? 'न मोजलेले' : 'not measured')}
+                      </span>
+                      {r && <span className="sh-nut__val">{r.value} {r.unit?.split(' ')[0]}</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
 
             {plan?.plan && (
               <Card>

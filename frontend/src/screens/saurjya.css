@@ -1,0 +1,368 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRAHARI · Saurjya's recurring surfaces, as one stylesheet
+
+   Four things his static pages do that the app was missing: the Quick Actions
+   bento with its mint hero tile, the AI-agronomist chat sheet, the "how it
+   works" pipeline, and the scanner viewfinder. They live together because they
+   share the same geometry — his radii, his mint (#F0FFF0), his forest
+   (#0B3D2C) — and drift apart if they are edited in four different files.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Quick Actions bento ─────────────────────────────────────────────────
+   Saurjya's exact layout: one tall mint tile on the left spanning two rows,
+   two compact tiles stacked beside it, two more below, and a full-width tile
+   at the foot. */
+.qa-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 12px;
+}
+.qa-head h2 {
+  font-family: var(--display); font-size: 18px; font-weight: 800;
+  color: var(--ink); letter-spacing: -.2px;
+}
+.qa-viewall {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13.5px; font-weight: 700; color: var(--accent-color);
+  min-height: 40px; padding: 0 4px;
+}
+.qa-viewall:hover { color: var(--g-900); }
+
+.qa-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  grid-auto-rows: minmax(96px, auto); gap: 10px;
+}
+.qa-tile {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px; border-radius: 20px; text-align: left;
+  background: var(--card); border: 1px solid var(--rule);
+  box-shadow: var(--shadow-xs);
+  transition: transform .2s cubic-bezier(.16,1,.3,1), box-shadow .2s ease,
+              border-color .2s ease;
+}
+.qa-tile:hover, .qa-tile:focus-visible {
+  transform: translateY(-2px); box-shadow: var(--shadow);
+  border-color: var(--accent-color);
+}
+.qa-tile__icon {
+  width: 42px; height: 42px; flex: none; border-radius: 13px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--g-050); color: var(--g-900);
+}
+.qa-tile__title {
+  /* block, because these are two stacked lines inside one span — inline
+     spans run the label and its subtitle together on the same line */
+  display: block;
+  font-family: var(--display); font-size: 14.5px; font-weight: 800;
+  color: var(--ink); line-height: 1.25;
+}
+.qa-tile__sub {
+  display: block;
+  font-size: 11.5px; font-weight: 600; color: var(--muted); margin-top: 3px;
+}
+
+/* the hero tile — Saurjya's soft mint, two rows tall */
+.qa-tile--hero {
+  grid-row: span 2;
+  justify-content: space-between;
+  background: linear-gradient(160deg, #C9F5D2 0%, #A7EFBC 100%);
+  border-color: #8FE3A8;
+}
+.qa-tile--hero .qa-tile__icon { background: rgba(11,61,44,.12); color: var(--g-900); }
+.qa-tile--hero .qa-tile__title {
+  font-size: 24px; line-height: 1.1; letter-spacing: -.4px; color: #06251A;
+}
+.qa-tile--hero .qa-tile__sub {
+  font-size: 11px; font-weight: 800; letter-spacing: .07em;
+  text-transform: uppercase; color: #14603F; margin-top: 6px;
+}
+
+.qa-tile--wide {
+  grid-column: 1 / -1; flex-direction: row; align-items: center;
+  justify-content: flex-start; gap: 14px; padding: 14px 16px;
+}
+
+/* ── "How PRAHARI works" — the pipeline ──────────────────────────────────
+   Saurjya's feature grid, re-cut so each card is one STEP of the loop rather
+   than one marketing claim. The connector rail makes it read as a sequence,
+   which is the whole argument: this is a chain, not a bag of features. */
+.hw {
+  margin-top: 24px; padding: 20px 16px 22px; border-radius: 24px;
+  background: linear-gradient(170deg, var(--g-050) 0%, #E4F7EA 100%);
+  border: 1px solid var(--g-100);
+}
+.hw__eyebrow {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 999px;
+  background: rgba(42,125,46,.12); border: 1px solid rgba(42,125,46,.22);
+  color: var(--g-700); font-size: 10.5px; font-weight: 800;
+  letter-spacing: .07em; text-transform: uppercase;
+}
+.hw__title {
+  font-family: var(--display); font-size: 21px; font-weight: 800;
+  color: var(--ink); line-height: 1.25; letter-spacing: -.3px; margin-top: 10px;
+}
+.hw__title em { font-style: normal; color: var(--accent-color); }
+.hw__lede { font-size: 13.5px; color: var(--ink-2); line-height: 1.55; margin-top: 8px; }
+
+.hw__steps { margin-top: 18px; display: grid; gap: 10px; position: relative; }
+.hw__step {
+  position: relative; display: flex; gap: 12px; align-items: flex-start;
+  padding: 14px; border-radius: 18px;
+  background: var(--card); border: 1px solid var(--rule);
+  text-align: left; width: 100%;
+}
+/* the rail: a short line from each card's badge to the next one */
+.hw__step:not(:last-child)::after {
+  content: ''; position: absolute; left: 32px; bottom: -10px;
+  width: 2px; height: 10px; background: var(--g-100);
+}
+.hw__badge {
+  width: 40px; height: 40px; flex: none; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--g-050); color: var(--accent-color); position: relative;
+}
+.hw__num {
+  position: absolute; top: -5px; right: -5px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--g-900); color: #fff;
+  font-size: 10px; font-weight: 800; line-height: 18px; text-align: center;
+}
+.hw__step h3 {
+  font-family: var(--display); font-size: 14.5px; font-weight: 800;
+  color: var(--ink); line-height: 1.3;
+}
+.hw__step p { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin-top: 4px; }
+.hw__step .hw__proof {
+  display: block; font-size: 11.5px; color: var(--g-700);
+  font-weight: 700; margin-top: 6px;
+}
+
+.hw__foot {
+  margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--g-100);
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.hw__chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--rule);
+  font-size: 11.5px; font-weight: 700; color: var(--ink-2);
+}
+.hw__chip i { color: var(--accent-color); display: inline-flex; }
+
+/* ── AgriDoc — Saurjya's AI-agronomist sheet ─────────────────────────── */
+.ad-head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #062419 0%, var(--g-900) 65%, #13583F 100%);
+  color: #fff;
+}
+.ad-head__avatar {
+  width: 46px; height: 46px; flex: none; border-radius: 14px;
+  background: rgba(134,239,172,.18); border: 1px solid rgba(134,239,172,.32);
+  color: var(--g-300);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.ad-head__name {
+  font-family: var(--display); font-size: 16px; font-weight: 800; line-height: 1.2;
+}
+.ad-head__status {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; color: var(--g-300); font-weight: 600; margin-top: 3px;
+}
+.ad-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: #4ADE80;
+  box-shadow: 0 0 0 3px rgba(74,222,128,.22);
+}
+
+.ad-thread {
+  padding: 16px; display: grid; gap: 12px;
+  background: #F6FAF7; min-height: 200px;
+}
+.ad-bubble {
+  max-width: 88%; padding: 12px 14px; border-radius: 18px;
+  font-size: 14px; line-height: 1.55;
+}
+.ad-bubble--bot {
+  background: var(--card); border: 1px solid var(--rule);
+  border-bottom-left-radius: 6px; color: var(--ink);
+  justify-self: start; box-shadow: var(--shadow-xs);
+}
+.ad-bubble--me {
+  background: var(--g-900); color: #fff;
+  border-bottom-right-radius: 6px; justify-self: end;
+}
+.ad-bubble--refusal {
+  background: var(--warn-bg); border-color: var(--warn-line); color: #78350F;
+}
+.ad-typing { display: inline-flex; gap: 4px; align-items: center; }
+.ad-typing i {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--faint);
+  animation: ad-blink 1.2s infinite ease-in-out;
+}
+.ad-typing i:nth-child(2) { animation-delay: .18s; }
+.ad-typing i:nth-child(3) { animation-delay: .36s; }
+@keyframes ad-blink { 0%,80%,100% { opacity: .25 } 40% { opacity: 1 } }
+
+.ad-sources {
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule-soft);
+  display: grid; gap: 6px;
+}
+.ad-source {
+  display: flex; gap: 8px; align-items: flex-start;
+  font-size: 11.5px; color: var(--muted); line-height: 1.45;
+}
+
+.ad-chips {
+  display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px;
+  background: #F6FAF7; scrollbar-width: none;
+}
+.ad-chips::-webkit-scrollbar { display: none; }
+.ad-chip {
+  flex: none; min-height: 40px; padding: 9px 15px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--rule);
+  font-size: 12.5px; font-weight: 700; color: var(--ink-2); white-space: nowrap;
+}
+.ad-chip:hover { border-color: var(--accent-color); color: var(--g-900); }
+
+.ad-composer {
+  display: flex; gap: 10px; align-items: center;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--card); border-top: 1px solid var(--rule);
+}
+.ad-composer input {
+  flex: 1; min-width: 0; min-height: 48px; padding: 0 16px;
+  border-radius: 999px; background: var(--sunk);
+  border: 1.5px solid var(--rule); outline: none;
+  font-size: 14.5px; font-weight: 600; color: var(--ink);
+}
+.ad-composer input:focus { border-color: var(--accent-color); background: var(--card); }
+.ad-send {
+  width: 48px; height: 48px; flex: none; border-radius: 50%;
+  background: var(--accent-color); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 6px 16px rgba(42,125,46,.35);
+  transition: all .2s ease;
+}
+.ad-send:disabled { opacity: .45; box-shadow: none; }
+.ad-send:not(:disabled):hover { background: var(--g-900); transform: translateY(-1px); }
+
+/* ── soil health, Saurjya's nutrient cards ───────────────────────────── */
+.sh-score {
+  display: flex; align-items: center; gap: 16px;
+  padding: 18px 16px; border-radius: 20px;
+  background: linear-gradient(150deg, var(--g-900) 0%, #093325 100%);
+  color: #fff;
+}
+.sh-score__col { flex: 1; min-width: 0; }
+.sh-score__label {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--g-300);
+}
+.sh-score__val {
+  font-family: var(--display); font-size: 38px; font-weight: 800;
+  line-height: 1; margin-top: 4px;
+}
+.sh-score__val small { font-size: 15px; font-weight: 700; opacity: .55; }
+.sh-score__pill {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+  padding: 5px 12px; border-radius: 999px;
+  background: rgba(134,239,172,.16); border: 1px solid rgba(134,239,172,.3);
+  color: var(--g-300); font-size: 11.5px; font-weight: 800;
+}
+.sh-gauge { width: 92px; height: 92px; flex: none; position: relative; }
+.sh-gauge svg { transform: rotate(-90deg); }
+.sh-gauge__bg { fill: none; stroke: rgba(255,255,255,.14); stroke-width: 8; }
+.sh-gauge__val { fill: none; stroke: #4ADE80; stroke-width: 8; stroke-linecap: round;
+  transition: stroke-dasharray .6s ease; }
+
+.sh-nutgrid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px;
+}
+.sh-nut {
+  padding: 12px 8px; border-radius: 16px; text-align: center;
+  background: var(--card); border: 1px solid var(--rule);
+}
+.sh-nut--low { background: var(--bad-bg); border-color: var(--bad-line); }
+.sh-nut--high { background: var(--info-bg); border-color: var(--info-line); }
+.sh-nut__sym {
+  font-family: var(--display); font-size: 17px; font-weight: 800; color: var(--ink);
+}
+.sh-nut__class {
+  display: block; font-size: 11px; font-weight: 800; margin-top: 3px;
+  text-transform: capitalize; color: var(--muted);
+}
+.sh-nut--low .sh-nut__class { color: var(--bad); }
+.sh-nut--high .sh-nut__class { color: var(--info); }
+.sh-nut__val { display: block; font-size: 11px; color: var(--faint); margin-top: 2px; }
+.sh-nut--empty .sh-nut__class { color: var(--faint); font-weight: 600; }
+
+@media (max-width: 360px) {
+  .qa-tile--hero .qa-tile__title { font-size: 21px; }
+  .sh-nutgrid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── the scanner viewfinder ──────────────────────────────────────────────
+   Saurjya's overlay: a dimmed surround with a bright cut-out, mint corner
+   brackets and a travelling scanline. The mask is what makes it read as a
+   scanner rather than a photo app — the eye goes to the lit rectangle.
+
+   The scanline is decoration and says nothing about the image. The honest
+   signal is the quality gate, which runs on the SERVER after the shutter and
+   can refuse the frame; nothing here ever implies a live verdict. */
+.cam-view { position: relative; }
+
+/* The dim surround. An earlier version punched the cut-out with
+   mask-composite, which renders inconsistently and left the frame barely
+   dimmed; a very large spread shadow on the reticle itself does the same job
+   in one line and works everywhere. */
+.cam-reticle {
+  /* the bottom inset clears the tips panel, which is docked 14px from the
+     foot — without it the two lower corner brackets sit behind it */
+  position: absolute; inset: 8% 7% 26%; pointer-events: none;
+  border: 1.5px solid rgba(134,239,172,.35); border-radius: 22px;
+  box-shadow: 0 0 0 9999px rgba(4,18,11,.58);
+  overflow: hidden;
+}
+.cam-reticle b {
+  position: absolute; width: 36px; height: 36px;
+  border: 4px solid #86EFAC;
+  filter: drop-shadow(0 0 6px rgba(74,222,128,.55));
+}
+.cam-reticle b:nth-child(1) { top: -1px; left: -1px; border-right: none; border-bottom: none;
+  border-top-left-radius: 20px; }
+.cam-reticle b:nth-child(2) { top: -1px; right: -1px; border-left: none; border-bottom: none;
+  border-top-right-radius: 20px; }
+.cam-reticle b:nth-child(3) { bottom: -1px; left: -1px; border-right: none; border-top: none;
+  border-bottom-left-radius: 20px; }
+.cam-reticle b:nth-child(4) { bottom: -1px; right: -1px; border-left: none; border-top: none;
+  border-bottom-right-radius: 20px; }
+.cam-scanline {
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, #86EFAC 15%, #4ADE80 50%, #86EFAC 85%, transparent);
+  box-shadow: 0 0 14px 2px rgba(74,222,128,.6);
+  animation: cam-scan 2.6s cubic-bezier(.5,0,.5,1) infinite;
+}
+@keyframes cam-scan {
+  0%   { top: 0;    opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cam-scanline { animation: none; top: 50%; opacity: .5; }
+}
+
+.cam-hint {
+  position: absolute; left: 0; right: 0; top: calc(8% - 30px);
+  text-align: center; color: #DCFCE7; font-size: 12.5px; font-weight: 700;
+  text-shadow: 0 1px 6px rgba(0,0,0,.6); pointer-events: none;
+}
+
+/* the shutter gets Saurjya's mint ring, and the side buttons his glass pills */
+.cam-bar .shutter {
+  box-shadow: 0 0 0 4px rgba(134,239,172,.85), 0 8px 26px rgba(0,0,0,.45);
+}
+.cam-side {
+  border-radius: 16px; padding: 8px 6px;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14);
+}
