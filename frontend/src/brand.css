@@ -1,0 +1,74 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRAHARI · Saurjya brand layer
+
+   Saurjya's Prahari UI is the source of truth for visual identity: the deep
+   forest primary, the mint ground, the Plus Jakarta Sans face, the pill
+   buttons, the floating bottom bar with its raised scan FAB.
+
+   This file re-points the existing design-system tokens at those values, so
+   every screen already written against --g-900 / --card / --sans inherits the
+   new identity without being rewritten. Structure and behaviour stay; only the
+   surface changes.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Saurjya's palette, verbatim */
+  --primary-color: #0B3D2C;
+  --secondary-color: #F0FFF0;
+  --accent-color: #2A7D2E;
+  --white-color: #FFFFFF;
+  --divider-color: #E7ECEA;
+  --dark-divider-color: #FFFFFF33;
+  --error-color: rgb(230, 87, 87);
+  --text-color: #555555;
+
+  /* the existing brand ramp, re-anchored on the Saurjya greens */
+  --g-900: #0B3D2C;
+  --g-800: #0F4A35;
+  --g-700: #14603F;
+  --g-600: #1D7038;
+  --g-500: #2A7D2E;
+  --g-400: #3E9A42;
+  --g-300: #86EFAC;
+  --g-100: #DCF3E4;
+  --g-050: #F0FFF0;
+
+  --ok:   #2A7D2E;  --ok-bg:   #ECFDF3;  --ok-line: #86EFAC;
+  --warn: #B45309;  --warn-bg: #FFFBEB;  --warn-line: #FDE68A;
+  --bad:  #DC2626;  --bad-bg:  #FEF2F2;  --bad-line: #FECACA;
+  --info: #1D4ED8;  --info-bg: #EFF6FF;  --info-line: #BFDBFE;
+
+  --ink:   #0F172A;
+  --ink-2: #334155;
+  --muted: #64748B;
+  --faint: #94A3B8;
+  --rule:      #E7ECEA;
+  --rule-soft: #F1F5F4;
+  --page: #F6FAF7;
+  --card: #FFFFFF;
+  --sunk: #F8FAFC;
+
+  /* officer console keeps its density, tuned to the same hue */
+  --d-bg:     #08281D;
+  --d-card:   #0E3527;
+  --d-card-2: #134030;
+  --d-rule:   #1B5340;
+  --d-ink:    #E9FBF0;
+  --d-muted:  #8FBBA6;
+
+  --sans:    'Plus Jakarta Sans', 'Noto Sans Devanagari', system-ui, -apple-system, sans-serif;
+  --display: 'Plus Jakarta Sans', 'Noto Sans Devanagari', system-ui, sans-serif;
+
+  /* Saurjya's radii are rounder than the original system's */
+  --r-sm: 12px; --r: 16px; --r-lg: 22px; --r-xl: 28px; --r-pill: 999px;
+
+  --shadow-xs: 0 1px 2px rgba(11,61,44,.05);
+  --shadow:    0 1px 3px rgba(11,61,44,.06), 0 8px 22px rgba(11,61,44,.06);
+  --shadow-md: 0 2px 6px rgba(11,61,44,.07), 0 14px 34px rgba(11,61,44,.09);
+  --shadow-lg: 0 4px 12px rgba(11,61,44,.10), 0 24px 56px rgba(11,61,44,.16);
+
+  /* shell chrome heights — the fixed header and the floating bar both need
+     the page to reserve room, or the first and last card sit underneath. */
+  --hdr-h: 68px;
+  --botnav-h: 96px;
+}

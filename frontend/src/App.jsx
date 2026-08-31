@@ -30,23 +30,12 @@ import Soil from './screens/Soil'
 import Water from './screens/Water'
 import Officer from './screens/Officer'
 import Expert from './screens/Expert'
+import { AccountSheet, BottomNav, Drawer, Header } from './shell/Chrome'
 
-/* Five tabs, and the middle one is a camera because that is the verb this app
-   exists for. Fields moved into Crop and Profile moved behind the header —
-   a farmer opens this app to answer "what is wrong and what do I do", and two
-   of the five tabs were administration. */
-const TABS = [
-  ['home', '🏠', 'home'],
-  ['crop', '🌾', 'crop'],
-  ['scan', '📷', 'scan'],
-  ['community', '👥', 'community'],
-  ['agridoc', '🌿', 'agridoc'],
-]
-
-const TAB_LABEL = {
-  mr: { home: 'मुख्य', crop: 'पीक', scan: 'स्कॅन', community: 'समुदाय', agridoc: 'साथी' },
-  en: { home: 'Home', crop: 'Crop', scan: 'Scan', community: 'Community', agridoc: 'AgriDoc' },
-}
+/* Five destinations, and the middle one is a camera because that is the verb
+   this app exists for. The bar itself lives in shell/Chrome — Saurjya's
+   floating pill with the raised scan FAB — and it carries its own labels, so
+   the emoji table that used to sit here is gone. */
 
 export default function App() {
   const [lang, setLangState] = useState(getLang())
@@ -62,6 +51,8 @@ export default function App() {
   const [unread, setUnread] = useState(0)
   const [health, setHealth] = useState(null)
   const [demo, setDemo] = useState(null)
+  const [drawer, setDrawer] = useState(false)
+  const [sheet, setSheet] = useState(false)
 
   /* ── auth changes (including a 401 clearing the token) ────────────────── */
   useEffect(() => auth.onChange(tok => {
@@ -236,30 +227,31 @@ export default function App() {
     : route.name === 'saathi' ? 'agridoc'
     : 'home'
 
-  /* the camera takes the whole screen, so the nav is hidden behind it */
+  /* the camera takes the whole screen, so the chrome steps out of its way */
   const fullscreen = route.name === 'scan'
 
+  const closeAll = () => { setDrawer(false); setSheet(false) }
+  const navigate = (name, params) => { closeAll(); go(name, params) }
+
   return (
-    <div className="shell">
+    <div className={'shell' + (fullscreen ? '' : ' px-chromed')}>
       {!fullscreen && (
-        <Banners online={online} queued={queued} demo={isDemo} stale={staleAt} lang={lang} />
+        <>
+          <Header lang={lang} unread={unread} menuOpen={drawer} accountOpen={sheet}
+                  onMenu={() => { setSheet(false); setDrawer(d => !d) }}
+                  onAccount={() => { setDrawer(false); setSheet(o => !o) }} />
+          <Drawer open={drawer} onClose={() => setDrawer(false)} lang={lang}
+                  route={route.name} go={navigate} role={role} />
+          <AccountSheet open={sheet} onClose={() => setSheet(false)} lang={lang}
+                        me={me} plots={plots} unread={unread} queued={queued}
+                        go={navigate} onSignOut={() => { closeAll(); auth.clear() }} />
+          <Banners online={online} queued={queued} demo={isDemo} stale={staleAt} lang={lang} />
+        </>
       )}
+
       {screen()}
 
-      {!fullscreen && (
-        <nav className="nav" aria-label="Main">
-          {TABS.map(([k, ic]) => (
-            <button key={k} aria-current={activeTab === k ? 'page' : undefined}
-                    onClick={() => go(k)}>
-              {k === 'scan'
-                ? <span className="scan-ic">{ic}</span>
-                : <span className="ic">{ic}</span>}
-              <span className="lbl">{(TAB_LABEL[lang] || TAB_LABEL.en)[k]}</span>
-
-            </button>
-          ))}
-        </nav>
-      )}
+      {!fullscreen && <BottomNav lang={lang} active={activeTab} go={navigate} />}
     </div>
   )
 }

@@ -13,6 +13,10 @@ import { createRoot } from 'react-dom/client'
    Only the Latin and Devanagari subsets are imported. The full packages also
    carry Cyrillic, Greek and Vietnamese, which this app has no way of
    displaying and would only pad the offline bundle. */
+import '@fontsource/plus-jakarta-sans/latin-400.css'
+import '@fontsource/plus-jakarta-sans/latin-600.css'
+import '@fontsource/plus-jakarta-sans/latin-700.css'
+import '@fontsource/plus-jakarta-sans/latin-800.css'
 import '@fontsource/archivo/latin-700.css'
 import '@fontsource/archivo/latin-800.css'
 import '@fontsource/source-sans-3/latin-400.css'
@@ -24,6 +28,10 @@ import '@fontsource/noto-sans-devanagari/devanagari-600.css'
 import '@fontsource/noto-sans-devanagari/devanagari-700.css'
 
 import './styles.css'
+/* Saurjya's identity is layered over the design system: tokens first, then the
+   chrome. Both come after styles.css so they win on equal specificity. */
+import './brand.css'
+import './shell/shell.css'
 import App from './App'
 
 createRoot(document.getElementById('root')).render(<App />)

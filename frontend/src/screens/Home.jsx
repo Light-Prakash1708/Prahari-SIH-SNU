@@ -73,12 +73,10 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
                     : (lang === 'mr' ? 'अजून शेत नोंदवलेले नाही' : 'No field registered yet')}
             </div>
           </div>
-          <div className="row" style={{ gap: 6 }}>
-            <button className="hdr-bell" onClick={onBell} aria-label="Alerts">
-              🔔{unread > 0 && <span className="dot">{unread > 9 ? '9+' : unread}</span>}
-            </button>
-            <button className="hdr-bell" onClick={() => go('profile')} aria-label="Profile">👤</button>
-          </div>
+          {/* The brand header above owns the alert bell and the account sheet
+              now, so the pair that used to sit here would be a second copy of
+              the same two controls. `unread` and `onBell` stay in the props so
+              the count can be surfaced in the greeting if it is ever wanted. */}
         </div>
         {plot && (
           <div className="cropline">
