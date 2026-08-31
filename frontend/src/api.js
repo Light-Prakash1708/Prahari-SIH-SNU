@@ -261,6 +261,23 @@ export const api = {
     send('/api/saathi/key', { provider, api_key, model: model || undefined }, 'PUT'),
   saathiKeyClear: () => send('/api/saathi/key', {}, 'DELETE'),
 
+  // admin — staff, the chemical gate, the audit trail
+  adminOverview: () => get('/api/admin/overview', { cache: false }),
+  adminStaff: () => get('/api/admin/staff', { cache: false }),
+  adminClaims: (params = {}) => {
+    const q = new URLSearchParams(params).toString()
+    return get(`/api/admin/claims${q ? '?' + q : ''}`, { cache: false })
+  },
+  adminVerifyClaim: (id, body) => send(`/api/admin/claims/${id}/verify`, body),
+  adminClaimStatus: (id, body) => send(`/api/admin/claims/${id}/status`, body),
+  adminCreateUser: (body) => send('/api/admin/users', body),
+  adminGrantScope: (officerId, taluka) =>
+    send(`/api/admin/officers/${officerId}/scopes?taluka=${encodeURIComponent(taluka)}`, {}),
+  adminAudit: (params = {}) => {
+    const q = new URLSearchParams(params).toString()
+    return get(`/api/admin/audit-log${q ? '?' + q : ''}`, { cache: false })
+  },
+
   // privacy — what is held, and removing it
   /* The multi-field board. Cached like any other read, because it costs a
      weather window per field and a farmer opens it repeatedly. */

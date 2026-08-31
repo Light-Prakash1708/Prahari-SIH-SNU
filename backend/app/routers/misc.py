@@ -271,7 +271,7 @@ def create_user(data: RegisterIn, user: dict[str, Any] = Depends(require_roles("
                 db: Database = Depends(db_dep)):
     from .. import accounts
     out = accounts.register(db, data, allow_privileged=True)
-    audit("admin.create_user", entity="user", entity_id=out["user_id"], user_id=user["id"],
+    audit("admin.create_user", entity="user", entity_id=out["user_id"], user_id=user["id"], role=user.get("role"),
           detail={"role": data.role})
     return out
 
@@ -284,7 +284,7 @@ def grant_scope(officer_id: str, taluka: str = Query(...),
     if taluka not in reference.TALUKA_IDS:
         raise bad_request("unknown_taluka", f"'{taluka}' is not a taluka PRAHARI covers.")
     accounts.grant_scope(db, officer_id, taluka)
-    audit("admin.grant_scope", entity="officer", entity_id=officer_id, user_id=user["id"],
+    audit("admin.grant_scope", entity="officer", entity_id=officer_id, user_id=user["id"], role=user.get("role"),
           detail={"taluka": taluka})
     return {"officer_id": officer_id, "scopes": accounts.officer_scopes(db, officer_id)}
 
@@ -321,7 +321,7 @@ def verify_claim(claim_id: str, data: VerifyClaimIn,
         expires_on=data.expires_on.isoformat() if data.expires_on else None)
     if not row:
         raise not_found("label claim", claim_id)
-    audit("admin.verify_claim", entity="label_claim", entity_id=claim_id, user_id=user["id"],
+    audit("admin.verify_claim", entity="label_claim", entity_id=claim_id, user_id=user["id"], role=user.get("role"),
           detail={"source": data.source})
     return {"claim": row,
             "effect": ("This product may now be returned as an actionable chemical recommendation "
@@ -336,9 +336,70 @@ def set_claim_status(claim_id: str, data: ClaimStatusIn,
     row = chemicals.set_status(db, claim_id, data.status, data.note or "")
     if not row:
         raise not_found("label claim", claim_id)
-    audit("admin.claim_status", entity="label_claim", entity_id=claim_id, user_id=user["id"],
+    audit("admin.claim_status", entity="label_claim", entity_id=claim_id, user_id=user["id"], role=user.get("role"),
           detail={"status": data.status, "note": data.note})
     return {"claim": row}
+
+
+@admin.get("/staff", summary="Officer, expert and admin accounts, with their scope")
+def list_staff(user: dict[str, Any] = Depends(require_roles("admin")),
+               db: Database = Depends(db_dep)):
+    """Staff only, deliberately.
+
+    An administrator needs to see who can act on other people's records and
+    where — that is the point of the screen. They do not need a directory of
+    farmers, so this query cannot return one: the role filter is in the SQL,
+    not in a parameter a caller could widen.
+    """
+    rows = db.rows(
+        "SELECT u.id, u.full_name, u.role, u.email, u.is_active, u.created_at,"
+        "       u.last_login_at, o.id AS officer_id, o.taluka AS officer_taluka,"
+        "       e.id AS expert_id, e.institution"
+        "  FROM users u"
+        "  LEFT JOIN officers o ON o.user_id = u.id"
+        "  LEFT JOIN experts  e ON e.user_id = u.id"
+        " WHERE u.role IN ('officer', 'expert', 'admin')"
+        " ORDER BY u.role, u.full_name")
+    for r in rows:
+        r["scopes"] = ([s["taluka"] for s in db.rows(
+            "SELECT taluka FROM officer_scopes WHERE officer_id = :o ORDER BY taluka",
+            {"o": r["officer_id"]})] if r.get("officer_id") else [])
+    return {"staff": rows, "count": len(rows),
+            "talukas": [{"id": t, "label": reference.taluka_name(t)}
+                        for t in sorted(reference.TALUKA_IDS)]}
+
+
+@admin.get("/overview", summary="What an administrator needs to see first")
+def admin_overview(user: dict[str, Any] = Depends(require_roles("admin")),
+                   db: Database = Depends(db_dep)):
+    """Counts, and the state of the two things that gate advice.
+
+    The unverified-claims count is the one number on this screen that changes
+    what farmers are told: `chemicals.py` will not return a claim that has not
+    been verified against a CIB&RC citation, so an unverified row is a
+    recommendation the app is refusing to make.
+    """
+    one = db.scalar
+    claims = {st: int(one("SELECT COUNT(*) FROM label_claims WHERE status = :s",
+                          {"s": st}) or 0)
+              for st in ("verified", "draft", "rejected", "expired")}
+    rt = get_runtime()
+    return {
+        "counts": {
+            "farmers": int(one("SELECT COUNT(*) FROM farmers") or 0),
+            "fields": int(one("SELECT COUNT(*) FROM plots") or 0),
+            "observations": int(one("SELECT COUNT(*) FROM observations") or 0),
+            "diagnoses": int(one("SELECT COUNT(*) FROM diagnoses") or 0),
+            "community_posts": int(one("SELECT COUNT(*) FROM community_posts") or 0),
+            "staff": int(one("SELECT COUNT(*) FROM users WHERE role <> 'farmer'") or 0),
+        },
+        "claims": claims,
+        "claims_note": ("Only a VERIFIED claim can be returned as a chemical recommendation. "
+                        "A draft row is advice the app is currently refusing to give."),
+        "vision": rt.vision.health(),
+        "migrations": db.migration_state(),
+        "config": get_settings().redacted(),
+    }
 
 
 @admin.get("/audit-log", summary="The audit trail")

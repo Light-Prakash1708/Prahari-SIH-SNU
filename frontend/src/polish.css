@@ -195,3 +195,168 @@ body {
   .stack > * { animation: none; }
   .card { transition: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   The consoles · the same identity, at desktop density
+
+   The officer, expert and admin consoles are dark and dense on purpose: they
+   are read on a desk, across a district, for an hour at a time, and the
+   farmer app's generous spacing would mean scrolling to compare two talukas.
+   That density stays. What was missing was the identity — they were on the
+   original chrome while every farmer screen moved to Saurjya's.
+
+   So the same language, translated for a dark ground: his radii, a shadow
+   that reads as depth rather than as a grey halo, his mint as the accent that
+   marks the active thing, and the same wordmark.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.oc {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(16,185,129,.07) 0%, transparent 38%),
+    radial-gradient(circle at 88% 92%, rgba(5,150,105,.05) 0%, transparent 42%),
+    var(--d-bg);
+}
+.oc-side {
+  background: linear-gradient(180deg, #062016 0%, #04180F 100%);
+  border-right: 1px solid rgba(134,239,172,.10);
+}
+.oc-brand { padding: 6px 8px 22px; }
+.oc-brand img { display: block; height: auto; }
+
+.oc-nav button {
+  border-radius: 12px;
+  transition: background .2s var(--ease), color .2s var(--ease);
+}
+.oc-nav button:hover { background: rgba(134,239,172,.08); }
+.oc-nav button[aria-current="page"] {
+  background: linear-gradient(135deg, var(--prh-vibrant) 0%, var(--prh-accent) 70%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(5,150,105,.32);
+}
+
+.oc-card, .oc-kpi {
+  border-radius: 20px;
+  border: 1px solid rgba(134,239,172,.12);
+  background: linear-gradient(180deg, rgba(255,255,255,.028) 0%, rgba(255,255,255,0) 100%),
+              var(--d-card);
+  box-shadow: 0 10px 26px -8px rgba(0,0,0,.45);
+}
+.oc-kpi { transition: border-color .25s var(--ease), transform .25s var(--ease); }
+@media (hover: hover) {
+  .oc-kpi:hover { border-color: rgba(16,185,129,.34); transform: translateY(-2px); }
+}
+/* The number is the point of a KPI tile; the label is how you know what it
+   counts. Neither is decoration, so both get their own weight. */
+.oc-kpi .val { letter-spacing: -1px; }
+.oc-kpi .lbl { letter-spacing: .02em; text-transform: none; }
+
+.oc-btn {
+  border-radius: var(--r-pill);
+  background: linear-gradient(135deg, var(--prh-vibrant) 0%, var(--prh-accent) 60%, #047857 100%);
+  box-shadow: 0 4px 14px rgba(5,150,105,.3), inset 0 1px 0 rgba(255,255,255,.16);
+  transition: filter .2s, box-shadow .25s var(--ease), transform .12s var(--ease);
+}
+@media (hover: hover) { .oc-btn:hover { filter: brightness(1.06); box-shadow: 0 8px 22px rgba(5,150,105,.38); } }
+.oc-btn:active { transform: translateY(1px); }
+.oc-btn.ghost {
+  background: rgba(134,239,172,.07); box-shadow: none;
+  border: 1px solid rgba(134,239,172,.24); color: var(--d-ink);
+}
+.oc-input {
+  border-radius: var(--r); background: rgba(0,0,0,.24);
+  border: 1px solid rgba(134,239,172,.16); color: var(--d-ink);
+}
+.oc-input:focus { outline: none; border-color: rgba(16,185,129,.5); }
+
+.oc-card h3 {
+  display: inline-flex; align-items: center; gap: 8px;
+  letter-spacing: -.1px;
+}
+.oc-card h3::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--prh-vibrant); box-shadow: 0 0 0 3px rgba(16,185,129,.16);
+}
+.oc-table thead th {
+  font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--d-muted);
+}
+.oc-table tbody tr { transition: background .15s; }
+.oc-table tbody tr:hover { background: rgba(134,239,172,.045); }
+
+/* On a laptop the console still has to be usable; the sidebar becomes a strip
+   of icons rather than disappearing, so navigation never depends on a menu
+   that is not there. */
+@media (max-width: 900px) {
+  .oc { grid-template-columns: 1fr; }
+  .oc-side {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-right: 0;
+    border-bottom: 1px solid rgba(134,239,172,.12);
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .oc-side::-webkit-scrollbar { display: none; }
+  .oc-brand { padding: 0 8px 0 0; flex: none; }
+  .oc-brand img { width: 84px; }
+  .oc-nav { display: flex; gap: 6px; flex: 1; }
+  .oc-nav button { white-space: nowrap; padding: 8px 12px; font-size: 12.5px; }
+  .oc-side > :last-child { flex: none; }
+  .oc-grid { grid-template-columns: 1fr; }
+  .oc-main { padding: 16px 14px 32px; }
+}
+
+/* ── the administrator's console ─────────────────────────────────────────── */
+.oc-who { margin-top: auto; padding: 14px 8px 4px; }
+.oc-who .nm { font-weight: 800; font-size: 14px; margin-top: 2px; }
+.oc-side { display: flex; flex-direction: column; }
+.oc-main h2 { font-family: var(--display); font-size: 21px; font-weight: 800; letter-spacing: -.4px; }
+
+.oc-seg { display: inline-flex; gap: 4px; background: rgba(0,0,0,.25);
+          border-radius: var(--r-pill); padding: 4px; }
+.oc-seg button {
+  padding: 6px 14px; border-radius: var(--r-pill); font-size: 12.5px; font-weight: 700;
+  color: var(--d-muted); text-transform: capitalize;
+}
+.oc-seg button[aria-current="page"] {
+  background: linear-gradient(135deg, var(--prh-vibrant), var(--prh-accent)); color: #fff;
+}
+
+/* The chemical gate. It is coloured only when there is something to do —
+   a permanently amber panel stops being read after the second visit. */
+.oc-gate__row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; }
+.oc-gate .val { font-family: var(--display); font-size: 30px; font-weight: 800; letter-spacing: -1px; }
+.oc-gate .val.warn { color: #FBBF24; }
+.oc-gate.is-open { border-color: rgba(251,191,36,.35); }
+.oc-warn { border-color: rgba(251,191,36,.3); background:
+  linear-gradient(180deg, rgba(251,191,36,.06), rgba(0,0,0,0)), var(--d-card); }
+.warn { color: #FBBF24; }
+
+.oc-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.oc-scroll .oc-table { min-width: 640px; }
+.oc-table td { padding: 9px 10px; border-top: 1px solid rgba(134,239,172,.09); vertical-align: top; }
+.oc-table th { padding: 6px 10px; text-align: left; }
+.oc-badge.ok { background: rgba(16,185,129,.16); color: #86EFAC; }
+
+.oc-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.oc-main .field { display: block; margin-bottom: 12px; }
+.oc-main .field .lbl { display: block; font-size: 12px; font-weight: 700;
+                       color: var(--d-muted); margin-bottom: 5px; }
+.oc-main .oc-input { width: 100%; padding: 10px 12px; font-size: 13.5px; }
+
+.oc-modal {
+  position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center;
+  background: rgba(2,12,7,.72); backdrop-filter: blur(3px); padding: 20px;
+}
+.oc-modal__box {
+  width: min(560px, 100%); max-height: 88vh; overflow-y: auto;
+  background: var(--d-card); color: var(--d-ink);
+  border: 1px solid rgba(134,239,172,.16); border-radius: 22px;
+  padding: 22px; box-shadow: 0 30px 70px -20px rgba(0,0,0,.7);
+}
+.oc-modal__box h3 { font-family: var(--display); font-size: 17px; font-weight: 800; }
+.oc-modal__foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }
+
+@media (max-width: 900px) {
+  .oc-who { margin-top: 0; padding: 0; display: flex; align-items: center; gap: 10px; }
+  .oc-who .tiny, .oc-who .nm { display: none; }
+  .oc-who .oc-btn { margin-top: 0 !important; width: auto !important; }
+  .oc-grid2 { grid-template-columns: 1fr; }
+}

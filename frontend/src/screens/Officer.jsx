@@ -34,8 +34,10 @@ export default function Officer({ me, health }) {
     <div className="oc">
       <aside className="oc-side">
         <div className="oc-brand">
-          <Shield size={22} tone="#157A3C" leaf="#8BD3A4" />
-          <span className="nm">PRAHARI</span>
+          {/* The same mark the farmer app carries. A console on a different
+              wordmark reads as a different product, and an officer confirming
+              a cluster here is acting on the same system. */}
+          <img src="/brand/logo.png" alt="PRAHARI" width="112" height="37" />
         </div>
         <nav className="oc-nav">
           {NAV.map(([k, ic, label]) => (

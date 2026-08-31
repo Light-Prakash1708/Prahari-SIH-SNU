@@ -238,3 +238,15 @@
   color: var(--g-700); font-size: 11.5px; font-weight: 700; white-space: nowrap;
 }
 .cj-hero__change:active { background: var(--g-100); }
+
+/* The way back up to the field list. The journey is a nested screen now, and a
+   nested screen with no way out is how a tab becomes a dead end. */
+.cj-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-bottom: 8px; padding: 5px 12px 5px 9px;
+  border-radius: var(--r-pill);
+  background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22);
+  color: #fff; font-size: 12.5px; font-weight: 700;
+  backdrop-filter: blur(6px);
+}
+.cj-back:active { transform: scale(.97); }

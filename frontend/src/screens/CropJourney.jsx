@@ -76,7 +76,7 @@ export default function CropJourney({ lang, plot, plots, onPlot, go, reload }) {
        why it is empty. */
     return (
       <>
-        <Header lang={lang} />
+        <Header lang={lang} go={go} />
         <div className="pad stack">
           <Card>
             <p className="small muted">{t(lang, 'noDate')}</p>
@@ -92,7 +92,7 @@ export default function CropJourney({ lang, plot, plots, onPlot, go, reload }) {
 
   return (
     <>
-      <Header lang={lang} />
+      <Header lang={lang} go={go} field={plot?.name} />
 
       <div className="pad cj-wrap">
         {/* The field switcher.
@@ -167,11 +167,21 @@ export default function CropJourney({ lang, plot, plots, onPlot, go, reload }) {
   )
 }
 
-function Header({ lang }) {
+function Header({ lang, go, field }) {
+  /* The journey belongs to a field, so the header says which field and offers
+     the way back up to the list. Without it the Crop tab is a screen a farmer
+     can enter and not leave except by another tab — the commonest way a
+     nested screen becomes a dead end. */
   return (
     <header className="hdr">
+      {go && (
+        <button className="cj-back" onClick={() => go('crop')}>
+          <Icon name="back" size={14} />
+          {bi(lang, 'All fields', 'सर्व शेते')}
+        </button>
+      )}
       <div className="hdr-greet">{t(lang, 'title')}</div>
-      <div className="hdr-sub">{t(lang, 'sub')}</div>
+      <div className="hdr-sub">{field ? field : t(lang, 'sub')}</div>
     </header>
   )
 }

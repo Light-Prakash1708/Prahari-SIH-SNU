@@ -122,7 +122,9 @@ Screens are one file each. Shared chrome — header, drawer, account sheet,
 bottom bar, icons — lives in `shell/`. Primitives live in `ui.jsx`.
 
 Role decides the whole product: `App.jsx` renders the farmer app, the officer
-console or the expert portal from `/api/auth/me`. **The role is not a client
+console, the expert portal or the administrator's console from `/api/auth/me`.
+Inside the farmer app the Crop tab is a board of fields, and a crop journey is
+reached through the field it belongs to. **The role is not a client
 preference**; every screen behind it is scoped server-side, so the farmer app
 asks for its own fields and is given only those.
 
@@ -160,7 +162,7 @@ the whole exercise: PlantVillage-trained models score ~99% on PlantVillage and
 
 ## Testing
 
-275 tests. The interesting ones assert things that must **never** happen:
+278 tests. The interesting ones assert things that must **never** happen:
 
 | File | Guards |
 |---|---|

@@ -25,6 +25,7 @@ import Saathi from './screens/Saathi'
 import Crop from './screens/Crop'
 import CropJourney from './screens/CropJourney'
 import Privacy from './screens/Privacy'
+import Admin from './screens/Admin'
 import { HowItWorks as HowItWorksSection } from './screens/Sections'
 import Tools, { Expenses, Fertilizer } from './screens/Tools'
 import Community from './screens/Community'
@@ -144,7 +145,7 @@ export default function App() {
   const RESTORABLE = React.useMemo(() => new Set([
     'home', 'crop', 'cropRecord', 'scan', 'community', 'communityNew', 'agridoc',
     'saathi', 'fields', 'more', 'soil', 'water', 'weeds', 'tools', 'expenses',
-    'fertilizer', 'privacy', 'howItWorks', 'alerts', 'profile', 'history',
+    'fertilizer', 'privacy', 'howItWorks', 'alerts', 'profile', 'history', 'cropJourney',
     'forecast', 'traps', 'addField', 'officer', 'expert',
   ]), [])
   useEffect(() => {
@@ -210,8 +211,15 @@ export default function App() {
 
   const role = me?.user?.role
 
-  /* ── officer and expert get their own products ────────────────────────── */
-  if (role === 'officer' || role === 'admin') {
+  /* ── officer, expert and admin each get their own product ─────────────── */
+  if (role === 'admin') {
+    /* An admin used to be handed the officer console, which is a district
+       surveillance product — useful, and not an administrator's job. The four
+       things only an administrator can do (verify a label claim, create staff,
+       grant scope, read the audit trail) had no interface at all. */
+    return <div className="shell wide"><Admin me={me} /></div>
+  }
+  if (role === 'officer') {
     return <div className="shell wide"><Officer me={me} health={health} /></div>
   }
   if (role === 'expert') {
@@ -249,11 +257,22 @@ export default function App() {
       case 'agridoc':
         return <Saathi lang={lang} plot={plot} go={go} />
       case 'crop':
-        /* The Crop tab is now the Crop Journey — stage, prevention window,
-           mission, threat-by-stage, history — served by one aggregation
-           endpoint. The older Crop screen is kept intact at 'cropRecord'
-           rather than deleted; it holds the trap and passport detail the
-           journey links out to. */
+        /* The Crop tab is the fields board, and a journey lives INSIDE a
+           field. A journey is about one field's season — its sowing date, its
+           stage, its own thresholds — so reaching it through the field it
+           belongs to is the honest shape, and it is the only shape that stays
+           clear once a farmer has four fields rather than one.
+
+           Same component as the Fields screen, one implementation: a board
+           that drifted from the drawer's copy would be two answers to the
+           question "which field needs me". */
+        return <Fields lang={lang} plots={plots} plot={plot} onPlot={setPlotId}
+                       go={go} reload={reload} asCropSection />
+      case 'cropJourney':
+        /* Stage rail, prevention window, mission, threat-by-stage and history
+           for the chosen field, served by one aggregation endpoint. The older
+           Crop screen is kept intact at 'cropRecord' rather than deleted; it
+           holds the trap and passport detail the journey links out to. */
         return <CropJourney lang={lang} plot={plot} plots={plots} onPlot={setPlotId} go={go}
                             reload={reload} />
       case 'cropRecord':
@@ -304,7 +323,7 @@ export default function App() {
   const activeTab = ['home', 'crop', 'scan', 'community', 'agridoc'].includes(route.name)
     ? route.name
     : ['addField', 'history', 'fields', 'forecast', 'traps', 'soil', 'water', 'cropRecord',
-       'tools', 'expenses', 'fertilizer', 'decide']
+       'tools', 'expenses', 'fertilizer', 'decide', 'cropJourney']
         .includes(route.name) ? 'crop'
     : ['communityPost', 'communityNew'].includes(route.name) ? 'community'
     : route.name === 'saathi' ? 'agridoc'

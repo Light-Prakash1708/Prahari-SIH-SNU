@@ -24,7 +24,7 @@ const TALUKAS = [
   ['igatpuri', 'Igatpuri'], ['yeola', 'Yeola'], ['chandvad', 'Chandvad'], ['malegaon', 'Malegaon'],
 ]
 
-export function Fields({ lang, plots, plot, onPlot, go, reload }) {
+export function Fields({ lang, plots, plot, onPlot, go, reload, asCropSection = false }) {
   /* ═══════════════════════════════════════════════════════════════════════
      My fields — a board, not a list.
 
@@ -60,11 +60,21 @@ export function Fields({ lang, plots, plot, onPlot, go, reload }) {
   return (
     <>
       <div className="topbar">
-        <h1 className="grow">{lang === 'mr' ? 'माझी शेते' : 'My Fields'}</h1>
+        <h1 className="grow">
+          {asCropSection
+            ? (lang === 'mr' ? 'माझी पिके' : 'My Crops')
+            : (lang === 'mr' ? 'माझी शेते' : 'My Fields')}
+        </h1>
         <button className="btn sm" onClick={() => go('addField')}>
           ＋ {lang === 'mr' ? 'शेत' : 'Field'}
         </button>
       </div>
+      {asCropSection && plots?.length > 0 && (
+        <p className="pad tiny muted" style={{ paddingBottom: 0, marginTop: -4 }}>
+          {bi(lang, 'Choose a field to open its crop journey.',
+                    'पीक प्रवास पाहण्यासाठी शेत निवडा.')}
+        </p>
+      )}
       <div className="pad stack" style={{ paddingTop: 14 }}>
         {!plots?.length && (
           <Empty icon="🌾"
@@ -108,7 +118,15 @@ export function Fields({ lang, plots, plot, onPlot, go, reload }) {
         {ordered.map(p => (
           <FieldCard key={p.id} p={p} f={byId[p.id]} lang={lang}
                      active={p.id === plot?.id}
-                     onOpen={() => { onPlot(p.id); go('home') }}
+                     /* Inside the Crop section a card opens that field's
+                        journey — the journey belongs to a field, and is
+                        reached through it. Elsewhere the board is a way of
+                        choosing which field the whole app is about, so a card
+                        selects it and returns to the home screen. */
+                     onOpen={() => {
+                       onPlot(p.id)
+                       go(asCropSection ? 'cropJourney' : 'home')
+                     }}
                      onNewCrop={() => setCycleFor(p)}
                      go={go} onPlot={onPlot} />
         ))}
@@ -321,7 +339,7 @@ function FieldCard({ p, f, lang, active, onOpen, onNewCrop, go, onPlot }) {
         </span>
         <span className="fb-actions">
           <button className="btn sm quiet"
-                  onClick={(e) => { e.stopPropagation(); onPlot(p.id); go('crop') }}>
+                  onClick={(e) => { e.stopPropagation(); onPlot(p.id); go('cropJourney') }}>
             {bi(lang, 'Journey', 'प्रवास')}
           </button>
           <button className="btn sm quiet"

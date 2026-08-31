@@ -286,3 +286,56 @@ a field still ends up with a real taluka or the router raises `unknown_taluka`,
 and a test asserts that refusal still happens.
 
 TESTS: 278 passed (265 before). Bundle 124 kB gzipped of 200.
+
+## v7 — the Crop tab becomes a field, and the three consoles
+
+### The crop journey lives inside a field
+
+The Crop tab used to open one field's journey with a switcher on top. It now
+opens the **fields board**, and a card opens that field's journey. A journey is
+about one field's season — its sowing date, its stage, its own thresholds — so
+reaching it through the field it belongs to is the honest shape, and the only
+one that stays clear at four fields rather than one.
+
+- `crop` → the board (`Fields` with `asCropSection`), same component as the
+  drawer's Fields screen. One implementation: a second board would be a second
+  answer to "which field needs me".
+- `cropJourney` → that field's journey, with **All fields** in the header. A
+  nested screen with no way out is how a tab becomes a dead end.
+- Each card still carries what that field needs today, its crop-health score
+  and direction, and per-field Journey / Traps / History / New crop.
+- Adding a field is on the board and on the journey's chip rail.
+
+### Officer, expert and admin
+
+All three were audited in a browser first: officer and expert were already
+functional — real clusters, Gi\* statistics, the verification queue, no errors
+— and were simply still on the pre-Saurjya chrome. They now carry the same
+identity at desktop density: the real wordmark, his radii, a shadow that reads
+as depth on a dark ground, mint as the active accent, gradient pill buttons,
+and a sidebar that becomes a scrolling strip below 900 px instead of vanishing.
+The density is deliberate and stays — these are read across a district for an
+hour at a time.
+
+**Admin had no console at all.** An admin account was handed the officer
+console, which is a district-surveillance product and not an administrator's
+job; the four things only an administrator can do had no interface. Now
+`screens/Admin.jsx`, ordered by consequence:
+
+1. **Label claims — the chemical gate.** `chemicals.py` will not return a claim
+   that has not been verified against a cited CIB&RC source, so a draft row is
+   a recommendation PRAHARI is currently refusing to make. This is the
+   highest-risk action in the system, so it demands the citation before it will
+   submit and records who verified it. The demo database ships 42 draft claims
+   and 0 verified — which is why the app names no chemical.
+2. **Staff & scope** — who can act on other people's records and where, with
+   scope granting. Officers with no taluka are flagged: they see nothing.
+3. **Overview** — counts, the gate, the vision model's own words about itself,
+   the deployment configuration, migrations applied.
+4. **Audit** — filterable, and it explains its own null-user rows.
+
+New endpoints: `GET /api/admin/staff` (staff only — the role filter is in the
+SQL, not a parameter, so it cannot be widened into a farmer directory) and
+`GET /api/admin/overview`. Admin actions now record the acting role.
+
+TESTS: 278 passed. ruff clean. Bundle 126 kB gzipped of 200.
