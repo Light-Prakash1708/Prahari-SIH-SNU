@@ -1,0 +1,15 @@
+# Every PR gets a review. Replace these with real GitHub handles as the team
+# settles — one owner per area beats one owner for everything.
+
+*                       @Light-Prakash1708
+
+# The agronomy knowledge base changes what a farmer sprays. It should always be
+# reviewed by whoever on the team can check the citation.
+/backend/app/data/      @Light-Prakash1708
+
+# Migrations touch records that cannot be recreated.
+/backend/app/schema/    @Light-Prakash1708
+
+# Auth and config guards are the blast radius for everything else.
+/backend/app/security.py  @Light-Prakash1708
+/backend/app/config.py    @Light-Prakash1708

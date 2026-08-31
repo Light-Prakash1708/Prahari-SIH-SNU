@@ -674,6 +674,50 @@ The closing line: *every refusal in that demonstration was the product working.*
 
 ---
 
+## Working on PRAHARI — for the team
+
+Four documents, in the order you need them. Read the first one before your first
+commit; the rest when you reach them.
+
+| Read | When | What it gives you |
+|---|---|---|
+| **[CONTRIBUTING.md](CONTRIBUTING.md)** | before your first commit | five-minute setup, the five rules, branch names, what gets a PR sent back |
+| **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** | before your first feature | where every file lives, one request traced end to end, the three config seams |
+| **[docs/ROADMAP.md](docs/ROADMAP.md)** | when picking work | 13 issues sized S/M/L with the files to open — and five things we deliberately will not build |
+| **[CLAUDE.md](CLAUDE.md)** | if you use an AI assistant here | the same rules plus the traps in this codebase that a model reliably gets wrong |
+
+### Picking something up
+
+```bash
+git clone https://github.com/Light-Prakash1708/PRAHARI-SIH-2026.git
+cd PRAHARI-SIH-2026 && cp .env.example .env      # set JWT_SECRET
+./run.sh --demo                                   # API on :8000, seeded
+cd frontend && npm install && npm run dev         # :5173
+```
+
+Take an item from the roadmap, open an issue with the same title (the templates
+in `.github/ISSUE_TEMPLATE/` ask the right questions — the agronomy one requires
+a citation), branch `feat/…`, `fix/…` or `data/…`, and open a PR. The PR
+template's checklist is the five rules; it is short because the rules are few.
+
+Two kinds of contribution need **no code at all** and are worth the most right
+now: adding a crop, pest or threshold is a JSON edit in `backend/app/data/`
+(sorghum, chickpea, wheat, sugarcane and banana are the obvious next ones), and
+Marathi strings are missing on the newest screens.
+
+### The five rules, in one line each
+
+1. Never fabricate a number a farmer might act on — missing data says so.
+2. Every number carries its source: ICAR citation, model name, or visible arithmetic.
+3. The model may abstain; low confidence goes to a human, not to a guess.
+4. Cost never reaches an agronomic decision.
+5. Only a count against a threshold authorises a chemical.
+
+Each is enforced by a test. If one blocks your change, the change is wrong —
+`docs/ARCHITECTURE.md` lists which test guards which rule.
+
+---
+
 ## Repository
 
 ```
@@ -707,7 +751,7 @@ backend/app/
   forecast.py    per-day model output                             (preserved)
   services/      risk · diagnosis · decisions
   routers/       13 routers
-backend/tests/   121 tests
+backend/tests/   237 tests
 frontend/src/    api.js · ui.jsx · screens/
 ml/
   datasets/plantdoc.py   PlantDoc → PRAHARI manifest, with an honest class mapping
