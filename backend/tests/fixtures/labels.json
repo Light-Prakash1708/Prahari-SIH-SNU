@@ -1,0 +1,13 @@
+{
+ "labels": [
+  "late_blight",
+  "early_blight",
+  "downy_mildew",
+  "powdery_mildew",
+  "purple_blotch",
+  "turcicum_blight",
+  "nitrogen_deficiency",
+  "healthy"
+ ],
+ "_note": "Plumbing fixture with random weights. Never a source of accuracy claims."
+}

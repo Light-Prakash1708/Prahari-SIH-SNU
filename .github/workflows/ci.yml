@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push: { branches: [main, master] }
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend — lint, tests, safety properties
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: prahari
+          POSTGRES_PASSWORD: prahari
+          POSTGRES_DB: prahari_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+
+      - name: Install
+        run: |
+          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-dev.txt
+
+      - name: Lint
+        run: ruff check backend/app
+
+      - name: Build the ONNX plumbing fixture
+        working-directory: backend/tests/fixtures
+        run: python build_fixture_model.py
+
+      - name: Tests (SQLite)
+        working-directory: backend
+        run: python -m pytest tests -q --cov=app --cov-report=term-missing:skip-covered
+
+      - name: Migrations apply cleanly to PostgreSQL
+        env:
+          DATABASE_URL: postgresql+psycopg://prahari:prahari@localhost:5432/prahari_test
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          from app.db import Database
+          d = Database()
+          print("applied:", d.migrate())
+          print("re-run is a no-op:", d.migrate() == [])
+          assert d.migrate() == []
+          print("tables:", d.scalar(
+              "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'"))
+          PY
+
+      - name: Production config guards actually refuse bad settings
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          from app.config import Settings
+          bad = [
+              dict(app_env="production", jwt_secret="short"),
+              dict(app_env="production", jwt_secret="x"*40, demo_mode=True),
+              dict(app_env="production", jwt_secret="x"*40, weather_provider="demo"),
+              dict(app_env="production", jwt_secret="x"*40, cors_origins="*"),
+              dict(app_env="production", jwt_secret="x"*40, database_url="sqlite:///x.db"),
+              dict(app_env="production", jwt_secret="x"*40, prahari_today="2026-08-27",
+                   database_url="postgresql://a/b", cors_origins="https://x.com"),
+          ]
+          for kw in bad:
+              try:
+                  Settings(**kw)
+              except Exception as e:
+                  print("refused:", str(e).splitlines()[-1][:90]); continue
+              raise SystemExit(f"config guard did NOT refuse: {kw}")
+          print("all production guards hold")
+          PY
+
+  frontend:
+    name: Frontend — build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - working-directory: frontend
+        run: npm ci
+      - working-directory: frontend
+        run: npm run build
+      - name: The bundle stays small enough for a 2G connection
+        working-directory: frontend
+        run: |
+          SIZE=$(gzip -c dist/assets/*.js | wc -c)
+          echo "gzipped JS: $SIZE bytes"
+          test "$SIZE" -lt 200000 || { echo "bundle over 200 kB gzipped"; exit 1; }
+
+  docker:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t prahari:ci .
+      - name: The image starts and answers its health check
+        run: |
+          docker run -d --name prahari -p 8000:8000 \
+            -e JWT_SECRET=ci-secret-at-least-32-characters-long-xxxx \
+            -e DATABASE_URL=sqlite:////app/var/ci.db \
+            -e CORS_ORIGINS=http://localhost:8000 \
+            prahari:ci
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:8000/api/health && break || sleep 2
+          done
+          curl -fsS http://localhost:8000/api/health
+          curl -fsS http://localhost:8000/api/ready | head -c 400
+          docker rm -f prahari

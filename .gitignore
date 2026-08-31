@@ -1,0 +1,29 @@
+node_modules/
+dist/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# never commit secrets or data
+.env
+.env.*
+!.env.example
+var/
+*.db
+*.db-wal
+*.db-shm
+backend/prahari.db
+backend/uploads/
+backend/var/
+
+# models are large and are not source
+models/*.onnx
+ml/data/
+ml/runs/
+ml/evaluation/metrics.json
+
+.DS_Store

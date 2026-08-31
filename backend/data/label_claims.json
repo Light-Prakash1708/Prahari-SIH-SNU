@@ -1,0 +1,78 @@
+{
+  "_note": "THE CIB&RC LABEL-CLAIM TABLE. India registers pesticides against a specific crop AND a specific pest. A molecule legal on tomato fruit borer is NOT legal on onion thrips unless separately claimed. In October 2017, 21 farmers died in Yavatmal; the Centre for Science and Environment's root-cause finding was that state advisories were recommending molecules with no CIB&RC label claim for the crop they were sprayed on. This table exists to make that failure structurally impossible in this app.",
+  "_verification": "EVERY ROW IS status:'draft'. These are combinations commonly published in state IPM packages, transcribed here so the engine can be built and tested. Team task N1: verify each against PPQS 'Major Uses of Pesticides' (ppqs.gov.in/en/divisions/cib-rc/major-uses-of-pesticides) and the CIB&RC Registered Products list, then set status to 'cited' with the exact source and revision date. The API refuses to serve a draft row when strict=true.",
+  "_toxicity_legend": "India's label triangle: red = extremely toxic, yellow = highly toxic, blue = moderately toxic, green = slightly toxic.",
+
+  "restricted_maharashtra": {
+    "_note": "Section 27 of the Insecticides Act lets a state prohibit sale, distribution or use in the public interest. Maharashtra used it in September 2018 (Extraordinary Gazette No. 183) for a 60-day ban on five formulations after 63 deaths statewide. A recommendation must be able to go stale overnight, so this list is data, never code.",
+    "entries": [
+      {"product":"Monocrotophos 36% SL","reason":"Implicated in the 2017 Yavatmal poisonings; included in Maharashtra's 2018 Section 27 order. WHO Class Ib.","status":"draft"},
+      {"product":"Acephate 75% SP","reason":"Included in Maharashtra's 2018 Section 27 order after inhalation poisonings.","status":"draft"},
+      {"product":"Profenofos 40% + Cypermethrin 4% EC","reason":"Included in Maharashtra's 2018 Section 27 order.","status":"draft"},
+      {"product":"Fipronil 40% + Imidacloprid 40% WG","reason":"Included in Maharashtra's 2018 Section 27 order.","status":"draft"},
+      {"product":"Diafenthiuron 50% WP","reason":"Included in Maharashtra's 2018 Section 27 order.","status":"draft"}
+    ]
+  },
+
+  "claims": [
+    {"crop":"tomato","target":"tuta","product":"Cyantraniliprole 10.26% OD","moa":"IRAC 28","dose":1.8,"unit":"ml/L","water_l_per_acre":200,"phi":3,"reentry_h":12,"toxicity":"blue","bee":"moderate","cost_acre":2100,"status":"draft"},
+    {"crop":"tomato","target":"tuta","product":"Indoxacarb 14.5% SC","moa":"IRAC 22A","dose":0.5,"unit":"ml/L","water_l_per_acre":200,"phi":5,"reentry_h":12,"toxicity":"yellow","bee":"moderate","cost_acre":1350,"status":"draft"},
+    {"crop":"tomato","target":"tuta","product":"Spinetoram 11.7% SC","moa":"IRAC 5","dose":0.9,"unit":"ml/L","water_l_per_acre":200,"phi":3,"reentry_h":12,"toxicity":"blue","bee":"high","cost_acre":1900,"status":"draft"},
+
+    {"crop":"tomato","target":"helicoverpa","product":"Chlorantraniliprole 18.5% SC","moa":"IRAC 28","dose":0.3,"unit":"ml/L","water_l_per_acre":200,"phi":3,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":2400,"status":"draft"},
+    {"crop":"tomato","target":"helicoverpa","product":"Emamectin benzoate 5% SG","moa":"IRAC 6","dose":0.4,"unit":"g/L","water_l_per_acre":200,"phi":3,"reentry_h":12,"toxicity":"yellow","bee":"moderate","cost_acre":1100,"status":"draft"},
+    {"crop":"tomato","target":"helicoverpa","product":"Flubendiamide 20% WG","moa":"IRAC 28","dose":0.25,"unit":"g/L","water_l_per_acre":200,"phi":5,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":1800,"status":"draft"},
+
+    {"crop":"tomato","target":"whitefly","product":"Flonicamid 50% WG","moa":"IRAC 29","dose":0.3,"unit":"g/L","water_l_per_acre":200,"phi":3,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":1500,"status":"draft"},
+    {"crop":"tomato","target":"whitefly","product":"Pyriproxyfen 10% EC","moa":"IRAC 7C","dose":1.0,"unit":"ml/L","water_l_per_acre":200,"phi":7,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":1250,"status":"draft"},
+    {"crop":"tomato","target":"whitefly","product":"Diafenthiuron 50% WP","moa":"IRAC 12A","dose":1.2,"unit":"g/L","water_l_per_acre":200,"phi":7,"reentry_h":24,"toxicity":"yellow","bee":"moderate","cost_acre":1700,"status":"draft"},
+
+    {"crop":"tomato","target":"late_blight","product":"Cymoxanil 8% + Mancozeb 64% WP","moa":"FRAC 27 + M03","dose":3.0,"unit":"g/L","water_l_per_acre":200,"phi":7,"reentry_h":24,"toxicity":"blue","bee":"low","cost_acre":900,"status":"draft"},
+    {"crop":"tomato","target":"late_blight","product":"Dimethomorph 50% WP","moa":"FRAC 40","dose":1.0,"unit":"g/L","water_l_per_acre":200,"phi":5,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":1400,"status":"draft"},
+    {"crop":"tomato","target":"late_blight","product":"Metalaxyl-M 4% + Mancozeb 64% WP","moa":"FRAC 4 + M03","dose":2.5,"unit":"g/L","water_l_per_acre":200,"phi":7,"reentry_h":24,"toxicity":"blue","bee":"low","cost_acre":1100,"status":"draft"},
+
+    {"crop":"tomato","target":"early_blight","product":"Azoxystrobin 23% SC","moa":"FRAC 11","dose":1.0,"unit":"ml/L","water_l_per_acre":200,"phi":5,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":1600,"status":"draft"},
+    {"crop":"tomato","target":"early_blight","product":"Difenoconazole 25% EC","moa":"FRAC 3","dose":0.5,"unit":"ml/L","water_l_per_acre":200,"phi":7,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":1300,"status":"draft"},
+    {"crop":"tomato","target":"early_blight","product":"Mancozeb 75% WP","moa":"FRAC M03","dose":2.5,"unit":"g/L","water_l_per_acre":200,"phi":7,"reentry_h":24,"toxicity":"blue","bee":"low","cost_acre":600,"status":"draft"},
+
+    {"crop":"grape","target":"downy_mildew","product":"Fosetyl-Al 80% WP","moa":"FRAC P07","dose":2.0,"unit":"g/L","water_l_per_acre":400,"phi":40,"reentry_h":12,"toxicity":"green","bee":"low","cost_acre":1300,"status":"draft"},
+    {"crop":"grape","target":"downy_mildew","product":"Cymoxanil 8% + Mancozeb 64% WP","moa":"FRAC 27 + M03","dose":3.0,"unit":"g/L","water_l_per_acre":400,"phi":30,"reentry_h":24,"toxicity":"blue","bee":"low","cost_acre":900,"status":"draft"},
+    {"crop":"grape","target":"downy_mildew","product":"Metalaxyl-M 4% + Mancozeb 64% WP","moa":"FRAC 4 + M03","dose":2.5,"unit":"g/L","water_l_per_acre":400,"phi":40,"reentry_h":24,"toxicity":"blue","bee":"low","cost_acre":1100,"status":"draft"},
+
+    {"crop":"grape","target":"powdery_mildew","product":"Wettable sulphur 80% WG","moa":"FRAC M02","dose":2.0,"unit":"g/L","water_l_per_acre":400,"phi":7,"reentry_h":24,"toxicity":"green","bee":"low","cost_acre":350,"status":"draft"},
+    {"crop":"grape","target":"powdery_mildew","product":"Myclobutanil 10% WP","moa":"FRAC 3","dose":0.4,"unit":"g/L","water_l_per_acre":400,"phi":30,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":1200,"status":"draft"},
+
+    {"crop":"grape","target":"thrips","product":"Spinosad 45% SC","moa":"IRAC 5","dose":0.3,"unit":"ml/L","water_l_per_acre":400,"phi":7,"reentry_h":12,"toxicity":"blue","bee":"high","cost_acre":1600,"status":"draft"},
+
+    {"crop":"onion","target":"thrips","product":"Fipronil 5% SC","moa":"IRAC 2B","dose":2.0,"unit":"ml/L","water_l_per_acre":250,"phi":15,"reentry_h":24,"toxicity":"yellow","bee":"high","cost_acre":900,"status":"draft"},
+    {"crop":"onion","target":"thrips","product":"Spinosad 45% SC","moa":"IRAC 5","dose":0.3,"unit":"ml/L","water_l_per_acre":250,"phi":3,"reentry_h":12,"toxicity":"blue","bee":"high","cost_acre":1600,"status":"draft"},
+    {"crop":"onion","target":"thrips","product":"Cyantraniliprole 10.26% OD","moa":"IRAC 28","dose":1.8,"unit":"ml/L","water_l_per_acre":250,"phi":5,"reentry_h":12,"toxicity":"blue","bee":"moderate","cost_acre":2100,"status":"draft"},
+
+    {"crop":"onion","target":"purple_blotch","product":"Mancozeb 75% WP + sticker","moa":"FRAC M03","dose":2.5,"unit":"g/L","water_l_per_acre":250,"phi":7,"reentry_h":24,"toxicity":"blue","bee":"low","cost_acre":600,"status":"draft",
+     "note":"Onion leaf is waxy. Without a sticker the spray runs off and the application is wasted."},
+    {"crop":"onion","target":"purple_blotch","product":"Difenoconazole 25% EC","moa":"FRAC 3","dose":0.5,"unit":"ml/L","water_l_per_acre":250,"phi":10,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":1300,"status":"draft"},
+    {"crop":"onion","target":"purple_blotch","product":"Azoxystrobin 23% SC","moa":"FRAC 11","dose":1.0,"unit":"ml/L","water_l_per_acre":250,"phi":7,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":1600,"status":"draft"},
+
+    {"crop":"maize","target":"faw","product":"Emamectin benzoate 5% SG","moa":"IRAC 6","dose":0.4,"unit":"g/L","water_l_per_acre":200,"phi":7,"reentry_h":12,"toxicity":"yellow","bee":"moderate","cost_acre":1100,"status":"draft",
+     "note":"Direct the spray into the whorl. A broadcast spray misses the larva entirely."},
+    {"crop":"maize","target":"faw","product":"Spinetoram 11.7% SC","moa":"IRAC 5","dose":0.5,"unit":"ml/L","water_l_per_acre":200,"phi":7,"reentry_h":12,"toxicity":"blue","bee":"high","cost_acre":1900,"status":"draft"},
+    {"crop":"maize","target":"faw","product":"Chlorantraniliprole 18.5% SC","moa":"IRAC 28","dose":0.4,"unit":"ml/L","water_l_per_acre":200,"phi":7,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":2400,"status":"draft"},
+
+    {"crop":"maize","target":"turcicum_blight","product":"Mancozeb 75% WP","moa":"FRAC M03","dose":2.5,"unit":"g/L","water_l_per_acre":200,"phi":7,"reentry_h":24,"toxicity":"blue","bee":"low","cost_acre":600,"status":"draft"},
+    {"crop":"maize","target":"turcicum_blight","product":"Azoxystrobin 23% SC","moa":"FRAC 11","dose":1.0,"unit":"ml/L","water_l_per_acre":200,"phi":7,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":1600,"status":"draft"},
+
+    {"crop":"cotton","target":"pink_bollworm","product":"Chlorantraniliprole 18.5% SC","moa":"IRAC 28","dose":0.3,"unit":"ml/L","water_l_per_acre":200,"phi":21,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":2400,"status":"draft"},
+    {"crop":"cotton","target":"pink_bollworm","product":"Thiodicarb 75% WP","moa":"IRAC 1A","dose":1.0,"unit":"g/L","water_l_per_acre":200,"phi":21,"reentry_h":24,"toxicity":"yellow","bee":"high","cost_acre":1500,"status":"draft"},
+    {"crop":"cotton","target":"pink_bollworm","product":"Profenofos 40% + Cypermethrin 4% EC","moa":"IRAC 1B + 3A","dose":2.0,"unit":"ml/L","water_l_per_acre":200,"phi":21,"reentry_h":48,"toxicity":"red","bee":"high","cost_acre":1200,"status":"draft"},
+
+    {"crop":"cotton","target":"whitefly","product":"Flonicamid 50% WG","moa":"IRAC 29","dose":0.3,"unit":"g/L","water_l_per_acre":200,"phi":14,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":1500,"status":"draft"},
+    {"crop":"cotton","target":"whitefly","product":"Diafenthiuron 50% WP","moa":"IRAC 12A","dose":1.2,"unit":"g/L","water_l_per_acre":200,"phi":14,"reentry_h":24,"toxicity":"yellow","bee":"moderate","cost_acre":1700,"status":"draft"},
+
+    {"crop":"soybean","target":"girdle_beetle","product":"Chlorantraniliprole 18.5% SC","moa":"IRAC 28","dose":0.3,"unit":"ml/L","water_l_per_acre":200,"phi":21,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":2400,"status":"draft"},
+    {"crop":"soybean","target":"girdle_beetle","product":"Thiamethoxam 12.6% + Lambda-cyhalothrin 9.5% ZC","moa":"IRAC 4A + 3A","dose":0.25,"unit":"ml/L","water_l_per_acre":200,"phi":21,"reentry_h":24,"toxicity":"yellow","bee":"high","cost_acre":1600,"status":"draft"},
+
+    {"crop":"pigeonpea","target":"helicoverpa","product":"Chlorantraniliprole 18.5% SC","moa":"IRAC 28","dose":0.3,"unit":"ml/L","water_l_per_acre":200,"phi":21,"reentry_h":12,"toxicity":"blue","bee":"low","cost_acre":2400,"status":"draft"},
+    {"crop":"pigeonpea","target":"helicoverpa","product":"Emamectin benzoate 5% SG","moa":"IRAC 6","dose":0.4,"unit":"g/L","water_l_per_acre":200,"phi":14,"reentry_h":12,"toxicity":"yellow","bee":"moderate","cost_acre":1100,"status":"draft"},
+    {"crop":"pigeonpea","target":"helicoverpa","product":"Monocrotophos 36% SL","moa":"IRAC 1B","dose":1.5,"unit":"ml/L","water_l_per_acre":200,"phi":21,"reentry_h":48,"toxicity":"red","bee":"high","cost_acre":700,"status":"draft"}
+  ]
+}

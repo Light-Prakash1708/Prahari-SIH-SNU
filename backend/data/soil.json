@@ -1,0 +1,251 @@
+{
+  "_note": "Soil-test rating classes and recommended fertiliser doses. Ratings are the standard ICAR / Soil Health Card classes used by state soil-testing laboratories in India. Doses are general recommendations for Maharashtra at the district level and are NOT a substitute for a soil health card or a local KVK recommendation — PRAHARI says so on every response. An agronomist can open a pull request against this file without touching any Python.",
+  "sources": {
+    "ratings": "Soil Health Card scheme rating classes, Department of Agriculture & Farmers Welfare, Government of India; ICAR soil-test rating conventions (available N by alkaline permanganate, P by Olsen, K by ammonium acetate).",
+    "doses": "General recommended doses of fertiliser (RDF) for Maharashtra, as published in state agricultural university package-of-practice literature. Indicative only.",
+    "adjustment": "Soil-test-crop-response practice: a LOW rating raises the dose by about a quarter, a HIGH rating lowers it by about a quarter, relative to the general recommendation.",
+    "units": "Doses are stated per ACRE. State package-of-practice literature publishes them per hectare; these are the hectare figures divided by 2.47. If you are comparing with a printed recommendation, check which unit it uses — the difference is a factor of two and a half, and it is the most common arithmetic error on a fertiliser bill."
+  },
+  "ratings": {
+    "organic_carbon_pct": {
+      "unit": "%",
+      "low": 0.5,
+      "high": 0.75,
+      "means_low": "Low organic matter. This is the single biggest lever on this list — it holds water, feeds soil life and releases nitrogen slowly all season.",
+      "means_high": "Good organic matter. Keep doing whatever you are doing."
+    },
+    "nitrogen_kg_ha": {
+      "unit": "kg/ha available N",
+      "low": 280,
+      "high": 560,
+      "means_low": "Low available nitrogen — normal for most Maharashtra soils and the reason nitrogen is applied every season.",
+      "means_high": "High available nitrogen. Cutting the nitrogen dose saves money AND reduces sucking-pest pressure, because soft nitrogen-rich growth is what whitefly and aphids prefer."
+    },
+    "phosphorus_kg_ha": {
+      "unit": "kg/ha available P2O5 (Olsen)",
+      "low": 10,
+      "high": 25,
+      "means_low": "Low phosphorus. Roots and early establishment suffer first, and the symptom looks like poor vigour rather than anything specific.",
+      "means_high": "High phosphorus. Applying more locks up zinc and iron; a full-dose DAP habit on a high-P soil is money spent to create a micronutrient problem."
+    },
+    "potassium_kg_ha": {
+      "unit": "kg/ha available K2O",
+      "low": 110,
+      "high": 280,
+      "means_low": "Low potassium. Potassium is what thickens cell walls, so a deficient crop is measurably more susceptible to disease and to water stress.",
+      "means_high": "Adequate potassium."
+    },
+    "ph": {
+      "unit": "pH",
+      "low": 6.5,
+      "high": 8.5,
+      "means_low": "Acidic. Phosphorus availability drops and aluminium can become toxic below 5.5.",
+      "means_high": "Alkaline to sodic. Iron and zinc lock up; gypsum and organic matter are the usual correction, and a sodic soil needs a proper laboratory recommendation, not an app."
+    }
+  },
+  "rdf": {
+    "tomato": {
+      "n": 60,
+      "p": 30,
+      "k": 30,
+      "unit": "kg/acre",
+      "split": "Half the nitrogen and all the phosphorus and potassium at transplanting; the rest of the nitrogen in two splits at flowering and first fruit set."
+    },
+    "onion": {
+      "n": 44,
+      "p": 20,
+      "k": 20,
+      "unit": "kg/acre",
+      "split": "Half the nitrogen basal with all the phosphorus and potassium; the rest 30 and 45 days after transplanting. Stop nitrogen once bulbing starts or the bulbs will not store."
+    },
+    "grape": {
+      "n": 60,
+      "p": 40,
+      "k": 80,
+      "unit": "kg/acre",
+      "split": "Split across the season after pruning; potassium matters most through berry development."
+    },
+    "maize": {
+      "n": 48,
+      "p": 24,
+      "k": 16,
+      "unit": "kg/acre",
+      "split": "One third of the nitrogen basal, one third at knee height, one third before tasselling."
+    },
+    "cotton": {
+      "n": 48,
+      "p": 24,
+      "k": 24,
+      "unit": "kg/acre",
+      "split": "One third basal, the rest at squaring and at boll development."
+    },
+    "soybean": {
+      "n": 12,
+      "p": 30,
+      "k": 12,
+      "unit": "kg/acre",
+      "split": "All basal. Soybean fixes most of its own nitrogen — a heavy nitrogen dose suppresses nodulation and wastes the money twice."
+    },
+    "pigeonpea": {
+      "n": 10,
+      "p": 20,
+      "k": 8,
+      "unit": "kg/acre",
+      "split": "All basal. Like soybean, this is a legume; the nitrogen is a starter dose, not a feeding programme."
+    }
+  },
+  "straights": [
+    {
+      "name": "Urea",
+      "nutrient": "n",
+      "pct": 46,
+      "note": "46% N"
+    },
+    {
+      "name": "Single super phosphate (SSP)",
+      "nutrient": "p",
+      "pct": 16,
+      "note": "16% P2O5, and it also carries sulphur and calcium"
+    },
+    {
+      "name": "Muriate of potash (MOP)",
+      "nutrient": "k",
+      "pct": 60,
+      "note": "60% K2O"
+    }
+  ],
+  "vsa": [
+    {
+      "id": "structure",
+      "q": "Dig out a spade of soil from 15 cm and drop it once from waist height. What happens?",
+      "q_mr": "१५ सेंमी खोलीतून एक फावडे माती काढा आणि कमरेच्या उंचीवरून एकदा खाली टाका. काय होते?",
+      "options": [
+        {
+          "v": 2,
+          "label": "It breaks into small crumbs",
+          "label_mr": "लहान कणांमध्ये मोकळी होते"
+        },
+        {
+          "v": 1,
+          "label": "It breaks into a few large clods",
+          "label_mr": "काही मोठ्या ढेकळांमध्ये फुटते"
+        },
+        {
+          "v": 0,
+          "label": "It stays as one hard block",
+          "label_mr": "एकसंध कडक गोळा राहतो"
+        }
+      ]
+    },
+    {
+      "id": "infiltration",
+      "q": "Pour a mug of water on a flat patch of bare soil. How long does it take to soak in?",
+      "q_mr": "उघड्या सपाट जमिनीवर एक तांब्या पाणी ओता. ते जिरायला किती वेळ लागतो?",
+      "options": [
+        {
+          "v": 2,
+          "label": "Under a minute",
+          "label_mr": "एक मिनिटापेक्षा कमी"
+        },
+        {
+          "v": 1,
+          "label": "One to five minutes",
+          "label_mr": "एक ते पाच मिनिटे"
+        },
+        {
+          "v": 0,
+          "label": "It stands there",
+          "label_mr": "पाणी तसेच साचून राहते"
+        }
+      ]
+    },
+    {
+      "id": "earthworms",
+      "q": "Count the earthworms in that spade of soil.",
+      "q_mr": "त्या फावडेभर मातीत गांडुळे मोजा.",
+      "options": [
+        {
+          "v": 2,
+          "label": "Three or more",
+          "label_mr": "तीन किंवा अधिक"
+        },
+        {
+          "v": 1,
+          "label": "One or two",
+          "label_mr": "एक किंवा दोन"
+        },
+        {
+          "v": 0,
+          "label": "None",
+          "label_mr": "एकही नाही"
+        }
+      ]
+    },
+    {
+      "id": "crust",
+      "q": "After the last rain dried, did a hard crust form on the surface?",
+      "q_mr": "मागील पाऊस सुकल्यावर जमिनीवर कडक कवच तयार झाले होते का?",
+      "options": [
+        {
+          "v": 2,
+          "label": "No crust",
+          "label_mr": "कवच नाही"
+        },
+        {
+          "v": 1,
+          "label": "A thin crust in places",
+          "label_mr": "काही ठिकाणी पातळ कवच"
+        },
+        {
+          "v": 0,
+          "label": "A hard crust the seedlings struggled through",
+          "label_mr": "कडक कवच — रोपांना बाहेर येणे कठीण झाले"
+        }
+      ]
+    },
+    {
+      "id": "colour",
+      "q": "Compare the topsoil colour with the soil from 30 cm down.",
+      "q_mr": "वरच्या मातीचा रंग ३० सेंमी खोलीवरील मातीशी तुलना करा.",
+      "options": [
+        {
+          "v": 2,
+          "label": "Topsoil is clearly darker",
+          "label_mr": "वरची माती स्पष्टपणे जास्त गडद"
+        },
+        {
+          "v": 1,
+          "label": "Slightly darker",
+          "label_mr": "थोडीशी गडद"
+        },
+        {
+          "v": 0,
+          "label": "Same colour",
+          "label_mr": "दोन्ही सारख्याच"
+        }
+      ]
+    },
+    {
+      "id": "roots",
+      "q": "Pull up a plant and look at the roots.",
+      "q_mr": "एक झाड उपटून मुळे पहा.",
+      "options": [
+        {
+          "v": 2,
+          "label": "Fine roots spread widely and go down",
+          "label_mr": "बारीक मुळे सर्व दिशांना व खोलवर"
+        },
+        {
+          "v": 1,
+          "label": "Roots spread sideways but do not go deep",
+          "label_mr": "मुळे आडवी पसरतात पण खोल जात नाहीत"
+        },
+        {
+          "v": 0,
+          "label": "Roots are short, thick and turn sideways at a hard layer",
+          "label_mr": "मुळे आखूड, जाड आणि कठीण थरापाशी वळतात"
+        }
+      ]
+    }
+  ]
+}

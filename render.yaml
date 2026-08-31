@@ -1,0 +1,54 @@
+# Render blueprint. `render blueprint launch` or connect the repo in the UI.
+#
+# One web service and one PostgreSQL instance. The web service serves both the
+# API and the built frontend, so there is a single origin and no CORS surface.
+services:
+  - type: web
+    name: prahari
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: true
+    disk:
+      # Only needed while STORAGE_PROVIDER=local. Move to S3/R2 for anything
+      # beyond a pilot — a container disk is not a backup.
+      name: prahari-uploads
+      mountPath: /app/var/uploads
+      sizeGB: 10
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DEMO_MODE
+        value: "false"
+      - key: AUTO_SEED_DEMO
+        value: "false"
+      - key: LOG_JSON
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: prahari-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        # Same-origin deployment: the API serves the frontend. Set this to your
+        # Vercel domain instead if you split them.
+        value: https://prahari.onrender.com
+      - key: TRUSTED_HOSTS
+        value: prahari.onrender.com
+      - key: WEATHER_PROVIDER
+        value: openmeteo
+      - key: VISION_PROVIDER
+        value: none
+      - key: ALLOW_FEATURE_ENGINE
+        value: "true"
+      - key: STORAGE_PROVIDER
+        value: local
+      - key: SMS_PROVIDER
+        value: none
+
+databases:
+  - name: prahari-db
+    plan: basic-256mb
+    postgresMajorVersion: "16"

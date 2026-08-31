@@ -1,0 +1,38 @@
+# Local PostgreSQL, so the deployment path can be tested before deploying it.
+#
+#   docker compose up --build
+#   open http://localhost:8000
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: prahari
+      POSTGRES_PASSWORD: prahari
+      POSTGRES_DB: prahari
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prahari"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  app:
+    build: .
+    depends_on:
+      db: { condition: service_healthy }
+    ports: ["8000:8000"]
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://prahari:prahari@db:5432/prahari
+      JWT_SECRET: local-development-secret-at-least-32-characters-long
+      CORS_ORIGINS: http://localhost:8000
+      WEATHER_PROVIDER: openmeteo
+      VISION_PROVIDER: none
+      STORAGE_PROVIDER: local
+      STORAGE_LOCAL_DIR: /app/var/uploads
+    volumes: ["uploads:/app/var/uploads"]
+
+volumes:
+  pgdata:
+  uploads:

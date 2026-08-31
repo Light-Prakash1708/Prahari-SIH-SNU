@@ -1,0 +1,31 @@
+{
+  "_note": "Class ids MUST match backend/data/problems.json, plus 'unknown'. Order is the model's output order. 'unknown' is not a disease: it is the class a leaf goes into when it belongs to none of the others, and a plant-disease model without one answers confidently when shown a photograph of a hand.",
+  "generated_from": "backend/data/problems.json",
+  "labels": [
+    "anthracnose_grape",
+    "bacterial_blight_cotton",
+    "cercospora_soybean",
+    "common_rust_maize",
+    "downy_mildew",
+    "downy_mildew_onion",
+    "early_blight",
+    "fusarium_wilt_pigeonpea",
+    "grey_mildew_cotton",
+    "late_blight",
+    "leaf_curl_cotton",
+    "leaf_curl_tomato",
+    "maydis_blight_maize",
+    "nitrogen_deficiency",
+    "phytophthora_blight_pigeonpea",
+    "powdery_mildew",
+    "purple_blotch",
+    "septoria_tomato",
+    "soybean_rust",
+    "stemphylium_blight_onion",
+    "sterility_mosaic_pigeonpea",
+    "turcicum_blight",
+    "yellow_mosaic_soybean",
+    "healthy",
+    "unknown"
+  ]
+}

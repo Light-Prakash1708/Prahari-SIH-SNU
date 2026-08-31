@@ -1,0 +1,39 @@
+{
+  "_note": "One record per training image. field_id is what the split is made on.",
+  "version": "0.2.0-example",
+  "created": "2026-08-27",
+  "records": [
+    {
+      "image": "data/raw/plantdoc/tomato_early_blight_0142.jpg",
+      "crop": "tomato",
+      "label": "early_blight",
+      "field_id": "plantdoc:tomato:0142",
+      "location": null,
+      "captured_on": null,
+      "crop_stage": null,
+      "source": "plantdoc",
+      "expert_label": "early_blight",
+      "expert_confidence": null,
+      "verification_status": "dataset_label",
+      "model_prediction": null,
+      "model_version": null,
+      "split": "train"
+    },
+    {
+      "image": "data/raw/prahari/O-9F2A31C0D4.jpg",
+      "crop": "tomato",
+      "label": "late_blight",
+      "field_id": "prahari:P-7677879235",
+      "location": {"taluka": "niphad"},
+      "captured_on": "2026-08-21",
+      "crop_stage": "flowering",
+      "source": "prahari_production",
+      "expert_label": "late_blight",
+      "expert_confidence": "high",
+      "verification_status": "expert_confirmed",
+      "model_prediction": "early_blight",
+      "model_version": "features-v1",
+      "split": "test"
+    }
+  ]
+}

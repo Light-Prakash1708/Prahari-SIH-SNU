@@ -1,0 +1,21 @@
+# PRAHARI · backend
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
+pydantic>=2.6
+pydantic-settings>=2.2
+email-validator>=2.1
+SQLAlchemy>=2.0.25
+PyJWT>=2.8
+numpy>=1.26
+pillow>=10.2
+httpx>=0.27
+
+# PostgreSQL — required for deployment, unused by the SQLite dev/demo build
+psycopg[binary]>=3.1
+
+# Optional, provider-gated:
+#   onnxruntime  when VISION_PROVIDER=onnx
+#   boto3        when STORAGE_PROVIDER=s3
+onnxruntime>=1.17; python_version < "3.14"
+boto3>=1.34

@@ -1,0 +1,13 @@
+{"_note":"Nashik district talukas, used for the spatial statistics. Farm-household counts are indicative.",
+ "talukas":[
+  {"id":"pimpalgaon","name":"Pimpalgaon Baswant","mr":"पिंपळगाव बसवंत","lat":20.1667,"lng":73.9833,"farms":1840},
+  {"id":"dindori","name":"Dindori","mr":"दिंडोरी","lat":20.2019,"lng":73.8322,"farms":2110},
+  {"id":"niphad","name":"Niphad","mr":"निफाड","lat":20.0800,"lng":74.1100,"farms":2640},
+  {"id":"lasalgaon","name":"Lasalgaon","mr":"लासलगाव","lat":20.1440,"lng":74.2380,"farms":1520},
+  {"id":"nashik","name":"Nashik","mr":"नाशिक","lat":19.9975,"lng":73.7898,"farms":1290},
+  {"id":"sinnar","name":"Sinnar","mr":"सिन्नर","lat":19.8450,"lng":74.0000,"farms":1730},
+  {"id":"igatpuri","name":"Igatpuri","mr":"इगतपुरी","lat":19.6950,"lng":73.5600,"farms":980},
+  {"id":"yeola","name":"Yeola","mr":"येवला","lat":20.0430,"lng":74.4890,"farms":1410},
+  {"id":"chandvad","name":"Chandvad","mr":"चांदवड","lat":20.3300,"lng":74.2450,"farms":1180},
+  {"id":"malegaon","name":"Malegaon","mr":"मालेगाव","lat":20.5500,"lng":74.5300,"farms":2260}
+ ]}

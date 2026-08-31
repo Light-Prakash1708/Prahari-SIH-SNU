@@ -1,0 +1,286 @@
+{
+ "_note": "Crops split deliberately. `vision:true` = an open field-realistic image dataset exists, so the camera is allowed to answer. `vision:false` = no open Indian image corpus exists (cotton, soybean, tur), so the camera ABSTAINS and only the weather/threshold side runs. That split is a finding about Indian open data, not a limitation we are hiding.",
+ "crops": {
+  "tomato": {
+   "name": "Tomato",
+   "mr": "टोमॅटो",
+   "hi": "टमाटर",
+   "em": "🍅",
+   "vision": true,
+   "stages": [
+    [
+     "sowing",
+     0,
+     15,
+     "Nursery / transplant"
+    ],
+    [
+     "vegetative",
+     16,
+     40,
+     "Vegetative"
+    ],
+    [
+     "flowering",
+     41,
+     65,
+     "Flowering"
+    ],
+    [
+     "fruiting",
+     66,
+     110,
+     "Fruiting"
+    ],
+    [
+     "harvest",
+     111,
+     140,
+     "Harvest"
+    ]
+   ],
+   "price_per_kg": 19.8,
+   "yield_kg_per_acre": 12000
+  },
+  "grape": {
+   "name": "Grape",
+   "mr": "द्राक्ष",
+   "hi": "अंगूर",
+   "em": "🍇",
+   "vision": true,
+   "stages": [
+    [
+     "pruning",
+     0,
+     20,
+     "Post-pruning"
+    ],
+    [
+     "shoot",
+     21,
+     45,
+     "Shoot growth"
+    ],
+    [
+     "flowering",
+     46,
+     65,
+     "Flowering"
+    ],
+    [
+     "berry",
+     66,
+     110,
+     "Berry development"
+    ],
+    [
+     "harvest",
+     111,
+     150,
+     "Harvest"
+    ]
+   ],
+   "price_per_kg": 62.0,
+   "yield_kg_per_acre": 8000
+  },
+  "onion": {
+   "name": "Onion",
+   "mr": "कांदा",
+   "hi": "प्याज",
+   "em": "🧅",
+   "vision": true,
+   "stages": [
+    [
+     "nursery",
+     0,
+     35,
+     "Nursery"
+    ],
+    [
+     "vegetative",
+     36,
+     70,
+     "Vegetative"
+    ],
+    [
+     "bulb",
+     71,
+     105,
+     "Bulb development"
+    ],
+    [
+     "maturity",
+     106,
+     130,
+     "Maturity / curing"
+    ]
+   ],
+   "price_per_kg": 16.4,
+   "yield_kg_per_acre": 10000
+  },
+  "maize": {
+   "name": "Maize",
+   "mr": "मका",
+   "hi": "मक्का",
+   "em": "🌽",
+   "vision": true,
+   "stages": [
+    [
+     "seedling",
+     0,
+     20,
+     "Seedling"
+    ],
+    [
+     "earlywhorl",
+     21,
+     40,
+     "Early whorl"
+    ],
+    [
+     "latewhorl",
+     41,
+     60,
+     "Late whorl"
+    ],
+    [
+     "tassel",
+     61,
+     85,
+     "Tasselling"
+    ],
+    [
+     "grain",
+     86,
+     115,
+     "Grain fill"
+    ]
+   ],
+   "price_per_kg": 21.5,
+   "yield_kg_per_acre": 2400
+  },
+  "cotton": {
+   "name": "Cotton",
+   "mr": "कापूस",
+   "hi": "कपास",
+   "em": "🌱",
+   "vision": true,
+   "stages": [
+    [
+     "seedling",
+     0,
+     30,
+     "Seedling"
+    ],
+    [
+     "vegetative",
+     31,
+     60,
+     "Vegetative"
+    ],
+    [
+     "flowering",
+     61,
+     100,
+     "Flowering"
+    ],
+    [
+     "boll",
+     101,
+     150,
+     "Boll development"
+    ],
+    [
+     "harvest",
+     151,
+     190,
+     "Picking"
+    ]
+   ],
+   "price_per_kg": 72.0,
+   "yield_kg_per_acre": 600
+  },
+  "soybean": {
+   "name": "Soybean",
+   "mr": "सोयाबीन",
+   "hi": "सोयाबीन",
+   "em": "🫘",
+   "vision": true,
+   "stages": [
+    [
+     "seedling",
+     0,
+     20,
+     "Seedling"
+    ],
+    [
+     "vegetative",
+     21,
+     45,
+     "Vegetative"
+    ],
+    [
+     "flowering",
+     46,
+     70,
+     "Flowering"
+    ],
+    [
+     "pod",
+     71,
+     95,
+     "Pod fill"
+    ],
+    [
+     "maturity",
+     96,
+     115,
+     "Maturity"
+    ]
+   ],
+   "price_per_kg": 46.0,
+   "yield_kg_per_acre": 900
+  },
+  "pigeonpea": {
+   "name": "Pigeonpea (tur)",
+   "mr": "तूर",
+   "hi": "अरहर",
+   "em": "🌾",
+   "vision": true,
+   "stages": [
+    [
+     "seedling",
+     0,
+     30,
+     "Seedling"
+    ],
+    [
+     "vegetative",
+     31,
+     75,
+     "Vegetative"
+    ],
+    [
+     "flowering",
+     76,
+     120,
+     "Flowering"
+    ],
+    [
+     "pod",
+     121,
+     165,
+     "Pod development"
+    ],
+    [
+     "maturity",
+     166,
+     190,
+     "Maturity"
+    ]
+   ],
+   "price_per_kg": 78.0,
+   "yield_kg_per_acre": 500
+  }
+ }
+}

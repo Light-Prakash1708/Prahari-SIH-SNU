@@ -1,0 +1,860 @@
+{
+ "_note": "Diseases and pests. `model` names the PUBLISHED infection model that forecasts it before symptoms exist — that is what makes this early warning rather than detection. A disease with `model: null` carries `no_model_note` saying WHY there is no forecast for it (vector-borne, soil-borne, or no implementable published rule); PRAHARI diagnoses those from symptoms and the taluka prior and does not invent a risk curve. `model_caveat`, where present, marks a model borrowed from a related pathogen and is shown to the user wherever it fires. `feat` is the expected symptom-feature signature used by the deterministic vision engine; a trained CNN drops in at the same seam (see app/vision.py) and the features remain, because they are what makes the answer arguable.",
+ "diseases": {
+  "late_blight": {
+   "name": "Late blight",
+   "mr": "उशिरा येणारा करपा",
+   "hi": "पछेती झुलसा",
+   "sci": "Phytophthora infestans",
+   "em": "🍂",
+   "crops": [
+    "tomato"
+   ],
+   "model": "hutton",
+   "scout": "Water-soaked grey-green patch spreading across the vein, with a white downy fringe on the underside in the morning.",
+   "mr_scout": "शिरेवर पसरणारा पाणथळ करडा-हिरवा डाग, सकाळी पानाच्या खालच्या बाजूला पांढरी बुरशी.",
+   "speed": "Doubles every 3-5 days in humid weather. First lesion to unmarketable in about 10 days.",
+   "feat": {
+    "necrosis": 0.34,
+    "chlorosis": 0.05,
+    "powder": 0.03,
+    "dark": 0.1,
+    "edge": 0.26,
+    "lesions": 5,
+    "spread": 0.42
+   }
+  },
+  "early_blight": {
+   "name": "Early blight",
+   "mr": "लवकर येणारा करपा",
+   "hi": "अगेती झुलसा",
+   "sci": "Alternaria solani",
+   "em": "🎯",
+   "crops": [
+    "tomato"
+   ],
+   "model": "tomcast",
+   "scout": "Brown spot with concentric rings like a target, on the OLDEST leaves first, with a yellow halo.",
+   "mr_scout": "जुन्या पानांवर आधी — गोल वलयांचा तपकिरी डाग, भोवती पिवळी कडा.",
+   "speed": "Slow. Climbs the plant over weeks. Losing lower leaves is tolerable; losing the canopy is not.",
+   "feat": {
+    "necrosis": 0.18,
+    "chlorosis": 0.2,
+    "powder": 0.02,
+    "dark": 0.06,
+    "edge": 0.55,
+    "lesions": 15,
+    "spread": 0.14
+   }
+  },
+  "downy_mildew": {
+   "name": "Downy mildew",
+   "mr": "केवडा",
+   "hi": "मृदुरोमिल आसिता",
+   "sci": "Plasmopara viticola",
+   "em": "💧",
+   "crops": [
+    "grape"
+   ],
+   "model": "three_ten",
+   "scout": "Oily yellow blotch on the upper surface with white down directly beneath it. The oil-spot is the giveaway.",
+   "mr_scout": "पानाच्या वरच्या बाजूला तेलकट पिवळा डाग, खाली नेमक्या त्याच जागी पांढरी बुरशी.",
+   "speed": "A secondary cycle completes in 4 days in warm humid weather. This is the disease that ends a Nashik export season.",
+   "feat": {
+    "necrosis": 0.14,
+    "chlorosis": 0.34,
+    "powder": 0.18,
+    "dark": 0.04,
+    "edge": 0.2,
+    "lesions": 6,
+    "spread": 0.48
+   }
+  },
+  "powdery_mildew": {
+   "name": "Powdery mildew",
+   "mr": "भुरी",
+   "hi": "चूर्णी फफूंदी",
+   "sci": "Erysiphe necator",
+   "em": "🌫️",
+   "crops": [
+    "grape"
+   ],
+   "model": "gubler",
+   "scout": "Ash-grey powder that rubs off between finger and thumb, on the upper leaf surface and on the berry.",
+   "mr_scout": "बोटांनी पुसली जाणारी राखाडी पावडर, पानावर आणि मण्यावर.",
+   "speed": "Berries are susceptible from flowering until about 4 weeks after fruit set. Miss that window and the bunch is lost.",
+   "feat": {
+    "necrosis": 0.04,
+    "chlorosis": 0.06,
+    "powder": 0.34,
+    "dark": 0.02,
+    "edge": 0.18,
+    "lesions": 7,
+    "spread": 0.36
+   }
+  },
+  "purple_blotch": {
+   "name": "Purple blotch",
+   "mr": "जांभळा करपा",
+   "hi": "बैंगनी धब्बा",
+   "sci": "Alternaria porri",
+   "em": "🟣",
+   "crops": [
+    "onion"
+   ],
+   "model": "tomcast",
+   "scout": "Small white sunken speck becoming a purple-brown zoned lesion with a yellow margin, on older leaves.",
+   "mr_scout": "जुन्या पातीवर लहान पांढरा खोलगट ठिपका, नंतर जांभळट-तपकिरी वलयांकित डाग.",
+   "speed": "Needs RH above 90% and 21-30 C. Kills the leaf, then the neck, then the bulb rots in storage.",
+   "feat": {
+    "necrosis": 0.3,
+    "chlorosis": 0.2,
+    "powder": 0.03,
+    "dark": 0.14,
+    "edge": 0.5,
+    "lesions": 11,
+    "spread": 0.2
+   }
+  },
+  "turcicum_blight": {
+   "name": "Turcicum leaf blight",
+   "mr": "पानावरील करपा",
+   "hi": "पर्ण झुलसा",
+   "sci": "Exserohilum turcicum",
+   "em": "🍁",
+   "crops": [
+    "maize"
+   ],
+   "model": "tomcast",
+   "scout": "Long cigar-shaped grey-green lesions running along the leaf, starting on lower leaves.",
+   "mr_scout": "खालच्या पानांपासून सुरू होणारे लांब सिगारसारखे करडे-हिरवे डाग.",
+   "speed": "Favoured by 18-27 C with heavy dew. Severe infection before silking costs the most yield.",
+   "feat": {
+    "necrosis": 0.32,
+    "chlorosis": 0.16,
+    "powder": 0.02,
+    "dark": 0.08,
+    "edge": 0.3,
+    "lesions": 4,
+    "spread": 0.6
+   }
+  },
+  "nitrogen_deficiency": {
+   "name": "Nitrogen deficiency",
+   "mr": "नत्राची कमतरता",
+   "hi": "नाइट्रोजन की कमी",
+   "sci": "abiotic",
+   "em": "🟡",
+   "crops": [
+    "cotton",
+    "grape",
+    "maize",
+    "onion",
+    "pigeonpea",
+    "soybean",
+    "tomato"
+   ],
+   "model": null,
+   "no_spray": true,
+   "scout": "Uniform pale yellowing starting on the OLDEST leaves and moving up. No spot, no lesion margin.",
+   "mr_scout": "जुन्या पानांपासून सुरू होणारा एकसारखा फिकट पिवळेपणा. डाग नाही, कडा नाही.",
+   "speed": "Not contagious. Corrects within 7-10 days of a top-dress.",
+   "feat": {
+    "necrosis": 0.03,
+    "chlorosis": 0.72,
+    "powder": 0.02,
+    "dark": 0.02,
+    "edge": 0.1,
+    "lesions": 1,
+    "spread": 0.9
+   },
+   "no_model_note": "A nutrient deficiency, not an infection. No weather model applies; it is on the list so the differential can explain a yellow leaf without naming a pathogen."
+  },
+  "healthy": {
+   "name": "No disease detected",
+   "mr": "रोग आढळला नाही",
+   "hi": "कोई रोग नहीं",
+   "sci": "—",
+   "em": "✅",
+   "crops": [
+    "cotton",
+    "grape",
+    "maize",
+    "onion",
+    "pigeonpea",
+    "soybean",
+    "tomato"
+   ],
+   "model": null,
+   "no_spray": true,
+   "scout": "Even colour, no lesion, no powder, no mine.",
+   "mr_scout": "एकसारखा रंग, डाग नाही.",
+   "speed": "—",
+   "feat": {
+    "necrosis": 0.01,
+    "chlorosis": 0.01,
+    "powder": 0.01,
+    "dark": 0.01,
+    "edge": 0.04,
+    "lesions": 0,
+    "spread": 0.02
+   },
+   "no_model_note": "Not a disease — the null hypothesis the differential has to beat. Nothing to forecast."
+  },
+  "bacterial_blight_cotton": {
+   "name": "Cotton bacterial blight",
+   "mr": "कापसावरील जिवाणू करपा",
+   "hi": "जीवाणु झुलसा",
+   "sci": "Xanthomonas citri pv. malvacearum",
+   "em": "🟫",
+   "crops": [
+    "cotton"
+   ],
+   "model": null,
+   "no_model_note": "No published weather-driven infection model exists for this pathogen that PRAHARI could implement faithfully, so it is diagnosed from symptoms and the taluka prior only — there is no risk forecast for it and the forecast screen does not pretend otherwise.",
+   "scout": "Small water-soaked ANGULAR spots on the leaf, squared off by the veins so they look like tiny tiles, turning dark brown or black. Look for the same angular lesions running as black streaks along the stem and on the bracts of the boll.",
+   "mr_scout": "पानावर शिरांनी बांधलेले लहान कोनाकृती पाणथळ डाग, नंतर गडद तपकिरी. खोडावर आणि बोंडाच्या पाकळ्यांवर तेच काळे पट्टे दिसतात.",
+   "speed": "Spread by rain splash and by handling a wet crop. Worst at 30-40 C with high humidity after a storm; a hailstorm followed by warm rain is the classic trigger.",
+   "feat": {
+    "necrosis": 0.22,
+    "chlorosis": 0.1,
+    "powder": 0.02,
+    "dark": 0.26,
+    "edge": 0.62,
+    "lesions": 18,
+    "spread": 0.22
+   }
+  },
+  "grey_mildew_cotton": {
+   "name": "Cotton grey mildew",
+   "mr": "कापसावरील करडी बुरशी",
+   "hi": "धूसर फफूंदी",
+   "sci": "Ramularia areola",
+   "em": "🩶",
+   "crops": [
+    "cotton"
+   ],
+   "model": null,
+   "no_model_note": "No published infection model implemented. Diagnosed from symptoms and prior.",
+   "scout": "Pale, angular, frosty-white patches on the UNDERSIDE of the lower leaves, bounded by the veins. On the upper surface the same patch shows as a dull pale-green area. Turn the leaf over — this one is invisible from above until it is late.",
+   "mr_scout": "खालच्या पानांच्या मागच्या बाजूला शिरांनी बांधलेले फिकट पांढुरके कोनाकृती डाग. पान उलटून पहा — वरून हे उशिरापर्यंत दिसत नाही.",
+   "speed": "Builds late in the season in cool humid weather, typically after boll formation, and causes early leaf drop rather than direct boll damage.",
+   "feat": {
+    "necrosis": 0.06,
+    "chlorosis": 0.22,
+    "powder": 0.3,
+    "dark": 0.03,
+    "edge": 0.44,
+    "lesions": 12,
+    "spread": 0.34
+   }
+  },
+  "leaf_curl_cotton": {
+   "name": "Cotton leaf curl",
+   "mr": "कापसाची पाने वळणे",
+   "hi": "पत्ती मरोड",
+   "sci": "Cotton leaf curl virus (whitefly-transmitted)",
+   "em": "🌀",
+   "crops": [
+    "cotton"
+   ],
+   "model": null,
+   "no_model_note": "Vector-borne, not weather-borne. Risk follows the WHITEFLY population, which PRAHARI forecasts through the whitefly degree-day model and the yellow sticky trap count — not through an infection model. Manage the vector, not the weather.",
+   "scout": "Leaves cupping UPWARD with thickened, darkened veins; hold the leaf to the light and the veins stand out. Small leafy outgrowths (enations) on the underside of the main vein are the confirming sign. Check the underside for whitefly at the same time.",
+   "mr_scout": "पाने वरच्या दिशेने वळतात, शिरा जाड व गडद होतात; पानाच्या मागे मुख्य शिरेवर लहान पानासारखी वाढ दिसते. त्याच वेळी पांढऱ्या माशीसाठी पानाची मागची बाजू तपासा.",
+   "speed": "Systemic and not curable. Once a plant shows it, the plant stays infected — the decision is about protecting the rest of the field from the vector.",
+   "feat": {
+    "necrosis": 0.04,
+    "chlorosis": 0.24,
+    "powder": 0.02,
+    "dark": 0.16,
+    "edge": 0.14,
+    "lesions": 2,
+    "spread": 0.66
+   }
+  },
+  "soybean_rust": {
+   "name": "Soybean rust",
+   "mr": "सोयाबीनवरील तांबेरा",
+   "hi": "सोयाबीन रतुआ",
+   "sci": "Phakopsora pachyrhizi",
+   "em": "🟠",
+   "crops": [
+    "soybean"
+   ],
+   "model": null,
+   "no_model_note": "Published risk rules for soybean rust depend on spore-trap and regional arrival data that India has no open feed for. PRAHARI will not run a model it cannot supply with real inputs, so this is symptom-and-prior only.",
+   "scout": "Very small tan to reddish-brown angular lesions on the LOWER leaves, each with a raised pustule on the underside that leaves powder on your thumb. Starts at the bottom of the canopy and climbs. Unlike a leaf spot, the lesion is bounded by the small veins and there are many of them.",
+   "mr_scout": "खालच्या पानांवर अतिशय लहान तपकिरी-तांबूस कोनाकृती डाग; पानाच्या मागे उंचवटे, बोटाला भुकटी लागते. खालून सुरू होऊन वर सरकते.",
+   "speed": "Doubles fast with 6+ hours of leaf wetness at 15-28 C. Infection to visible pustule is 7-10 days, which is why scouting the lower canopy weekly matters.",
+   "feat": {
+    "necrosis": 0.16,
+    "chlorosis": 0.18,
+    "powder": 0.22,
+    "dark": 0.1,
+    "edge": 0.52,
+    "lesions": 22,
+    "spread": 0.3
+   }
+  },
+  "yellow_mosaic_soybean": {
+   "name": "Yellow mosaic",
+   "mr": "पिवळा विषाणू रोग",
+   "hi": "पीत शिरा मोज़ेक",
+   "sci": "Mungbean yellow mosaic India virus (whitefly-transmitted)",
+   "em": "🟡",
+   "crops": [
+    "soybean"
+   ],
+   "model": null,
+   "no_model_note": "Vector-borne. Risk follows the whitefly population — the degree-day model and the yellow sticky trap count are the forecast for this, not a weather infection model.",
+   "scout": "Bright yellow patches scattered through green tissue in a mosaic, often starting on the youngest leaves, with the green and yellow sharply separated rather than blending as a deficiency would. Infected plants set fewer, smaller pods.",
+   "mr_scout": "हिरव्या पानावर ठळक पिवळे ठिपके — पिवळा आणि हिरवा भाग स्पष्ट वेगळे दिसतात. अन्नद्रव्याच्या कमतरतेत रंग हळूहळू बदलतो, इथे नाही.",
+   "speed": "Systemic and incurable in the affected plant. Early infection costs far more yield than late; the whole decision is vector management and rogueing.",
+   "feat": {
+    "necrosis": 0.03,
+    "chlorosis": 0.52,
+    "powder": 0.02,
+    "dark": 0.04,
+    "edge": 0.3,
+    "lesions": 8,
+    "spread": 0.58
+   }
+  },
+  "cercospora_soybean": {
+   "name": "Frogeye leaf spot",
+   "mr": "बेडूकडोळा ठिपके",
+   "hi": "मेंढक-आँख धब्बा",
+   "sci": "Cercospora sojina",
+   "em": "👁",
+   "crops": [
+    "soybean"
+   ],
+   "model": null,
+   "no_model_note": "No published infection model implemented. Symptom-and-prior only.",
+   "scout": "Round to angular spots with a pale grey centre and a distinct dark reddish-brown border — the eye. Mostly on the upper, younger leaves, which separates it from rust and from bacterial pustule.",
+   "mr_scout": "मध्यभागी फिकट करडा आणि कडेला गडद तांबूस-तपकिरी वलय असलेले गोल डाग — डोळ्यासारखे. मुख्यतः वरच्या कोवळ्या पानांवर.",
+   "speed": "Warm humid weather during pod fill. Severe infection defoliates and shrinks the seed.",
+   "feat": {
+    "necrosis": 0.2,
+    "chlorosis": 0.12,
+    "powder": 0.02,
+    "dark": 0.14,
+    "edge": 0.66,
+    "lesions": 16,
+    "spread": 0.18
+   }
+  },
+  "fusarium_wilt_pigeonpea": {
+   "name": "Pigeonpea wilt",
+   "mr": "तुरीचे मर रोग",
+   "hi": "उकठा रोग",
+   "sci": "Fusarium udum",
+   "em": "🥀",
+   "crops": [
+    "pigeonpea"
+   ],
+   "model": null,
+   "no_model_note": "Soil-borne, not weather-borne — the inoculum is already in the field. There is nothing for a weather model to forecast, so PRAHARI does not offer one.",
+   "scout": "A plant, or often ONE SIDE of a plant, yellowing and wilting while its neighbours stay green. Scrape the bark near the collar: a purple-brown streak running up the stem is the confirming sign. Wilting that follows the row is usually water; wilting in scattered single plants is usually this.",
+   "mr_scout": "शेजारची झाडे हिरवी असताना एखादे झाड — किंवा झाडाची एकच बाजू — पिवळी पडून मलूल होते. खोडाची साल खरवडल्यास जांभळट-तपकिरी पट्टा दिसतो.",
+   "speed": "Appears from the flowering stage onward and kills the plant. Nothing sprayed on the leaf reaches it; the decision is about variety and rotation for the next season.",
+   "feat": {
+    "necrosis": 0.3,
+    "chlorosis": 0.4,
+    "powder": 0.02,
+    "dark": 0.08,
+    "edge": 0.12,
+    "lesions": 1,
+    "spread": 0.78
+   }
+  },
+  "sterility_mosaic_pigeonpea": {
+   "name": "Sterility mosaic",
+   "mr": "वांझ रोग",
+   "hi": "बांझपन मोज़ेक",
+   "sci": "Pigeonpea sterility mosaic virus (eriophyid mite-transmitted)",
+   "em": "🌿",
+   "crops": [
+    "pigeonpea"
+   ],
+   "model": null,
+   "no_model_note": "Transmitted by an eriophyid mite, not by weather. No infection model applies.",
+   "scout": "A bushy, pale plant with small light-green mottled leaves and NO FLOWERS while its neighbours are flowering. The absence of flowers on a healthy-looking bush is the diagnostic sign — the disease is named for it.",
+   "mr_scout": "झुडूपासारखे दाट, फिकट झाड — लहान पिवळसर-हिरवी चट्टेदार पाने आणि फुले अजिबात नाहीत, तर शेजारची झाडे फुलावर आहेत.",
+   "speed": "Infection before flowering causes complete sterility — no pods at all from that plant. Later infection causes partial loss.",
+   "feat": {
+    "necrosis": 0.03,
+    "chlorosis": 0.44,
+    "powder": 0.02,
+    "dark": 0.03,
+    "edge": 0.2,
+    "lesions": 6,
+    "spread": 0.72
+   }
+  },
+  "phytophthora_blight_pigeonpea": {
+   "name": "Pigeonpea Phytophthora blight",
+   "mr": "तुरीवरील फायटोप्थोरा करपा",
+   "hi": "फाइटोफ्थोरा झुलसा",
+   "sci": "Phytophthora drechsleri f. sp. cajani",
+   "em": "🍂",
+   "crops": [
+    "pigeonpea"
+   ],
+   "model": "hutton",
+   "model_caveat": "PRAHARI runs the Hutton criteria here because this is a Phytophthora and the criteria describe the temperature-and-humidity conditions the genus needs. The criteria were published and validated for P. infestans on potato, NOT for this pathogen — treat a firing as a reason to scout, not as a calibrated forecast. The forecast screen shows this caveat wherever the model fires.",
+   "scout": "Water-soaked dark brown to black lesions that GIRDLE the stem, usually just above the soil, after a spell of waterlogging. The part above the lesion collapses while still green — a green collapse, not a yellow wilt.",
+   "mr_scout": "पाणी साचल्यानंतर जमिनीलगत खोडाभोवती गडद तपकिरी-काळे पाणथळ डाग; वरचा भाग हिरवा असतानाच कोसळतो.",
+   "speed": "Explosive after 2-3 days of standing water in warm weather. Drainage decides this disease more than any spray does.",
+   "feat": {
+    "necrosis": 0.38,
+    "chlorosis": 0.08,
+    "powder": 0.02,
+    "dark": 0.3,
+    "edge": 0.24,
+    "lesions": 3,
+    "spread": 0.5
+   }
+  },
+  "stemphylium_blight_onion": {
+   "name": "Stemphylium blight",
+   "mr": "स्टेम्फिलियम करपा",
+   "hi": "स्टेमफिलियम झुलसा",
+   "sci": "Stemphylium vesicarium",
+   "em": "🟤",
+   "crops": [
+    "onion"
+   ],
+   "model": "tomcast",
+   "model_caveat": "PRAHARI runs the TOMCAST disease-severity value here. TOMCAST was developed and validated for early blight and Septoria on TOMATO; published work has adapted DSV accumulation to Stemphylium on onion, but this implementation is the tomato rule applied to an onion crop. Treat a firing as a reason to walk the field, not as a calibrated onion forecast.",
+   "scout": "Small yellow to light-brown water-soaked spots on the leaf that elongate into spindle-shaped lesions, often starting at the leaf TIP and working down, turning dark olive-brown as they age. Purple blotch starts as a purple centre; this one does not.",
+   "mr_scout": "पानाच्या टोकापासून सुरू होणारे लहान पिवळे-तपकिरी पाणथळ डाग, नंतर लांबट होऊन गडद जैतुनी-तपकिरी. जांभळ्या डागात मध्य जांभळा असतो — इथे नसतो.",
+   "speed": "Needs long leaf wetness at 18-26 C. Severe blighting before bulbing costs bulb size directly, and the two onion blights are usually present together.",
+   "feat": {
+    "necrosis": 0.28,
+    "chlorosis": 0.26,
+    "powder": 0.03,
+    "dark": 0.18,
+    "edge": 0.38,
+    "lesions": 9,
+    "spread": 0.44
+   }
+  },
+  "downy_mildew_onion": {
+   "name": "Onion downy mildew",
+   "mr": "कांद्यावरील केवडा",
+   "hi": "मृदुरोमिल आसिता",
+   "sci": "Peronospora destructor",
+   "em": "💜",
+   "crops": [
+    "onion"
+   ],
+   "model": null,
+   "no_model_note": "The published forecast for this pathogen is DOWNCAST, which needs overnight leaf-wetness and sporulation windows PRAHARI cannot derive faithfully from a public hourly feed. Rather than run an approximation and call it DOWNCAST, PRAHARI diagnoses this from symptoms and the taluka prior.",
+   "scout": "Pale green to yellow oval patches on the older leaves, with a fine violet-grey furry growth over them in the early morning that disappears as the dew dries. Look before the sun is up; by ten o'clock the diagnostic sign is gone.",
+   "mr_scout": "जुन्या पानांवर फिकट हिरवे-पिवळे लंबगोल डाग; पहाटे त्यावर जांभळट-करडी बारीक बुरशी दिसते आणि दव सुकल्यावर नाहीशी होते. सूर्य उगवण्यापूर्वी पहा.",
+   "speed": "Explodes in cool humid weather with heavy dew. Collapsed leaves cannot fill a bulb, and the crop stops sizing rather than dying outright.",
+   "feat": {
+    "necrosis": 0.12,
+    "chlorosis": 0.36,
+    "powder": 0.2,
+    "dark": 0.06,
+    "edge": 0.22,
+    "lesions": 5,
+    "spread": 0.52
+   }
+  },
+  "maydis_blight_maize": {
+   "name": "Maydis leaf blight",
+   "mr": "मेडिस पानकरपा",
+   "hi": "मेडिस झुलसा",
+   "sci": "Bipolaris maydis",
+   "em": "🌾",
+   "crops": [
+    "maize"
+   ],
+   "model": "tomcast",
+   "model_caveat": "TOMCAST is a tomato model. It is used here as a leaf-wetness-and-temperature severity accumulator, which is the right SHAPE for this pathogen, but it has not been calibrated for maize. A firing means scout, not spray.",
+   "scout": "Small tan lesions between the veins that grow into narrow, parallel-sided rectangles running LENGTHWISE along the leaf, starting low in the canopy. Turcicum lesions are much longer and cigar-shaped with rounded ends; these are shorter and boxier.",
+   "mr_scout": "शिरांच्या मधोमध लहान तपकिरी डाग, नंतर पानाच्या लांबीला समांतर आयताकृती होतात. खालच्या पानांपासून सुरुवात.",
+   "speed": "Warm humid weather, 20-32 C with dew. Heavy infection before grain fill cuts yield most, and the residue in the field carries it to the next crop.",
+   "feat": {
+    "necrosis": 0.26,
+    "chlorosis": 0.18,
+    "powder": 0.02,
+    "dark": 0.1,
+    "edge": 0.46,
+    "lesions": 14,
+    "spread": 0.36
+   }
+  },
+  "common_rust_maize": {
+   "name": "Common rust",
+   "mr": "मक्यावरील तांबेरा",
+   "hi": "मक्का रतुआ",
+   "sci": "Puccinia sorghi",
+   "em": "🟠",
+   "crops": [
+    "maize"
+   ],
+   "model": null,
+   "no_model_note": "Rust arrives as wind-blown spores from elsewhere, so local weather alone cannot forecast it — the published warnings depend on regional spore monitoring India has no open feed for. Symptom-and-prior only.",
+   "scout": "Small oval cinnamon-brown pustules scattered on BOTH surfaces of the leaf that rupture and leave rusty powder on your thumb. Unlike a leaf spot the pustule is raised — run a finger across it.",
+   "mr_scout": "पानाच्या दोन्ही बाजूंना लहान लंबगोल तांबूस-तपकिरी उंचवटे; बोट फिरवल्यास तांबूस भुकटी लागते.",
+   "speed": "Favoured by cool nights and heavy dew. Rarely yield-limiting on its own in Maharashtra, which matters: it is the most common thing a farmer photographs and the least often worth spraying.",
+   "feat": {
+    "necrosis": 0.1,
+    "chlorosis": 0.14,
+    "powder": 0.26,
+    "dark": 0.12,
+    "edge": 0.56,
+    "lesions": 24,
+    "spread": 0.4
+   }
+  },
+  "anthracnose_grape": {
+   "name": "Grape anthracnose",
+   "mr": "द्राक्षावरील करपा (बर्ड्स-आय)",
+   "hi": "एन्थ्रेक्नोज",
+   "sci": "Elsinoe ampelina",
+   "em": "🎯",
+   "crops": [
+    "grape"
+   ],
+   "model": null,
+   "no_model_note": "No implementable published infection model. Rain-splash driven; the risk signal PRAHARI can honestly give is the rainfall in the forecast, which the weather strip already shows.",
+   "scout": "Round sunken spots with a grey centre and a sharp dark purple-brown rim on leaves, shoots and berries — the berry lesion looks like a bird's eye. Badly hit young leaves tear where the dead centre drops out, leaving shot-holes.",
+   "mr_scout": "पाने, फुटवे व मण्यांवर मध्यभागी करडे आणि कडेला गडद जांभळट-तपकिरी वलय असलेले खोलगट गोल डाग — मण्यावरील डाग पक्ष्याच्या डोळ्यासारखा दिसतो.",
+   "speed": "Driven by rain splash on young tissue. A wet spell right after pruning, when the shoots are soft, is when the damage is done.",
+   "feat": {
+    "necrosis": 0.24,
+    "chlorosis": 0.08,
+    "powder": 0.03,
+    "dark": 0.22,
+    "edge": 0.7,
+    "lesions": 13,
+    "spread": 0.2
+   }
+  },
+  "leaf_curl_tomato": {
+   "name": "Tomato leaf curl",
+   "mr": "टोमॅटोची पाने वळणे",
+   "hi": "टमाटर पत्ती मरोड",
+   "sci": "Tomato leaf curl virus (whitefly-transmitted)",
+   "em": "🌀",
+   "crops": [
+    "tomato"
+   ],
+   "model": null,
+   "no_model_note": "Vector-borne, not weather-borne. The forecast that matters is the WHITEFLY degree-day model and the yellow sticky trap count, both of which PRAHARI already runs — this disease follows those, not an infection model.",
+   "scout": "Young leaves small, cupped UPWARD and puckered between the veins, with yellowing at the margins; the plant looks stunted and bushy and stops setting fruit. Turn a leaf over and look for whitefly at the same time — no vector, no spread.",
+   "mr_scout": "कोवळी पाने लहान, वरच्या दिशेने वळलेली व सुरकुतलेली, कडा पिवळ्या; झाड खुजे व दाट दिसते आणि फळधारणा थांबते. त्याच वेळी पानामागे पांढरी माशी तपासा.",
+   "speed": "Systemic and incurable in that plant. Infection before flowering costs nearly the whole plant's yield; the decision is vector control and rogueing, never a fungicide.",
+   "feat": {
+    "necrosis": 0.03,
+    "chlorosis": 0.3,
+    "powder": 0.02,
+    "dark": 0.1,
+    "edge": 0.16,
+    "lesions": 2,
+    "spread": 0.7
+   }
+  },
+  "septoria_tomato": {
+   "name": "Septoria leaf spot",
+   "mr": "सेप्टोरिया ठिपके",
+   "hi": "सेप्टोरिया धब्बा",
+   "sci": "Septoria lycopersici",
+   "em": "⚫",
+   "crops": [
+    "tomato"
+   ],
+   "model": "tomcast",
+   "scout": "Many small circular spots, 2-4 mm, with a pale grey centre and a dark border, on the OLDEST leaves first. Look hard at the grey centre: tiny black dots (the fruiting bodies) are the confirming sign and early blight does not have them.",
+   "mr_scout": "जुन्या पानांवर २-४ मिमीचे अनेक गोल डाग — मध्य फिकट करडा, कड गडद; करड्या मध्यभागी बारीक काळे ठिपके दिसतात, जे लवकर करप्यात नसतात.",
+   "speed": "Warm wet weather. Defoliates from the bottom up and exposes the fruit to sunscald, which is usually the loss that actually costs money.",
+   "feat": {
+    "necrosis": 0.14,
+    "chlorosis": 0.22,
+    "powder": 0.02,
+    "dark": 0.16,
+    "edge": 0.72,
+    "lesions": 26,
+    "spread": 0.16
+   }
+  }
+ },
+ "pests": {
+  "tuta": {
+   "name": "Tomato leaf miner",
+   "mr": "नागअळी (टुटा)",
+   "hi": "टूटा",
+   "sci": "Tuta absoluta",
+   "em": "🐛",
+   "crops": [
+    "tomato"
+   ],
+   "tbase": 6.9,
+   "dd_gen": 453.6,
+   "stages": [
+    [
+     0,
+     90,
+     "Eggs on upper leaves"
+    ],
+    [
+     90,
+     250,
+     "Larvae mining — DAMAGE STAGE"
+    ],
+    [
+     250,
+     380,
+     "Pupae in soil or leaf fold"
+    ],
+    [
+     380,
+     999,
+     "Adults flying, next egg-lay"
+    ]
+   ],
+   "trap": "Delta pheromone trap, 5 per acre",
+   "unit": "moths / trap / night",
+   "scout": "Hold a leaf to the light: a blotchy transparent mine with black frass inside is Tuta, not a fungal spot.",
+   "mr_scout": "पान उजेडाकडे धरा — आत काळी विष्ठा असलेला पारदर्शक नागमोडी पट्टा म्हणजे टुटा."
+  },
+  "helicoverpa": {
+   "name": "Fruit borer",
+   "mr": "घाटे अळी",
+   "hi": "फली छेदक",
+   "sci": "Helicoverpa armigera",
+   "em": "🪱",
+   "crops": [
+    "tomato",
+    "pigeonpea"
+   ],
+   "tbase": 11.2,
+   "dd_gen": 470,
+   "stages": [
+    [
+     0,
+     95,
+     "Eggs, single, on flower buds"
+    ],
+    [
+     95,
+     300,
+     "Larvae boring — DAMAGE STAGE"
+    ],
+    [
+     300,
+     420,
+     "Pupae in soil"
+    ],
+    [
+     420,
+     999,
+     "Adults, next flight"
+    ]
+   ],
+   "trap": "Helilure pheromone trap, 5 per acre",
+   "unit": "moths / trap / night",
+   "scout": "One clean round hole at the calyx end with the larva head inside is borer. Rot with no hole is not.",
+   "mr_scout": "देठाजवळ स्वच्छ गोल छिद्र आणि आत अळीचे डोके — हीच घाटे अळी."
+  },
+  "thrips": {
+   "name": "Thrips",
+   "mr": "फुलकिडे",
+   "hi": "थ्रिप्स",
+   "sci": "Thrips tabaci",
+   "em": "🦟",
+   "crops": [
+    "onion",
+    "grape"
+   ],
+   "tbase": 11.5,
+   "dd_gen": 200,
+   "stages": [
+    [
+     0,
+     45,
+     "Eggs in leaf tissue"
+    ],
+    [
+     45,
+     130,
+     "Larvae rasping — DAMAGE STAGE"
+    ],
+    [
+     130,
+     175,
+     "Prepupa/pupa in soil"
+    ],
+    [
+     175,
+     999,
+     "Adults, overlapping generations"
+    ]
+   ],
+   "trap": "Blue sticky trap, 10 per acre, plus a plant count",
+   "unit": "thrips / plant",
+   "scout": "Silvery streaks in the leaf axil, not on the blade. Blow into the neck and count what moves.",
+   "mr_scout": "पातीच्या बेचक्यात चंदेरी रेषा. मानेत फुंकर मारून हलणारे मोजा."
+  },
+  "whitefly": {
+   "name": "Whitefly",
+   "mr": "पांढरी माशी",
+   "hi": "सफेद मक्खी",
+   "sci": "Bemisia tabaci",
+   "em": "🦋",
+   "crops": [
+    "tomato",
+    "cotton",
+    "soybean"
+   ],
+   "tbase": 10.2,
+   "dd_gen": 317,
+   "stages": [
+    [
+     0,
+     60,
+     "Eggs under leaf"
+    ],
+    [
+     60,
+     200,
+     "Nymphs feeding — VIRUS TRANSMISSION"
+    ],
+    [
+     200,
+     280,
+     "Pupae"
+    ],
+    [
+     280,
+     999,
+     "Adults"
+    ]
+   ],
+   "trap": "Yellow sticky trap, 12 per acre",
+   "unit": "adults / leaf (3 top leaves)",
+   "scout": "Shake the plant at dawn. A cloud of white specks that resettles within seconds is Bemisia.",
+   "mr_scout": "पहाटे झाड हलवा. काही सेकंदांत परत बसणारा पांढरा ढग म्हणजे पांढरी माशी."
+  },
+  "faw": {
+   "name": "Fall armyworm",
+   "mr": "लष्करी अळी",
+   "hi": "फॉल आर्मीवर्म",
+   "sci": "Spodoptera frugiperda",
+   "em": "🐍",
+   "crops": [
+    "maize"
+   ],
+   "tbase": 10.9,
+   "dd_gen": 391,
+   "stages": [
+    [
+     0,
+     40,
+     "Egg mass with scale hairs"
+    ],
+    [
+     40,
+     250,
+     "Larvae in whorl — DAMAGE STAGE"
+    ],
+    [
+     250,
+     320,
+     "Pupae in soil"
+    ],
+    [
+     320,
+     999,
+     "Adults, long-distance flight"
+    ]
+   ],
+   "trap": "FAW pheromone trap, 5 per acre",
+   "unit": "moths / trap / night",
+   "scout": "Ragged windowpane feeding plus wet sawdust frass in the whorl. Look for the inverted white Y on the head.",
+   "mr_scout": "पोंग्यात ओल्या भुश्यासारखी विष्ठा. डोक्यावर उलटे पांढरे Y."
+  },
+  "pink_bollworm": {
+   "name": "Pink bollworm",
+   "mr": "गुलाबी बोंडअळी",
+   "hi": "गुलाबी सुंडी",
+   "sci": "Pectinophora gossypiella",
+   "em": "🌸",
+   "crops": [
+    "cotton"
+   ],
+   "tbase": 12.0,
+   "dd_gen": 420,
+   "stages": [
+    [
+     0,
+     60,
+     "Eggs on squares and bolls"
+    ],
+    [
+     60,
+     280,
+     "Larvae inside boll — DAMAGE STAGE"
+    ],
+    [
+     280,
+     360,
+     "Pupae"
+    ],
+    [
+     360,
+     999,
+     "Adults"
+    ]
+   ],
+   "trap": "Gossyplure pheromone trap, 5 per acre",
+   "unit": "moths / trap / night",
+   "scout": "Rosetted flower, or a boll with a pinhole entry and pink larva inside. Open 20 bolls and count.",
+   "mr_scout": "गुलाबासारखे मिटलेले फूल, किंवा बोंडात टाचणीएवढे छिद्र व आत गुलाबी अळी."
+  },
+  "girdle_beetle": {
+   "name": "Girdle beetle",
+   "mr": "खोडमाशी / गर्डल बीटल",
+   "hi": "गर्डल बीटल",
+   "sci": "Obereopsis brevis",
+   "em": "🪲",
+   "crops": [
+    "soybean"
+   ],
+   "tbase": 12.5,
+   "dd_gen": 380,
+   "stages": [
+    [
+     0,
+     70,
+     "Eggs in girdled stem"
+    ],
+    [
+     70,
+     260,
+     "Grub tunnelling — DAMAGE STAGE"
+    ],
+    [
+     260,
+     340,
+     "Pupae in stem"
+    ],
+    [
+     340,
+     999,
+     "Adults"
+    ]
+   ],
+   "trap": "Plant count — girdled shoots per 10 plants",
+   "unit": "% girdled plants",
+   "scout": "Two neat parallel rings cut around the petiole or stem, with the tip drooping above them.",
+   "mr_scout": "देठावर दोन समांतर कापलेल्या रेषा आणि वरचा भाग वाळलेला."
+  }
+ }
+}

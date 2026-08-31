@@ -1,0 +1,86 @@
+{
+  "_note": "The IPM ladder. Rung 1 costs nothing, rung 2 costs a little, rung 3 is chemistry. The engine will not offer rung 3 until the economic threshold is crossed, so this is the part of the app that is always available and the part a farmer can act on when money is the constraint — which the NPSS compliance study says is the actual reason advice goes unfollowed.",
+  "ladders": {
+    "tuta": {
+      "cultural":["Destroy mined leaves and fallen fruit — do not leave them at the field edge","Solarise the nursery bed; the pupa overwinters in the soil","40-mesh net on the nursery — the moth is the size of a rice grain","Do not follow tomato with tomato on the same plot"],
+      "biological":[{"n":"Mass trapping — 20 pheromone traps per acre","d":"Water-pan traps, lure changed every 30 days","cost":1400},
+                    {"n":"Trichogramma achaeae release","d":"1.5 lakh per hectare, weekly, three releases","cost":900},
+                    {"n":"Bacillus thuringiensis kurstaki 5% WP","d":"1 g/L, evening spray, reaches young larvae only","cost":700}]
+    },
+    "helicoverpa": {
+      "cultural":["Marigold as a trap crop on every 16th row, sown 40 days ahead","Deep summer ploughing exposes pupae to birds","Hand-pick and drown grown larvae — it works and it costs nothing","Bird perches, 10 per acre"],
+      "biological":[{"n":"HaNPV 2% AS","d":"250 LE per hectare at first instar, evening only","cost":800},
+                    {"n":"Trichogramma chilonis","d":"50,000 per hectare, six releases from flowering","cost":750},
+                    {"n":"Neem azadirachtin 1500 ppm","d":"3 ml/L at a 7-day interval","cost":600}]
+    },
+    "thrips": {
+      "cultural":["Irrigate overhead in the afternoon — it physically drowns thrips","Two rows of maize as a barrier crop on the windward edge","Remove Bermuda grass on the bunds; it is the dry-season reservoir","Avoid excess nitrogen — it makes leaves attractive"],
+      "biological":[{"n":"Blue sticky traps, 20 per acre","d":"Mass trapping and monitoring in one","cost":500},
+                    {"n":"Metarhizium anisopliae 1x10^8 cfu/g","d":"5 g/L drench; works in humid weather","cost":850},
+                    {"n":"Verticillium lecanii with neem oil","d":"5 g/L plus 3 ml/L, evening","cost":700}]
+    },
+    "whitefly": {
+      "cultural":["Yellow sticky traps at canopy height, raised weekly","Remove parthenium and congress grass from bunds — the virus reservoir","Silver-black plastic mulch repels the adult","Rogue out leaf-curl plants within the first 30 days"],
+      "biological":[{"n":"Yellow sticky traps, 25 per acre","d":"Mass trapping; this is also your count","cost":600},
+                    {"n":"Encarsia formosa release","d":"Net-house only","cost":1200},
+                    {"n":"Neem oil 1% with fish oil rosin soap","d":"Coats nymphs on the leaf underside","cost":550}]
+    },
+    "faw": {
+      "cultural":["Sand and lime (9:1) poured into the whorl smothers small larvae","Push-pull: desmodium between rows, napier on the border","Do not stagger sowing — synchronous sowing starves the second flight","Hand-pick egg masses in the first two weeks"],
+      "biological":[{"n":"Bacillus thuringiensis kurstaki","d":"2 g/L directed into the whorl","cost":750},
+                    {"n":"Metarhizium rileyi","d":"5 g/L; best in humid weather","cost":900},
+                    {"n":"Trichogramma pretiosum","d":"50,000 per hectare at first moth catch","cost":700}]
+    },
+    "pink_bollworm": {
+      "cultural":["Uproot and destroy the stubble immediately after the last picking — this is the single highest-return operation","Do not extend the crop past 180 days; a long season breeds resistance","Remove and destroy rosetted flowers daily","Do not stack unginned cotton near the field"],
+      "biological":[{"n":"Gossyplure pheromone traps, 5 per acre for monitoring","d":"Lure changed every 21 days","cost":600},
+                    {"n":"PB-Knot mating disruption","d":"400 dispensers per hectare where available","cost":2200},
+                    {"n":"Trichogramma bactrae","d":"1.5 lakh per hectare, weekly from square formation","cost":900}]
+    },
+    "girdle_beetle": {
+      "cultural":["Clip and burn girdled shoots below the lower ring — the grub is inside","Deep ploughing after harvest destroys pupae in stubble","Avoid dense sowing; the beetle prefers a closed canopy"],
+      "biological":[{"n":"Neem azadirachtin 1500 ppm","d":"3 ml/L at 7-day intervals from first girdle","cost":600},
+                    {"n":"Beauveria bassiana","d":"5 g/L, evening application","cost":800}]
+    },
+    "late_blight": {
+      "cultural":["Destroy cull piles and volunteer plants — that is where it overwinters","Wide spacing and staking; the disease needs still, humid air","Irrigate in the morning so leaves dry before night","Never irrigate overhead during a Hutton period"],
+      "biological":[{"n":"Copper oxychloride 50% WP","d":"2.5 g/L, protectant only, before infection","cost":450},
+                    {"n":"Bordeaux mixture 1%","d":"Preventive, cheap, acceptable for organic","cost":300},
+                    {"n":"Trichoderma harzianum soil drench","d":"Suppresses soil inoculum, not foliar","cost":600}]
+    },
+    "early_blight": {
+      "cultural":["Remove the lowest three leaves at first sign — they are the inoculum source","Mulch to stop rain splashing spores upward","Do not let the crop go hungry; nitrogen-starved plants collapse fast","Rotate away from solanaceae for two seasons"],
+      "biological":[{"n":"Trichoderma viride 1% WP","d":"5 g/L foliar and soil","cost":550},
+                    {"n":"Bacillus subtilis","d":"5 g/L at 10-day intervals","cost":700},
+                    {"n":"Copper oxychloride 50% WP","d":"2.5 g/L protectant","cost":450}]
+    },
+    "downy_mildew": {
+      "cultural":["Drain the inter-row; standing water launches the primary infection","Remove the lowest 40 cm of leaves — that is splash height","Do not irrigate in the evening during the monsoon"],
+      "biological":[{"n":"Bordeaux mixture 1%","d":"The classic; preventive only","cost":300},
+                    {"n":"Copper hydroxide 53.8% DF","d":"2 g/L protectant","cost":600},
+                    {"n":"Bacillus subtilis with potassium phosphonate","d":"Induces systemic acquired resistance","cost":1000}]
+    },
+    "powdery_mildew": {
+      "cultural":["Open the canopy — leaf removal in the fruit zone is the highest-return operation","Do not over-irrigate; dense shoots hold humidity","Sulphur dusting at 21-30 C, never above 33 C or it scorches"],
+      "biological":[{"n":"Wettable sulphur 80% WG","d":"2 g/L — cheapest and still effective","cost":350},
+                    {"n":"Ampelomyces quisqualis","d":"Hyperparasite; preventive","cost":900},
+                    {"n":"Potassium bicarbonate 0.5%","d":"Contact eradicant, residue-free","cost":400}]
+    },
+    "purple_blotch": {
+      "cultural":["Do not let the crop lodge — neck rot follows leaf infection into storage","Cure bulbs for 10-14 days before storing","Rotate out of allium for two seasons"],
+      "biological":[{"n":"Trichoderma viride","d":"5 g/L at 10-day intervals","cost":550},
+                    {"n":"Copper oxychloride with sticker","d":"2.5 g/L — on onion the sticker is not optional","cost":500}]
+    },
+    "turcicum_blight": {
+      "cultural":["Remove and destroy infected lower leaves","Rotate with a non-cereal for one season","Avoid excessive nitrogen late in the season"],
+      "biological":[{"n":"Trichoderma viride seed treatment","d":"4 g per kg of seed","cost":300},
+                    {"n":"Pseudomonas fluorescens foliar","d":"5 g/L at 10-day intervals","cost":650}]
+    },
+    "nitrogen_deficiency": {
+      "cultural":["Top-dress 25 kg N per acre and irrigate immediately","Check for waterlogging first — drowned roots cannot take up nitrogen","A soil test costs less than one unnecessary fungicide spray"],
+      "biological":[{"n":"Azospirillum and PSB consortium","d":"Soil application, 4 kg per acre","cost":400},
+                    {"n":"Vermicompost 2 t per acre","d":"Slow release; improves structure","cost":2400}]
+    },
+    "healthy": {"cultural":["Keep scouting twice a week. That is the whole job."],"biological":[]}
+  }
+}
