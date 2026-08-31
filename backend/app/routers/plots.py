@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 
-from .. import reference
+from .. import fieldboard, reference
 from ..clock import now_iso
 from ..clock import today as _today
 from ..db import Database, bit, dumps, loads
@@ -147,6 +147,24 @@ def list_plots(user: dict[str, Any] = Depends(current_user), db: Database = Depe
     else:
         rows = []
     return {"plots": [_decorate(db, r) for r in rows]}
+
+
+@router.get("/board", summary="All your fields, ordered by which needs you first",
+            description=(
+                "One call for a farmer with more than one field. For each field: what is "
+                "growing and how far into the season, its crop-health score and which way it "
+                "moved, what it is asking for today, and when it was last actually looked at — "
+                "ordered by consequence, so the first card is the field to walk to.\n\n"
+                "Every number comes from the same services that produce that field's own "
+                "screen, so a score here cannot disagree with the score there. A field whose "
+                "weather is unavailable is returned with its records and NO score."))
+def plots_board(user: dict[str, Any] = Depends(current_user),
+                db: Database = Depends(db_dep),
+                lang: str = Query("mr")):
+    farmer = farmer_of(db, user)
+    rows = db.rows("SELECT * FROM plots WHERE farmer_id = :f AND archived = 0"
+                   " ORDER BY created_at", {"f": farmer["id"]})
+    return fieldboard.board(db, get_runtime(), rows, lang=lang)
 
 
 @router.get("/{plot_id}", summary="One field")

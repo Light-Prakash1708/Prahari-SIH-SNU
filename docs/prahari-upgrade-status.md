@@ -212,3 +212,41 @@ Checked at 360 px: no horizontal overflow on any screen.
 TESTS: 265 passed (260 before this work). Bundle 121 kB gzipped, ceiling 200.
 DATABASE: one additive migration, `005_llm_keys.sql`. Nothing dropped, renamed
 or reseeded.
+
+## Several fields, each with its own crop — and a way to track them
+
+The app could always hold more than one field; what it could not do was let a
+farmer see them together, or change the crop in one.
+
+**`GET /api/plots/board`** (`app/fieldboard.py`) — one call that returns, per
+field: what is growing and how far into the season, the crop-health score and
+which way it moved, what that field is asking for today, and when it was last
+actually looked at. Ordered by consequence, so the top card is the field to
+walk to.
+
+The board owns no agronomy. Every number comes from the same services that
+produce that field's own screen — `risk.field_health` and `agenda` — and
+`test_field_board.py` asserts the two agree, which is the assertion that stops
+this becoming a second implementation that drifts.
+
+Two rules carried through unchanged:
+
+- **A field with no weather gets no score.** Not zero, not the last one, not
+  borrowed from the field beside it. The card shows its records and says why
+  there is no number, and one such field does not take the board down.
+- **Last seen counts scouting**, not app opens. Opening the app is not walking
+  the field.
+
+**A new crop in the same field.** `POST /api/plots/{id}/cycles` existed and
+nothing in the UI reached it, so the only way to record a changed crop was to
+register the field twice — which splits its history and quietly ends the
+passport. There is now a sheet on each field card: pick the crop, give the
+sowing date, and the running cycle closes while every scan, count, spray and
+diagnosis stays attached to the field. A test asserts the previous season's
+records survive and that the stage recounts from the new date.
+
+**Reaching them.** "My Fields" is now a tile on Home's Quick Actions — several
+fields with different crops is the normal case, not the advanced one — as well
+as in the drawer under My field.
+
+TESTS: 275 passed (265 before). ruff clean.

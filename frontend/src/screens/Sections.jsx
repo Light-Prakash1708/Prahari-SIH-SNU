@@ -28,6 +28,7 @@ const QA = {
     cal: 'पीक दिनदर्शिका', calSub: 'पेरणी ते काढणी',
     exp: 'शेती खर्च', expSub: 'हिशेब',
     soil: 'माती आरोग्य', soilSub: 'सामू, ओलावा व अन्नद्रव्ये',
+    fields: 'माझी शेते', fieldsSub: 'सर्व शेते व त्यांची स्थिती',
   },
   en: {
     title: 'Quick Actions', all: 'View All',
@@ -37,6 +38,7 @@ const QA = {
     cal: 'Crop Calendar', calSub: 'Sow to harvest',
     exp: 'Farm Expense', expSub: 'Cost tracker',
     soil: 'Soil Health', soilSub: 'pH, moisture & nutrients',
+    fields: 'My Fields', fieldsSub: 'Every field and how it is doing',
   },
 }
 const q = (lang, k) => (QA[lang] || QA.en)[k] ?? QA.en[k]
@@ -69,7 +71,10 @@ export function QuickActions({ lang, go, showAll = true }) {
         {tile('pest', 'shield', 'decide')}
         {tile('cal', 'calendar', 'crop')}
         {tile('exp', 'wallet', 'expenses')}
-        {tile('soil', 'leaf', 'soil', 'qa-tile--wide')}
+        {tile('soil', 'leaf', 'soil')}
+        {/* Several fields with different crops is the normal case, not the
+            advanced one, so the way to them sits on the first screen. */}
+        {tile('fields', 'map', 'fields', 'qa-tile--wide')}
       </div>
     </section>
   )

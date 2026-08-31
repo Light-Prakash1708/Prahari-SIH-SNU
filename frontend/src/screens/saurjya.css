@@ -523,3 +523,88 @@
    them reachable without a long scroll, while staying above the 44px tap
    target the rest of the app holds to. */
 .px-drawer__link { padding-top: 9px; padding-bottom: 9px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   My fields · the multi-field board
+
+   A farmer with four fields should be able to tell, without opening any of
+   them, which one to walk to. The card carries the three things that decide
+   that — what it is asking for, its score and direction, and how long since
+   anyone actually looked at it — and the server puts the answer on top.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.fb-summary {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px 14px; border-radius: var(--r-lg);
+  background: var(--ok-bg); border: 1px solid var(--ok-line);
+  font-size: 14px; color: #14603F;
+}
+.fb-summary.is-warn {
+  background: var(--warn-bg); border-color: var(--warn-line); color: #7C4A03;
+}
+
+.fb-card { display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.fb-card.is-active { border-color: var(--g-500); box-shadow: 0 0 0 1px var(--g-500), var(--shadow); }
+.fb-card__head { display: flex; align-items: flex-start; gap: 11px; }
+.fb-card__em {
+  flex: none; width: 40px; height: 40px; border-radius: 13px; font-size: 20px;
+  display: grid; place-items: center; background: var(--g-050);
+}
+
+.fb-score {
+  flex: none; display: flex; align-items: baseline; gap: 5px;
+  font-family: var(--display); font-weight: 800; letter-spacing: -.5px;
+}
+.fb-score b { font-size: 24px; }
+.fb-score.safe b, .fb-score.low b { color: var(--ok); }
+.fb-score.watch b, .fb-score.moderate b { color: var(--warn); }
+.fb-score.high b, .fb-score.severe b { color: var(--bad); }
+/* No weather means no score. An em dash, never a zero — zero is a reading. */
+.fb-score--none { font-size: 22px; color: var(--faint); font-weight: 700; }
+.fb-trend { font-size: 11px; font-weight: 800; }
+.fb-trend.good { color: var(--ok); }
+.fb-trend.bad { color: var(--bad); }
+
+.fb-stage {
+  font-size: 12.5px; font-weight: 700; color: var(--g-700);
+  background: var(--g-050); border-radius: var(--r-pill);
+  padding: 5px 12px; align-self: flex-start;
+}
+.fb-stage .muted { font-weight: 500; }
+
+.fb-items {
+  list-style: none; display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 12px; border-radius: var(--r); background: var(--sunk);
+  border-left: 3px solid var(--rule);
+}
+.fb-items.tone-urgent { background: var(--bad-bg); border-left-color: var(--bad); }
+.fb-items.tone-act { background: var(--warn-bg); border-left-color: var(--warn); }
+.fb-items li { display: flex; gap: 8px; font-size: 13.5px; line-height: 1.4; }
+.fb-items li span { flex: none; }
+.fb-items__more { font-size: 12px; color: var(--muted); font-weight: 700; }
+
+.fb-clear { font-size: 13px; color: var(--ok); font-weight: 700; }
+.fb-unavailable {
+  font-size: 12.5px; line-height: 1.5; color: #7C4A03;
+  background: var(--warn-bg); border: 1px solid var(--warn-line);
+  border-radius: var(--r); padding: 9px 12px;
+}
+
+.fb-card__foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap;
+  padding-top: 10px; border-top: 1px solid var(--rule-soft);
+}
+.fb-actions { display: flex; gap: 6px; }
+
+/* Choosing the crop for a new cycle: seven options, all visible, no dropdown.
+   A select on a phone hides six of the seven behind a tap. */
+.nc-crops { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 7px; }
+.nc-crop {
+  padding: 9px 14px; border-radius: var(--r-pill); font-size: 13.5px; font-weight: 700;
+  background: var(--sunk); border: 1.5px solid transparent; color: var(--ink-2);
+  transition: all .2s var(--ease);
+}
+.nc-crop.is-on {
+  background: var(--g-050); border-color: var(--g-500); color: var(--g-700);
+  box-shadow: 0 2px 10px rgba(16,185,129,.14);
+}

@@ -262,6 +262,10 @@ export const api = {
   saathiKeyClear: () => send('/api/saathi/key', {}, 'DELETE'),
 
   // privacy — what is held, and removing it
+  /* The multi-field board. Cached like any other read, because it costs a
+     weather window per field and a farmer opens it repeatedly. */
+  plotsBoard: (lang) => get(`/api/plots/board?lang=${lang || 'mr'}`, { cache: true }),
+
   privacySummary: () => get('/api/privacy/summary', { cache: false }),
   privacyExport: () => get('/api/privacy/export', { cache: false }),
   privacyDeleteRecords: (body) => send('/api/privacy/records/delete', body),

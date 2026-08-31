@@ -71,6 +71,7 @@ lines, all of it wiring.
 | `forecast.py` | running infection models over a weather window |
 | `agenda.py` | "what should I do today", in order of consequence |
 | `cropcalendar.py` | composes the above for the calendar screen; owns nothing |
+| `fieldboard.py` | one card per field, ordered by which needs attention first; owns nothing |
 | `soil.py` | the visual soil assessment and the nutrient gap |
 | `outbreak.py`, `signals.py`, `spatial.py` | regional aggregation and hotspots |
 
@@ -159,7 +160,7 @@ the whole exercise: PlantVillage-trained models score ~99% on PlantVillage and
 
 ## Testing
 
-265 tests. The interesting ones assert things that must **never** happen:
+275 tests. The interesting ones assert things that must **never** happen:
 
 | File | Guards |
 |---|---|
@@ -172,6 +173,7 @@ the whole exercise: PlantVillage-trained models score ~99% on PlantVillage and
 | `test_weather.py` | an unreachable provider produces an error, not a number |
 | `test_privacy.py` | deleting my account never touches another farmer's records |
 | `test_llm_seam.py` | a language model cannot introduce a number or a product name |
+| `test_field_board.py` | the multi-field board never disagrees with a field's own screen |
 
 When one of these fails, the feature is wrong, not the test.
 
