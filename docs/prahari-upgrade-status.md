@@ -116,3 +116,19 @@ New files: `screens/Sections.jsx` (QuickActions, HowItWorks), `screens/saurjya.c
 - **Sentinel-2 field segmentation** was assessed and deferred — see
   `prahari-reference-notes.md`. It adds a raster pipeline for a benefit the
   officer console does not currently lack.
+
+## Team workspace
+
+The repository is now set up for more than one person. `CONTRIBUTING.md` is the
+five-minute setup plus the five rules; `docs/ARCHITECTURE.md` traces one request
+end to end and says where every file lives; `docs/ROADMAP.md` carries 13 sized
+issues with the files to open, and — as important — the five things we have
+decided not to build, so nobody spends a weekend on one and finds out at the PR.
+`CLAUDE.md` gives an AI assistant the same rules plus the traps in this codebase
+that a model gets wrong on its own. `.github/` holds the PR template (its
+checklist is the five rules), three issue templates — the agronomy one will not
+accept a threshold without a citation — and CODEOWNERS marking `data/`,
+`schema/`, `security.py` and `config.py` as needing review.
+
+`origin` is set to the GitHub repository. The push has to be run from a machine
+with GitHub credentials; this build environment has none.
