@@ -82,6 +82,16 @@ def main() -> None:
     ap.add_argument("--lr", type=float, default=3e-4)
     ap.add_argument("--seed", type=int, default=20260827)
     ap.add_argument("--runs", type=Path, default=Path("runs"))
+    # ImageNet initialisation is fetched over the network the first time timm
+    # sees an architecture. A training box behind an air gap — or a CI runner
+    # with no egress — must still be able to run the pipeline, so this can be
+    # turned off. It is ON by default because a model trained from scratch on a
+    # few thousand leaves is markedly worse, and the run card records which was
+    # used so no checkpoint can be mistaken for the other.
+    ap.add_argument("--no-pretrained", dest="pretrained", action="store_false",
+                    help="initialise from scratch instead of ImageNet weights "
+                         "(offline runs and pipeline smoke tests only)")
+    ap.set_defaults(pretrained=True)
     args = ap.parse_args()
 
     import timm
@@ -96,7 +106,11 @@ def main() -> None:
         raise SystemExit("no training records — run preprocessing.prepare first")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = timm.create_model(args.arch, pretrained=True, num_classes=len(LABELS)).to(device)
+    model = timm.create_model(args.arch, pretrained=args.pretrained,
+                              num_classes=len(LABELS)).to(device)
+    if not args.pretrained:
+        print("WARNING: --no-pretrained — training from random initialisation. "
+              "Fine for verifying the pipeline; not a model to deploy.")
 
     # Class weights, because a field corpus is never balanced and an unweighted
     # loss quietly learns to predict the commonest disease.
@@ -151,6 +165,11 @@ def main() -> None:
     card = {
         "run": run_dir.name,
         "arch": args.arch,
+        # Which initialisation produced this checkpoint. A from-scratch run is
+        # a pipeline test, not a deployable model, and the card must say so
+        # rather than leaving the two indistinguishable on disk.
+        "pretrained_init": args.pretrained,
+        "deployable": args.pretrained,
         "epochs": args.epochs,
         "seed": args.seed,
         "git_commit": git_commit(),

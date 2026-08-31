@@ -18,9 +18,10 @@ from ..clock import today as _today
 from ..config import get_settings
 from ..db import Database, bit, dumps, loads
 from ..deps import current_user, db_dep, farmer_of, owned_plot, visible_plot
-from ..errors import not_found
+from ..errors import conflict, not_found
 from ..obs import audit
 from ..runtime import get_runtime
+from ..schemas import FollowupOutcomeIn
 
 router = APIRouter(prefix="/api/followups", tags=["follow-up"])
 
@@ -33,13 +34,15 @@ def list_followups(plot_id: str | None = Query(None),
         visible_plot(db, user, plot_id)
         rows = db.rows(
             "SELECT f.*, p.crop, p.name AS plot_name FROM followups f JOIN plots p ON p.id=f.plot_id"
-            " WHERE f.plot_id = :p AND f.done_observation IS NULL ORDER BY f.due_on",
+            " WHERE f.plot_id = :p AND f.done_observation IS NULL AND f.outcome IS NULL"
+            " ORDER BY f.due_on",
             {"p": plot_id})
     elif user["role"] == "farmer":
         farmer = farmer_of(db, user)
         rows = db.rows(
             "SELECT f.*, p.crop, p.name AS plot_name FROM followups f JOIN plots p ON p.id=f.plot_id"
-            " WHERE p.farmer_id = :f AND f.done_observation IS NULL ORDER BY f.due_on",
+            " WHERE p.farmer_id = :f AND f.done_observation IS NULL AND f.outcome IS NULL"
+            " ORDER BY f.due_on",
             {"f": farmer["id"]})
     else:
         from ..deps import officer_talukas
@@ -49,7 +52,8 @@ def list_followups(plot_id: str | None = Query(None),
         ph = ",".join(f":t{i}" for i in range(len(scopes)))
         rows = db.rows(
             f"SELECT f.*, p.crop, p.name AS plot_name FROM followups f JOIN plots p ON p.id=f.plot_id"
-            f" WHERE p.taluka IN ({ph}) AND f.done_observation IS NULL ORDER BY f.due_on",
+            f" WHERE p.taluka IN ({ph}) AND f.done_observation IS NULL AND f.outcome IS NULL"
+            f" ORDER BY f.due_on",
             {f"t{i}": t for i, t in enumerate(scopes)})
     day = _today()
     import datetime as dt
@@ -61,6 +65,61 @@ def list_followups(plot_id: str | None = Query(None),
         "followups": rows,
         "note": ("Follow-up is the loop nobody closes. It is what turns a diagnosis into an "
                  "outcome, and it is the only source of ground truth PRAHARI gets for free."),
+    }
+
+
+@router.post("/{followup_id}/outcome",
+             summary="Close a follow-up by reporting what happened",
+             description=(
+                 "The path for a farmer who cannot retake a comparable photograph — the leaf "
+                 "has dropped, the crop is harvested, the light is gone.\n\n"
+                 "This is recorded as SELF-REPORTED and is marked as such everywhere it is "
+                 "read. A rescan produces a measured comparison of two photographs; this "
+                 "produces a farmer's own account. Both close the loop, and PRAHARI never "
+                 "presents the second as the first — an outcome nobody measured must not be "
+                 "counted as evidence that a treatment worked.\n\n"
+                 "Errors: 404 followup_not_found · 409 followup_already_closed"))
+def report_outcome(followup_id: int, data: FollowupOutcomeIn,
+                   user: dict[str, Any] = Depends(current_user),
+                   db: Database = Depends(db_dep)):
+    fu = db.one("SELECT * FROM followups WHERE id = :i", {"i": followup_id})
+    if not fu:
+        raise not_found("followup", str(followup_id))
+    owned_plot(db, user, fu["plot_id"])
+    if fu.get("done_observation") or fu.get("outcome"):
+        raise conflict("followup_already_closed",
+                       "This follow-up has already been closed.",
+                       "ही पुनर्तपासणी आधीच पूर्ण झाली आहे.")
+
+    day = _today().isoformat()
+    db.execute(
+        "UPDATE followups SET done_on = :d, outcome = :out, comparison = :cmp WHERE id = :i",
+        {"d": day, "out": data.outcome, "i": followup_id,
+         "cmp": dumps({"method": "self_reported", "measured": False,
+                       "note": data.note, "reported_on": day})})
+
+    # A worsening the farmer reports is still a reason to escalate, even though
+    # nothing was measured — the person standing in the field saw something.
+    escalated = False
+    if data.outcome == "worse":
+        db.execute("UPDATE followups SET escalated = :b WHERE id = :i",
+                   {"b": bit(True), "i": followup_id})
+        escalated = True
+
+    audit("followup.outcome", entity="followup", entity_id=str(followup_id),
+          user_id=user["id"], role=user["role"],
+          detail={"outcome": data.outcome, "measured": False})
+
+    return {
+        "followup_id": followup_id,
+        "outcome": data.outcome,
+        "measured": False,
+        "escalated": escalated,
+        "note": ("Recorded as the farmer's own account. It closes the follow-up and is shown "
+                 "in the field history, but it is not counted as a measured outcome — only a "
+                 "rescan, which compares two photographs, produces one of those."),
+        "note_mr": ("शेतकऱ्याने सांगितलेली नोंद. पुनर्तपासणी पूर्ण झाली, पण हे मोजलेले "
+                    "निरीक्षण नाही — त्यासाठी नवीन फोटो लागतो."),
     }
 
 

@@ -1,0 +1,125 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRAHARI · Quick Tools, expenses and the fertilizer guide
+   Saurjya's bento grid, rebuilt as CSS grid over the app's own tokens.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── search ───────────────────────────────────────────────────────────── */
+.tl-search {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--card); border: 1px solid var(--rule);
+  border-radius: var(--r-pill); padding: 0 14px; min-height: 48px;
+  margin-bottom: 14px; color: var(--faint);
+}
+.tl-search input {
+  flex: 1; min-width: 0; border: none; outline: none; background: none;
+  font-size: 14.5px; font-weight: 600; color: var(--ink);
+}
+.tl-search input::placeholder { color: var(--faint); font-weight: 500; }
+.tl-search button { color: var(--faint); display: inline-flex; padding: 4px; }
+
+/* ── bento ────────────────────────────────────────────────────────────── */
+.tl-bento {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 10px; grid-auto-flow: dense;
+}
+.tl-card {
+  display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
+  min-height: 118px; padding: 14px;
+  border-radius: var(--r-lg); text-align: left;
+  background: var(--card); border: 1px solid var(--rule);
+  box-shadow: var(--shadow-xs);
+  transition: all .2s cubic-bezier(.16,1,.3,1);
+}
+.tl-card:hover, .tl-card:focus-visible {
+  border-color: var(--accent-color); transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+.tl-card--tall { grid-row: span 2; min-height: 246px;
+  background: linear-gradient(160deg, var(--g-900) 0%, #093325 100%); border-color: transparent; }
+.tl-card--wide {
+  grid-column: span 2; min-height: 92px;
+  flex-direction: row; align-items: center; gap: 14px;
+  /* the column layout's space-between pushes the badge and the text to
+     opposite edges once the card is wide — a row reads left to right */
+  justify-content: flex-start;
+}
+.tl-card__badge {
+  width: 44px; height: 44px; flex: none; border-radius: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--g-050); color: var(--accent-color);
+}
+.tl-card--tall .tl-card__badge { background: rgba(134,239,172,.16); color: var(--g-300); }
+.tl-card__body { display: grid; gap: 2px; min-width: 0; }
+.tl-card__title {
+  font-family: var(--display); font-size: 15px; font-weight: 800;
+  color: var(--ink); line-height: 1.25;
+}
+.tl-card__sub { font-size: 12px; color: var(--muted); font-weight: 600; }
+.tl-card--tall .tl-card__title { color: #fff; font-size: 19px; }
+.tl-card--tall .tl-card__sub { color: var(--g-300); }
+
+/* ── category pills in the entry sheet ────────────────────────────────── */
+.tl-cats { display: flex; flex-wrap: wrap; gap: 7px; }
+.tl-cat {
+  min-height: 40px; padding: 8px 13px; border-radius: var(--r-pill);
+  background: var(--sunk); border: 1px solid var(--rule);
+  font-size: 13px; font-weight: 700; color: var(--muted);
+}
+.tl-cat.is-on { background: var(--g-050); border-color: var(--accent-color); color: var(--g-900); }
+
+/* ── expenses ─────────────────────────────────────────────────────────── */
+.ex-hero { padding: 18px 16px; }
+.ex-hero__label {
+  font-size: 11.5px; font-weight: 800; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted);
+}
+.ex-hero__amount {
+  font-family: var(--display); font-size: 34px; font-weight: 800;
+  color: var(--ink); line-height: 1.1; margin-top: 4px; letter-spacing: -.5px;
+}
+.ex-hero__meta { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+.ex-hero__row {
+  display: flex; justify-content: space-between; gap: 12px; margin-top: 12px;
+  padding-top: 12px; border-top: 1px solid var(--rule-soft);
+  font-size: 13px; color: var(--muted);
+}
+.ex-hero__row b { color: var(--ink); }
+.ex-hero__row b.pos { color: var(--ok); }
+.ex-hero__row b.neg { color: var(--bad); }
+
+.ex-bar {
+  display: flex; height: 12px; border-radius: 999px; overflow: hidden;
+  margin-top: 16px; background: var(--rule-soft);
+}
+.ex-bar__seg { height: 100%; }
+.seg-0 { background: #2A7D2E; } .seg-1 { background: #3B82F6; }
+.seg-2 { background: #F59E0B; } .seg-3 { background: #8B5CF6; }
+.seg-4 { background: #06B6D4; } .seg-5 { background: #EF4444; }
+.ex-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+
+.ex-legend { list-style: none; margin-top: 12px; display: grid; gap: 8px; }
+.ex-legend li { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+.ex-legend__name { flex: 1; min-width: 0; color: var(--ink-2); font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ex-legend__val { font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.ex-list { background: var(--card); border: 1px solid var(--rule);
+  border-radius: var(--r); overflow: hidden; }
+.ex-row {
+  display: flex; align-items: center; gap: 11px; padding: 13px 14px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.ex-row:last-child { border-bottom: none; }
+.ex-row__date { font-size: 11px; font-weight: 700; color: var(--faint);
+  width: 54px; flex: none; line-height: 1.3; }
+.ex-row__title { font-size: 14px; font-weight: 700; color: var(--ink); line-height: 1.3; }
+.ex-row__amt {
+  font-size: 14.5px; font-weight: 800; color: var(--ink);
+  font-variant-numeric: tabular-nums; flex: none;
+}
+.ex-row__amt.pos { color: var(--ok); }
+
+@media (max-width: 360px) {
+  .tl-bento { gap: 8px; }
+  .ex-hero__amount { font-size: 29px; }
+}

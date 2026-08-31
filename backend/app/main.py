@@ -55,6 +55,7 @@ from .routers import (
     cropcalendar,
     decisions,
     demo,
+    ledger,
     expert,
     followups,
     misc,
@@ -229,6 +230,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(expert.router)
     app.include_router(officer.router)
     app.include_router(agronomy.router)
+    app.include_router(ledger.router)
     app.include_router(community.router)
     app.include_router(saathi.router)
     app.include_router(misc.notifications)

@@ -21,20 +21,20 @@ const T = {
   mr: {
     home: 'मुख्य', crop: 'पीक', scan: 'स्कॅन', community: 'समुदाय', agridoc: 'साथी',
     menu: 'मेनू', account: 'खाते', signout: 'साइन आउट', close: 'बंद करा',
-    nav: 'नेव्हिगेशन', tools: 'साधने', fields: 'शेते', forecast: 'अंदाज',
+    nav: 'नेव्हिगेशन', toolsGroup: 'साधने', fields: 'शेते', forecast: 'अंदाज',
     traps: 'सापळे', soil: 'माती', water: 'पाणी', alerts: 'सूचना',
     profile: 'प्रोफाइल', history: 'इतिहास', fieldsCount: 'शेते', queued: 'रांगेत',
     unread: 'न वाचलेल्या', ipm: 'निर्णय', guest: 'वापरकर्ता',
-    cropRecord: 'पीक नोंद',
+    cropRecord: 'पीक नोंद', tools: 'जलद साधने', expenses: 'शेती खर्च', fert: 'खत मार्गदर्शक',
   },
   en: {
     home: 'Home', crop: 'Crop', scan: 'Scan', community: 'Community', agridoc: 'AgriDoc',
     menu: 'Menu', account: 'Account', signout: 'Sign out', close: 'Close',
-    nav: 'Navigation', tools: 'Tools', fields: 'Fields', forecast: 'Forecast',
+    nav: 'Navigation', toolsGroup: 'Tools', fields: 'Fields', forecast: 'Forecast',
     traps: 'Traps', soil: 'Soil', water: 'Water', alerts: 'Alerts',
     profile: 'Profile', history: 'History', fieldsCount: 'Fields', queued: 'Queued',
     unread: 'Unread', ipm: 'Decide', guest: 'User',
-    cropRecord: 'Crop record',
+    cropRecord: 'Crop record', tools: 'Quick tools', expenses: 'Farm expenses', fert: 'Fertilizer guide',
   },
 }
 const t = (lang, k) => (T[lang] || T.en)[k] ?? T.en[k]
@@ -97,6 +97,7 @@ export function Drawer({ open, onClose, lang, route, go, role }) {
 
   const tools = role === 'farmer'
     ? [
+        ['tools', 'toolbox', t(lang, 'tools')],
         ['fields', 'map', t(lang, 'fields')],
         /* The Crop tab leads with the journey; the older per-field record —
            traps, passport, season detail — stays reachable here rather than
@@ -105,6 +106,8 @@ export function Drawer({ open, onClose, lang, route, go, role }) {
         ['forecast', 'radar', t(lang, 'forecast')],
         ['traps', 'bug', t(lang, 'traps')],
         ['soil', 'leaf', t(lang, 'soil')],
+        ['fertilizer', 'calc', t(lang, 'fert')],
+        ['expenses', 'wallet', t(lang, 'expenses')],
         ['water', 'drop', t(lang, 'water')],
         ['alerts', 'bell', t(lang, 'alerts')],
         ['history', 'history', t(lang, 'history')],
@@ -142,7 +145,7 @@ export function Drawer({ open, onClose, lang, route, go, role }) {
           <ul className="px-drawer__menu">{primary.map(item)}</ul>
           {tools.length > 0 && (
             <>
-              <div className="px-drawer__group-title">{t(lang, 'tools')}</div>
+              <div className="px-drawer__group-title">{t(lang, 'toolsGroup')}</div>
               <ul className="px-drawer__menu">{tools.map(item)}</ul>
             </>
           )}

@@ -217,6 +217,9 @@ export const api = {
   questions: (id) => get(`/api/observations/${id}/questions`, { cache: false }),
   answer: (id, answers) => send(`/api/observations/${id}/answers`, { answers }),
   askExpert: (id, body) => send(`/api/observations/${id}/expert-review`, body),
+  // another photograph of the same problem — same quality gate, diagnosis re-run
+  addImage: (id, file, image_role) =>
+    send(`/api/observations/${id}/images`, fd({ image: file, image_role })),
 
   // traps
   traps: (plot_id) => get(`/api/traps?plot_id=${plot_id}`),
@@ -238,6 +241,10 @@ export const api = {
   // follow-up
   followups: (plot_id) => get(`/api/followups${plot_id ? `?plot_id=${plot_id}` : ''}`),
   rescan: (id, file) => send(`/api/followups/${id}/rescan`, fd({ image: file })),
+  // for a farmer who cannot retake a comparable photograph; stored, and shown,
+  // as self-reported rather than as a measured comparison
+  followupOutcome: (id, outcome, note) =>
+    send(`/api/followups/${id}/outcome`, { outcome, note }),
 
   // advisory
   advisory: (plot_id, target, lang) =>
@@ -257,6 +264,16 @@ export const api = {
   logIrrigation: (plot_id, body) => send(`/api/agronomy/irrigation/${plot_id}`, body),
   weedCheck: (plot_id, file) => send('/api/agronomy/weeds', fd({ plot_id, image: file })),
   weedSeries: (plot_id) => get(`/api/agronomy/weeds/${plot_id}`, { cache: false }),
+
+  // farm ledger — bookkeeping, deliberately not wired to any agronomic engine
+  ledgerMeta: () => get('/api/farm-ledger/meta'),
+  ledger2: (plot_id, params = {}) => {
+    const q = new URLSearchParams({ plot_id, ...params }).toString()
+    return get(`/api/farm-ledger?${q}`, { cache: true })
+  },
+  ledgerAdd: (body) => send('/api/farm-ledger', body),
+  ledgerPatch: (id, body) => send(`/api/farm-ledger/${id}`, body, 'PATCH'),
+  ledgerSummary: (plot_id) => get(`/api/farm-ledger/summary?plot_id=${plot_id}`),
 
   // community — the feed, the thread, and the signal it produces
   communityMeta: () => get('/api/community/meta'),

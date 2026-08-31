@@ -1,84 +1,87 @@
 # PRAHARI · upgrade status
 
-PHASE: 1 — Crop Calendar → Crop Journey
-STATUS: complete and verified in a browser against the running backend
+PHASE: all — delivered in one pass
+STATUS: complete. 237 backend tests pass, frontend builds, walked through a browser.
 
-DONE:
-- One aggregation endpoint `GET /api/crop-calendar/{plot_id}`. It COMPOSES
-  services that already existed — `risk.crop_stage`, `risk.board`,
-  `risk.trap_state`, `forecast.by_day`, `agenda`, `risk.snapshot_history`.
-  No agronomy, no risk level and no date is re-derived inside it.
-- Crop journey: the crop's own stage table resolved against THIS field's
-  sowing date, so every band on the rail is a real date. No sowing date →
-  day numbers and null dates, never invented ones.
-- Threat windows per stage, from `thresholds.json.stage_factor` — a sourced
-  ICAR table. Each row shows the base ETL, the stage factor, the adjusted
-  threshold and its citation, so an agronomist can check the arithmetic.
-- **Disease bands appear only on the CURRENT stage.** A disease fires on
-  weather; weather beyond the forecast horizon does not exist; so future
-  stages are left blank with `disease_note` saying why. This is the single
-  most important honesty property of the screen and it has its own test.
-- Prevention window with factor-by-factor reasons, assembled only from
-  records that exist (models firing, stage lowering a threshold, trap counts
-  recorded, regional corroboration). A missing factor is omitted, never
-  rendered as "no data".
-- Today's mission is the EXISTING agenda verbatim — a test asserts it is
-  byte-identical to `/api/fields/{id}/today`, so no second mission system.
-- Field health history read from five existing tables (health_snapshots,
-  observations+diagnoses, trap_observations, applications, followups).
-  Nothing new is written; an abstained diagnosis is reported as an
-  abstention rather than smoothed into a blank scan.
-- Frontend `CropJourney.jsx` + `crop-journey.css` in Saurjya's card language.
-  The Crop tab now opens the journey; the older Crop screen is PRESERVED at
-  route `cropRecord` and linked from the drawer.
+## What was built
 
-FILES:
-- new: backend/app/cropcalendar.py, backend/app/routers/cropcalendar.py
-- new: backend/tests/test_crop_calendar.py
-- new: frontend/src/screens/CropJourney.jsx, screens/crop-journey.css
-- edit: backend/app/main.py (register router — 2 lines)
-- edit: frontend/src/api.js (one client method)
-- edit: frontend/src/App.jsx (route the Crop tab; keep old screen)
-- edit: frontend/src/shell/Chrome.jsx (drawer entry for the old screen)
-- edit: frontend/src/shell/shell.css (bottom sheets must sit above the
-  floating nav bar and clear it — the bar was covering the last sheet row)
+**Saurjya UI integration** — brand tokens, bundled Plus Jakarta Sans, and the
+header / drawer / account-sheet / floating-bar chrome as React components over
+the existing design tokens. Font Awesome and Google Fonts inlined and bundled,
+because the app is offline-first. The mock farmer in Saurjya's markup (Ramesh
+Kumar, 14 reports, 98% accuracy) was replaced by `/api/auth/me`.
 
-APIS: reused risk/board/trap_state/forecast/agenda/snapshot_history unchanged
-NEW APIS: GET /api/crop-calendar/{plot_id} — aggregation only
-DATABASE: no migration, no new table, no column added, no data touched
-ML: none
+**Crop Journey** — `GET /api/crop-calendar/{plot_id}`, one aggregation over
+services that already existed. Stage rail from this field's sowing date,
+prevention window with factor-by-factor evidence, today's mission (the existing
+agenda, verbatim), threat-by-stage, and history from five existing tables.
 
-CORRECTION MADE DURING THE PHASE — worth keeping:
-The first banding compared each stage_factor against fixed cutoffs (under 0.8 =
-high). Plausible, and useless: tomato's tables put whitefly at 0.5–0.6 early and
-Tuta at 0.7 late, so four of five stages came back red and the timeline said
-nothing. Factors are only meaningful RELATIVE TO THE SAME PEST, so each pest is
-now banded against its own range across the crop's stages, and a stage is banded
-by how many pests peak there rather than by its worst single pest. Tomato now
-reads watch / watch / watch / HIGH / normal — fruiting alone, which is where Tuta
-and Helicoverpa both bottom out. The absolute factor, the adjusted threshold and
-`peak_factor` are all still returned, so the judgement stays checkable.
+**Farm ledger** — `/api/farm-ledger`, the only new table (`farm_entries`,
+migration `004_ledger.sql`). Expense and income, category breakdown, cost per
+acre, idempotent on `client_ref` for the offline queue.
 
-TESTS: tests/test_crop_calendar.py → 14 passed. Full suite → 213 passed
-(199 before this phase). `npm run build` clean. Browser: Crop tab renders stage
-rail, prevention window with four evidence factors, mission, watchlist, threat
-grid and history, with zero console errors.
-Covers: sowing date moves the calendar; crop changes the threats; no date → no
-invented dates; disease bands never leak to future stages; every pest band
-carries source + arithmetic; the timeline discriminates between stages; a peak
-is relative to the pest, not an absolute cutoff; prevention factors are never
-placeholders; history empty when there are no records; a real trap count reaches
-history; mission identical to the agenda; stage agrees with /api/risk;
-cross-farmer read blocked; anonymous blocked.
+**Multi-image diagnosis** — `POST /api/observations/{id}/images` with five
+roles, same quality gate, diagnosis re-run.
 
-ISSUES:
-- The `_history` limit is per-source, so a very busy field can return up to
-  2x limit rows. Harmless, but worth a single ordered query later.
-- Officer and Expert consoles still use the old chrome (unchanged this phase).
+**Follow-up self-report** — `POST /api/followups/{id}/outcome` for a farmer who
+cannot retake a comparable photograph.
 
-NEXT: Phase 2 — Soil Self-Test. The backend (`app/soil.py`, 6-question VSA,
-scored/banded/stored, plus the lab nutrient-gap report) is already complete and
-already carries the screening-vs-lab framing. The work is frontend: rebuild
-`screens/Soil.jsx` in Saurjya's card language, make the questions adapt to the
-crop and stage where the data supports it, and surface the existing
-`soil_tests` history as a per-field trend. No new table.
+**Quick Tools hub + Fertilizer Guide** — Saurjya's bento over the tools that
+exist, plus a screen for the nutrient-gap API that had none.
+
+**ML pipeline** — verified end to end; `--no-pretrained` added for offline runs;
+`pretrained_init`/`deployable` recorded in the run card.
+
+## The four properties that are enforced by tests, not by intention
+
+1. **Disease bands never appear on a future stage.** Weather beyond the forecast
+   horizon does not exist, so those stages stay blank with the reason on screen.
+2. **Money never reaches the agronomic engines.** A test records costs and
+   asserts the risk board, threat windows, prevention window and agenda are
+   byte-identical before and after.
+3. **Repetition cannot manufacture confidence.** The same leaf uploaded four
+   times must not talk the engine out of an abstention.
+4. **A self-reported outcome is never presented as a measured one.** Both close
+   the loop; only a rescan produces evidence a treatment worked.
+
+## Two corrections worth remembering
+
+**Threat banding.** The first version compared each `stage_factor` to fixed
+cutoffs. Tomato's tables put whitefly at 0.5–0.6 early and Tuta at 0.7 late, so
+four of five stages came back red — true of some pest in every case, and no help
+at all. Factors are only meaningful relative to the same pest, so each pest is
+now banded against its own range and a stage is judged by how many pests peak
+there. Tomato reads watch / watch / watch / HIGH / normal.
+
+**Open follow-ups.** Adding the self-report path exposed a live bug: "open" was
+defined as *no rescan observation*, so a follow-up closed by a report would have
+been asked for forever. Now *no observation AND no outcome*, in all five places
+that ask — the due list, the day's agenda and the field-health card included.
+
+FILES ADDED
+- backend: `app/cropcalendar.py`, `app/routers/cropcalendar.py`,
+  `app/routers/ledger.py`, `app/schema/004_ledger.sql`
+- tests: `test_crop_calendar.py` (14), `test_farm_ledger.py` (10),
+  `test_multi_image.py` (7), `test_followup_outcome.py` (7)
+- frontend: `brand.css`, `shell/{shell,auth}.css`, `shell/Icon.jsx`,
+  `shell/Chrome.jsx`, `screens/CropJourney.jsx`, `screens/crop-journey.css`,
+  `screens/Tools.jsx`, `screens/tools.css`, `public/brand/*`
+
+DATABASE: one additive migration. Nothing dropped, truncated, reseeded or
+renamed. No primary ID changed.
+
+TESTS: 237 passed (199 before this work). `npm run build` clean.
+
+## Known limitations — stated, not hidden
+
+- **No trained vision weights.** The Kaggle dataset is behind an account and
+  this build environment had no route to it. The pipeline is verified end to end
+  and `ml/README.md` carries the exact commands; `VISION_PROVIDER` ships as
+  `none` and the app claims no accuracy anywhere.
+- **Officer and Expert consoles** still use the older chrome. They are
+  desktop-first and were deliberately left alone.
+- **`_history` in the crop calendar** limits per source, so a very busy field can
+  return up to 2× the limit. Harmless; a single ordered query would be tidier.
+- **Sentinel-2 field segmentation** was assessed and deferred — see
+  `prahari-reference-notes.md`. It adds a raster pipeline for a benefit the
+  officer console does not currently lack.

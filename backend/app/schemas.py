@@ -345,6 +345,46 @@ class SoilLabIn(BaseModel):
     tested_on: dt.date | None = None
 
 
+class FollowupOutcomeIn(BaseModel):
+    """A self-reported follow-up outcome.
+
+    `unmeasurable` exists so a farmer can close a loop honestly when there is
+    nothing left to judge — the crop was harvested, the leaf dropped. Forcing a
+    better/same/worse answer in that case manufactures data.
+    """
+    outcome: Literal["better", "same", "worse", "unmeasurable"]
+    note: str | None = Field(default=None, max_length=300)
+
+
+class FarmEntryIn(BaseModel):
+    """One line in the farm money ledger.
+
+    `direction` splits expense from income so the dashboard can show the
+    difference; `client_ref` makes a re-send from the offline queue idempotent
+    rather than double-counting a season's costs.
+    """
+    plot_id: str
+    direction: Literal["expense", "income"] = "expense"
+    category: str = Field(max_length=40)
+    title: str = Field(min_length=1, max_length=120)
+    amount_inr: float = Field(gt=0, le=100_000_000)
+    quantity: float | None = Field(default=None, ge=0, le=1_000_000)
+    unit: str | None = Field(default=None, max_length=20)
+    spent_on: dt.date | None = None
+    note: str | None = Field(default=None, max_length=300)
+    client_ref: str | None = Field(default=None, max_length=64)
+
+
+class FarmEntryPatch(BaseModel):
+    category: str | None = Field(default=None, max_length=40)
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    amount_inr: float | None = Field(default=None, gt=0, le=100_000_000)
+    quantity: float | None = Field(default=None, ge=0, le=1_000_000)
+    unit: str | None = Field(default=None, max_length=20)
+    spent_on: dt.date | None = None
+    note: str | None = Field(default=None, max_length=300)
+
+
 class IrrigationIn(BaseModel):
     applied_on: dt.date | None = None
     method: str | None = Field(default=None, max_length=30)

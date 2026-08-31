@@ -18,7 +18,7 @@ from ..clock import today as _today
 from ..config import get_settings
 from ..db import Database, dumps, loads
 from ..deps import current_user, db_dep, farmer_of, owned_plot, visible_plot
-from ..errors import conflict, not_found
+from ..errors import bad_request, conflict, not_found
 from ..obs import audit
 from ..runtime import get_runtime
 from ..schemas import AnswersIn, ExpertRequestIn
@@ -127,6 +127,114 @@ async def create_observation(
           role=user["role"], detail={"abstained": dx["abstain"], "reason": dx["reason"],
                                      "engine": dx["engine"]["engine"]})
     return _observation_view(db, oid)
+
+
+IMAGE_ROLES = {
+    "whole_plant": "The whole plant, so the pattern of damage across it is visible",
+    "affected": "The affected leaf, filling the frame",
+    "closeup": "A close-up of one lesion",
+    "underside": "The underside of the affected leaf",
+    "stem": "The stem, fruit or growing point",
+}
+
+
+@router.post("/{observation_id}/images", status_code=201,
+             summary="Add another photograph to an existing observation",
+             description=(
+                 "A second photograph of the same problem — the whole plant, the underside of "
+                 "the leaf, a close-up of one lesion. Each is graded by the SAME quality gate "
+                 "as the first, and the diagnosis is then re-run over the best-quality image "
+                 "available, with the others recorded as corroborating evidence.\n\n"
+                 "Adding an image can only ever change the answer by giving the engine a "
+                 "better photograph to look at. It cannot be used to talk the engine into a "
+                 "diagnosis it declined to make on the evidence.\n\n"
+                 "Errors: 400 not_an_image · 400 unknown_role · 409 observation_closed · "
+                 "413 file_too_large"))
+async def add_image(
+        observation_id: str,
+        image: UploadFile = File(...),
+        image_role: str = Form("closeup"),
+        user: dict[str, Any] = Depends(current_user),
+        db: Database = Depends(db_dep)):
+    rt = get_runtime()
+    s = get_settings()
+
+    obs = db.one("SELECT * FROM observations WHERE id = :o", {"o": observation_id})
+    if not obs:
+        raise not_found("observation", observation_id)
+    plot = owned_plot(db, user, obs["plot_id"])
+
+    if image_role not in IMAGE_ROLES:
+        raise bad_request("unknown_role",
+                          f"'{image_role}' is not a photograph role. Use one of: "
+                          + ", ".join(IMAGE_ROLES),
+                          "हा फोटो प्रकार उपलब्ध नाही.")
+
+    # An observation an expert has already ruled on is a closed record.
+    if (obs.get("status") or "open") not in ("open", "answered"):
+        raise conflict("observation_closed",
+                       "This observation has been reviewed and can no longer be added to.",
+                       "या नोंदीचे परीक्षण झाले आहे; आता फोटो जोडता येणार नाही.")
+
+    raw = await image.read()
+    content_type, width, height, _fmt = storage_mod.validate_image(raw, s.max_upload_bytes)
+    clean = storage_mod.sanitize(raw)
+    thumb = storage_mod.thumbnail(clean)
+    key = storage_mod.make_key(f"observations/{obs['plot_id']}")
+    thumb_key = key.replace(".jpg", "_thumb.jpg")
+    rt.storage.put(key, clean, "image/jpeg")
+    rt.storage.put(thumb_key, thumb, "image/jpeg")
+
+    features = rt.vision.analyse(clean)
+    stamp = now_iso()
+    img_id = "I-" + uuid.uuid4().hex[:10].upper()
+    db.execute(
+        "INSERT INTO observation_images (id, observation_id, role, storage_key, thumb_key,"
+        " content_type, bytes, width, height, sha256, quality, features, created_at)"
+        " VALUES (:id,:o,:r,:k,:tk,:ct,:b,:w,:h,:sha,:q,:f,:now)",
+        {"id": img_id, "o": observation_id, "r": image_role, "k": key, "tk": thumb_key,
+         "ct": "image/jpeg", "b": len(clean), "w": width, "h": height,
+         "sha": storage_mod.sha256(clean),
+         "q": dumps(features["quality"]),
+         "f": dumps({k: v for k, v in features.items() if k != "quality"}),
+         "now": stamp})
+
+    # A photograph that fails the gate is KEPT — it is the farmer's record of
+    # what they saw — but it is never promoted to the one the engine reads.
+    if not features["quality"]["ok"]:
+        return {**_observation_view(db, observation_id),
+                "added_image": {"id": img_id, "role": image_role,
+                                "quality": features["quality"], "used_for_diagnosis": False},
+                "note": ("This photograph was saved but not used for the diagnosis, because it "
+                         "did not pass the quality gate. The reasons are in `quality.failures`.")}
+
+    stage = rt.risk.crop_stage(plot)
+    fired: dict[str, Any] = {}
+    weather_meta: dict[str, Any] = {"available": False}
+    try:
+        wx = rt.risk.weather_series(plot)
+        _board, fired = rt.risk.board(plot, wx, stage)
+        weather_meta = {"available": True, "source": wx.get("source"),
+                        "kind": wx.get("source_kind"), "fetched_at": wx.get("fetched_at"),
+                        "fired": fired}
+    except WeatherUnavailable as exc:
+        weather_meta = {"available": False, "reason": exc.reason, "provider": exc.provider,
+                        "effect": ("Every weather factor was held neutral, so this diagnosis "
+                                   "rests on the image and the taluka prior alone.")}
+
+    dx = rt.diagnosis.run(observation={"id": observation_id}, plot=plot, image_bytes=clean,
+                          features=features, fired=fired, weather_meta=weather_meta)
+    _log_event(db, obs["plot_id"], dx, observation_id)
+
+    audit("observation.add_image", entity="observation", entity_id=observation_id,
+          user_id=user["id"], role=user["role"],
+          detail={"role": image_role, "abstained": dx["abstain"], "reason": dx["reason"]})
+
+    return {**_observation_view(db, observation_id),
+            "added_image": {"id": img_id, "role": image_role,
+                            "quality": features["quality"], "used_for_diagnosis": True},
+            "note": ("The diagnosis was re-run on this photograph. Every image on this "
+                     "observation is kept and shown to an expert who reviews it.")}
 
 
 @router.get("/{observation_id}", summary="One observation with its diagnosis")

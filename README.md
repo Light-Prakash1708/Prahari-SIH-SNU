@@ -98,6 +98,67 @@ from the reporting posts is read or disclosed.
 
 ---
 
+## What v4 added
+
+The identity is Saurjya's; the engines are the ones that were already here.
+
+**Visual identity.** Saurjya's Prahari brand — logo, palette, Plus Jakarta Sans,
+the header/drawer/account-sheet chrome, the floating bar with its raised scan
+FAB — rebuilt as React components over the existing design tokens, so every
+screen inherited it without being rewritten. Font Awesome and Google Fonts were
+inlined and bundled rather than fetched: this app is offline-first and a CDN
+dependency would break its primary language on the phone it was built for.
+
+Saurjya's static pages hard-code a farmer called Ramesh Kumar with 14 reports
+and 98% accuracy. None of that shipped. The account sheet renders whatever
+`/api/auth/me` returns, and shows only counts the app actually holds.
+
+**Crop Journey** (`GET /api/crop-calendar/{plot_id}`). One aggregation endpoint
+composing services that already existed — stage, risk board, trap state,
+forecast, agenda, health history. It owns no agronomy. Two properties are
+enforced by tests:
+
+- *Disease bands appear only on the current stage.* A disease fires when weather
+  satisfies a published infection model, so whether one threatens a stage six
+  weeks out is a question about weather that does not exist yet. Those stages
+  stay blank, with the reason on screen.
+- *Pest vulnerability is banded per pest, not against a fixed cutoff.* The
+  first attempt compared each `stage_factor` to absolute thresholds and put four
+  of tomato's five stages at "high" — true of some pest in every case, and no
+  help in deciding which weeks matter. Each pest is now banded against its own
+  range across the crop's stages. Tomato singles out fruiting, where Tuta and
+  Helicoverpa both bottom out; onion singles out bulb.
+
+**Farm ledger** (`/api/farm-ledger`). The one genuinely new table. `applications`
+is a food-safety record and `/api/ledger` is the sprays-avoided ledger — neither
+is a place for money. The boundary that matters is negative and has its own test:
+**cost never reaches the risk engine, the economic threshold or the IPM ladder.**
+The moment a cheap intervention can score better than a correct one, the system
+is giving agricultural advice on financial grounds.
+
+**More than one photograph** (`POST /api/observations/{id}/images`). Roles —
+whole plant, underside, close-up, stem — each telling the farmer *what* to
+photograph next. Every extra image passes the same quality gate; one that fails
+is kept as the farmer's record but never fed to the engine. A test uploads the
+same leaf four times and asserts the engine cannot be talked out of an
+abstention by repetition.
+
+**Closing a follow-up without a photograph** (`POST /api/followups/{id}/outcome`).
+For a farmer whose leaf has dropped or crop is off. Stored and displayed as
+**self-reported**, never as the measured two-image comparison a rescan produces.
+Adding it exposed a real bug: "open" was defined as *no rescan observation*, so a
+self-reported follow-up would have been asked for forever. The predicate is now
+*no observation AND no outcome*, in all five places that ask.
+
+**Quick Tools** — Saurjya's bento hub over the tools that exist, plus the
+Fertilizer Guide, which had an API and no screen. It shows the arithmetic
+(`75.0 kg of N ÷ 46% = 163.0 kg of Urea per acre`) so a farmer can check the
+shopkeeper's sum, names no brand, and lists what was left unmeasured rather
+than treating a blank as adequate.
+
+**237 backend tests pass.** No table was dropped, no migration rewritten, no
+existing endpoint removed.
+
 ## What this build is, and what the prototype was
 
 The v1.0 prototype had good agronomy and no production substance. This is what

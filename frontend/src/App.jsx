@@ -24,6 +24,7 @@ import { Alerts, Forecast, Profile, Rescan, Traps } from './screens/More'
 import Saathi from './screens/Saathi'
 import Crop from './screens/Crop'
 import CropJourney from './screens/CropJourney'
+import Tools, { Expenses, Fertilizer } from './screens/Tools'
 import Community from './screens/Community'
 import CommunityPost from './screens/CommunityPost'
 import CommunityNew from './screens/CommunityNew'
@@ -203,6 +204,12 @@ export default function App() {
         return <CropJourney lang={lang} plot={plot} plots={plots} onPlot={setPlotId} go={go} />
       case 'cropRecord':
         return <Crop lang={lang} plot={plot} plots={plots} onPlot={setPlotId} go={go} />
+      case 'tools':
+        return <Tools lang={lang} go={go} />
+      case 'expenses':
+        return <Expenses lang={lang} plot={plot} go={go} />
+      case 'fertilizer':
+        return <Fertilizer lang={lang} plot={plot} go={go} />
       case 'soil':
         if (!plot) return <NoField lang={lang} go={go} />
         return <Soil lang={lang} plot={plot} go={go} />
@@ -229,7 +236,8 @@ export default function App() {
 
   const activeTab = ['home', 'crop', 'scan', 'community', 'agridoc'].includes(route.name)
     ? route.name
-    : ['addField', 'history', 'fields', 'forecast', 'traps', 'soil', 'water', 'cropRecord']
+    : ['addField', 'history', 'fields', 'forecast', 'traps', 'soil', 'water', 'cropRecord',
+       'tools', 'expenses', 'fertilizer', 'decide']
         .includes(route.name) ? 'crop'
     : ['communityPost', 'communityNew'].includes(route.name) ? 'community'
     : route.name === 'saathi' ? 'agridoc'

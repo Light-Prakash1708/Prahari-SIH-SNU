@@ -58,7 +58,8 @@ def agenda(db: Database, rt, plot: dict[str, Any], *, health: dict[str, Any] | N
 
     # 2 ── follow-ups ───────────────────────────────────────────────────────
     for fu in db.rows(
-            "SELECT * FROM followups WHERE plot_id = :p AND done_observation IS NULL"
+            "SELECT * FROM followups WHERE plot_id = :p"
+            " AND done_observation IS NULL AND outcome IS NULL"
             " ORDER BY due_on", {"p": pid}):
         late = (day - dt.date.fromisoformat(fu["due_on"])).days
         if late < 0:

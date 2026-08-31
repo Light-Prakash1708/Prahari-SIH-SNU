@@ -213,3 +213,88 @@ independent, and both have to agree before a diagnosis is shown.
   reads it from there, and prints *"no evaluation recorded"* when it is null.
 
 Anything else — a badge, a pitch deck, a slide — is a fabrication.
+
+---
+
+## Training the model — the exact path
+
+The pipeline below has been **run end to end and works**. What it has not been
+run on is real data, because the Kaggle dataset is behind an account and the
+build environment this was assembled in had no route to it. So there are **no
+trained weights in this repository, and no accuracy is claimed anywhere in the
+product.** `VISION_PROVIDER` ships as `none`; the app says "no evaluated model"
+rather than dressing the symptom-feature engine up as a neural network.
+
+To produce weights:
+
+```bash
+pip install -r ml/requirements.txt
+
+# 1 · get the dataset (needs a Kaggle account and ~/.kaggle/kaggle.json)
+kaggle datasets download -d snikhilrao/crop-disease-detection-dataset \
+  -p data/raw --unzip
+
+# 2 · build a manifest. The adapter discovers the classes on disk, maps folder
+#     names through the reviewable alias table, and REPORTS what it could not
+#     map instead of dropping it silently. Read that report.
+python -m datasets.cropdisease --root data/raw --out data/manifest.json
+
+# 3 · split, grouped by field so no field appears in two splits
+python -m preprocessing.prepare --manifest data/manifest.json --out data/prepared
+
+# 4 · train
+python -m training.train --data data/prepared --epochs 30
+
+# 5 · evaluate on the held-out FIELD split — this is the only number to publish
+python -m evaluation.evaluate --checkpoint runs/latest/best.pt --data data/prepared
+
+# 6 · export, with parity against the torch model checked
+python -m export.export_onnx --checkpoint runs/latest/best.pt \
+  --out models/prahari-vision-1.0.0.onnx
+
+# 7 · register, so the API can report the metrics alongside every diagnosis
+python -m export.register_model --onnx models/prahari-vision-1.0.0.onnx \
+  --metrics evaluation/metrics.json --version 1.0.0
+```
+
+Then:
+
+```
+VISION_PROVIDER=onnx
+VISION_MODEL_PATH=models/prahari-vision-1.0.0.onnx
+VISION_MODEL_LABELS=ml/labels.json
+VISION_MODEL_VERSION=1.0.0
+```
+
+### `--no-pretrained`
+
+`training.train` takes ImageNet initialisation from `timm`, which is fetched over
+the network the first time an architecture is seen. `--no-pretrained` skips it so
+an air-gapped box or a CI runner with no egress can still exercise the pipeline.
+A model trained from scratch on a few thousand leaves is markedly worse, so the
+run card records `pretrained_init` and `deployable` — a from-scratch checkpoint is
+a pipeline test and the card says so, rather than leaving the two
+indistinguishable on disk.
+
+### What the pipeline was verified to do
+
+Run on a synthetic 450-image manifest (25 classes × 6 synthetic "fields"), with
+`--no-pretrained`:
+
+- `preprocessing.prepare` produced a field-grouped train/val/test split and
+  refused to let a field appear in two splits;
+- `training.train` trained and wrote a run card carrying the dataset version, the
+  split policy, the seed and the git commit, and printed *"Do NOT quote the
+  validation number"*;
+- `evaluation.evaluate` produced per-class precision/recall/F1, a confusion
+  matrix and an abstention/coverage curve;
+- `export.export_onnx` exported and checked numerical parity against the torch
+  model (max delta 2.05e-05);
+- the backend loaded the resulting `.onnx` through `VISION_PROVIDER=onnx`,
+  reported `engine: onnx · is_neural_model: true`, ran inference on a real
+  upload, and **abstained** — *"No candidate reaches the 46% confidence floor.
+  The strongest is Late blight at 44%."*
+
+That last line is the seam working exactly as intended. The numbers themselves
+are meaningless — the images were synthetic — and no figure from that run appears
+anywhere in the product.

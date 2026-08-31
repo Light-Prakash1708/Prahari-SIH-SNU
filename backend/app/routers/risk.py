@@ -83,7 +83,7 @@ def health(plot_id: str, user: dict[str, Any] = Depends(current_user),
     out["history"] = list(reversed(rt.risk.snapshot_history(plot_id, 30)))
     open_followups = db.rows(
         "SELECT id, due_on, application_id FROM followups WHERE plot_id = :p"
-        " AND done_observation IS NULL ORDER BY due_on", {"p": plot_id})
+        " AND done_observation IS NULL AND outcome IS NULL ORDER BY due_on", {"p": plot_id})
     out["followups_due"] = open_followups
     return out
 

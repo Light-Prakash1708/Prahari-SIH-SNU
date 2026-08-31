@@ -479,6 +479,16 @@ export function Rescan({ lang, followup, go }) {
     catch (e) { setErr(e) } finally { setBusy(false) }
   }
 
+  const report = async (outcome) => {
+    setBusy(true); setErr(null)
+    try {
+      const r = await api.followupOutcome(followup.id, outcome)
+      // Shaped like a rescan result so the same panel below renders it, but
+      // `measured: false` travels with it and the panel says so.
+      setOut({ outcome: r.outcome, comparison: null, measured: false, note: r.note })
+    } catch (e) { setErr(e) } finally { setBusy(false) }
+  }
+
   const TONE = { better: 'ok', same: 'info', worse: 'bad', unmeasurable: 'warn' }
 
   return (
@@ -506,6 +516,32 @@ export function Rescan({ lang, followup, go }) {
                 {busy ? '…' : (lang === 'mr' ? 'तुलना करा' : 'Compare with the first scan')}
               </button>
             </Card>
+
+            {/* The loop has to close even when a comparable photograph is
+                impossible — the leaf dropped, the crop is off, the light has
+                gone. This path is recorded as the farmer's own account and is
+                labelled that way wherever it is read, so an outcome nobody
+                measured is never counted as evidence a treatment worked. */}
+            <Card>
+              <div className="card-title">
+                {lang === 'mr' ? 'फोटो काढणे शक्य नाही?' : 'Cannot take a comparable photo?'}
+              </div>
+              <p className="small muted" style={{ marginTop: 7, marginBottom: 12 }}>
+                {lang === 'mr'
+                  ? 'तुम्ही स्वतः काय पाहिले ते सांगा. ही नोंद "शेतकऱ्याने सांगितलेली" म्हणून ठेवली जाते — मोजलेली तुलना म्हणून नाही.'
+                  : 'Tell PRAHARI what you saw. It is stored as SELF-REPORTED, not as a measured comparison.'}
+              </p>
+              <div className="chips">
+                {[['better', '🟢', 'Better', 'सुधारले'],
+                  ['same', '🟡', 'About the same', 'तसेच आहे'],
+                  ['worse', '🔴', 'Worse', 'वाढले'],
+                  ['unmeasurable', '⚪', 'Nothing left to judge', 'तपासण्यासारखे काही नाही']]
+                  .map(([k, em, en, mr]) => (
+                    <button key={k} className="chip" disabled={busy}
+                            onClick={() => report(k)}>{em} {bi(lang, en, mr)}</button>
+                  ))}
+              </div>
+            </Card>
           </>
         )}
 
@@ -519,8 +555,22 @@ export function Rescan({ lang, followup, go }) {
                   ? bi(lang, out.comparison.label, out.comparison.label_mr)
                   : (lang === 'mr' ? 'तुलना करता आली नाही' : 'Could not be compared')}
               </div>
-              <p className="why">{out.comparison?.say || out.message}</p>
+              <p className="why">{out.comparison?.say || out.note || out.message}</p>
             </div>
+
+            {/* A self-report never wears the badge of a measurement. */}
+            {out.measured === false && (
+              <Card style={{ borderColor: 'var(--warn-line)', background: 'var(--warn-bg)' }}>
+                <div className="card-title" style={{ color: 'var(--warn)' }}>
+                  {lang === 'mr' ? 'शेतकऱ्याने सांगितलेली नोंद' : 'Self-reported'}
+                </div>
+                <p className="small" style={{ marginTop: 7 }}>
+                  {lang === 'mr'
+                    ? 'ही नोंद तुमच्या निरीक्षणावर आधारित आहे. दोन फोटोंची मोजलेली तुलना नाही — त्यामुळे उपाय लागू पडल्याचा पुरावा म्हणून ती धरली जात नाही.'
+                    : 'This is your own account, not a measured comparison of two photographs, so it is not counted as evidence that the treatment worked.'}
+                </p>
+              </Card>
+            )}
 
             {out.comparison && (
               <Card>

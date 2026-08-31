@@ -73,14 +73,15 @@ export default function Scan({ lang, plot, go, onDone }) {
         )}
 
         {result && <Result lang={lang} plot={plot} data={result} go={go}
-                           onRetake={() => { setResult(null); setStage('camera') }} />}
+                           onRetake={() => { setResult(null); setStage('camera') }}
+                           onUpdated={setResult} />}
       </div>
     </>
   )
 }
 
 /* ═══ the result ═══════════════════════════════════════════════════════ */
-function Result({ lang, plot, data, go, onRetake }) {
+function Result({ lang, plot, data, go, onRetake, onUpdated }) {
   const dx = data.diagnosis
   const q = data.quality
   const [answers, setAnswers] = useState({})
@@ -273,6 +274,16 @@ function Result({ lang, plot, data, go, onRetake }) {
         </Card>
       )}
 
+      {/* ── another photograph ──────────────────────────────────────────
+          Offered only when the engine is uncertain. When it is confident,
+          asking for more pictures would invite a farmer to keep shooting until
+          the answer changes — which is exactly what the backend refuses to let
+          happen. */}
+      {uncertain && (
+        <MoreEvidence lang={lang} observationId={data.observation.id}
+                      onUpdated={onUpdated} />
+      )}
+
       {/* ── contextual questions ────────────────────────────────────────── */}
       {uncertain && data.questions?.length > 0 && !after && (
         <Card style={{ borderColor: 'var(--info-line)' }}>
@@ -390,5 +401,86 @@ function ExpertButton({ lang, data, caseOut, setCaseOut }) {
         {busy ? '…' : (lang === 'mr' ? '👨‍🌾 तज्ज्ञांकडे पाठवा' : '👨‍🌾 Request expert review')}
       </button>
     </>
+  )
+}
+
+
+/* ═══ another photograph of the same problem ═══════════════════════════
+   Shown when the engine is uncertain. Each role tells the farmer WHAT to
+   photograph next rather than just asking for "a better photo" — the second
+   picture is only useful if it shows something the first one did not.
+
+   The engine re-runs on the new image. It cannot be talked into a diagnosis
+   it declined to make: the backend test for that lives in
+   tests/test_multi_image.py. */
+const ROLES = [
+  ['whole_plant', '🌿', 'The whole plant', 'संपूर्ण झाड'],
+  ['underside', '🍃', 'Underside of the leaf', 'पानाची खालची बाजू'],
+  ['closeup', '🔍', 'Close-up of one spot', 'एका डागाचा जवळून फोटो'],
+  ['stem', '🌱', 'Stem or fruit', 'खोड किंवा फळ'],
+]
+
+export function MoreEvidence({ lang, observationId, onUpdated }) {
+  const [role, setRole] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+  const [rejected, setRejected] = useState(null)
+
+  const send = async (file) => {
+    setBusy(true); setErr(null); setRejected(null)
+    try {
+      const out = await api.addImage(observationId, file, role)
+      if (out.added_image && out.added_image.used_for_diagnosis === false) {
+        // Saved, but the gate refused it. Say so plainly rather than showing
+        // an unchanged result and letting the farmer think it was considered.
+        setRejected(out.added_image.quality)
+      }
+      onUpdated?.(out)
+      setRole(null)
+    } catch (e) { setErr(e) } finally { setBusy(false) }
+  }
+
+  if (role) {
+    return <Camera lang={lang} onCapture={send} onClose={() => setRole(null)}
+                   title={bi(lang, ...(ROLES.find(r => r[0] === role) || []).slice(2))} />
+  }
+
+  return (
+    <Card>
+      <div className="card-title" style={{ marginBottom: 4 }}>
+        {lang === 'mr' ? 'आणखी एक फोटो जोडा' : 'Add another photograph'}
+      </div>
+      <p className="tiny faint" style={{ marginBottom: 10 }}>
+        {lang === 'mr'
+          ? 'वेगळ्या बाजूचा फोटो घेतल्यास निदान सुधारू शकते. तोच फोटो पुन्हा दिल्याने काही फरक पडत नाही.'
+          : 'A photograph showing something the first one did not can improve the answer. Re-sending the same view will not.'}
+      </p>
+
+      <div className="chips">
+        {ROLES.map(([k, em, en, mr]) => (
+          <button key={k} className="chip" disabled={busy} onClick={() => setRole(k)}>
+            {em} {bi(lang, en, mr)}
+          </button>
+        ))}
+      </div>
+
+      {rejected && (
+        <div className="note warn" style={{ marginTop: 12 }}>
+          <b>{lang === 'mr' ? 'हा फोटो वापरता आला नाही' : 'That photograph could not be used'}</b>
+          <ul style={{ margin: '6px 0 0 16px' }}>
+            {(rejected.failures || []).map((f, i) => (
+              <li key={i} className="small">{bi(lang, f.msg, f.mr)}</li>
+            ))}
+          </ul>
+          <div className="tiny faint" style={{ marginTop: 6 }}>
+            {lang === 'mr'
+              ? 'फोटो जतन झाला आहे, पण निदानासाठी वापरला नाही.'
+              : 'It has been saved to this observation, but it was not fed to the engine.'}
+          </div>
+        </div>
+      )}
+
+      {err && <div style={{ marginTop: 10 }}><ErrorNote error={err} lang={lang} /></div>}
+    </Card>
   )
 }
