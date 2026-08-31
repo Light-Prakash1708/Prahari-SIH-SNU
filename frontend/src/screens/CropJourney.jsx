@@ -19,6 +19,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { api } from '../api'
 import { Card, ErrorNote, Loading, Sheet, bi, fmtDate } from '../ui'
 import Icon from '../shell/Icon'
+import { CROPS, NewCropSheet } from './Fields'
 import './crop-journey.css'
 
 const T = {
@@ -51,11 +52,12 @@ const t = (lang, k) => (T[lang] || T.en)[k] ?? T.en[k]
 
 const BAND_TONE = { high: 'bad', watch: 'warn', rising: 'warn', normal: 'ok', tolerant: 'ok', low: 'ok' }
 
-export default function CropJourney({ lang, plot, plots, onPlot, go }) {
+export default function CropJourney({ lang, plot, plots, onPlot, go, reload }) {
   const [cal, setCal] = useState(null)
   const [err, setErr] = useState(null)
   const [busy, setBusy] = useState(true)
   const [openStage, setOpenStage] = useState(null)
+  const [newCrop, setNewCrop] = useState(false)
 
   const load = useCallback(() => {
     if (!plot) { setBusy(false); return }
@@ -69,11 +71,20 @@ export default function CropJourney({ lang, plot, plots, onPlot, go }) {
   useEffect(load, [load])
 
   if (!plot) {
+    /* No field yet. The screen that is about crops is the obvious place to
+       register the first one, so it offers that rather than only explaining
+       why it is empty. */
     return (
       <>
         <Header lang={lang} />
-        <div className="pad">
-          <Card><p className="small muted">{t(lang, 'noDate')}</p></Card>
+        <div className="pad stack">
+          <Card>
+            <p className="small muted">{t(lang, 'noDate')}</p>
+            <button className="btn block" style={{ marginTop: 12 }}
+                    onClick={() => go('addField')}>
+              {bi(lang, 'Add your first field', 'तुमचे पहिले शेत नोंदवा')}
+            </button>
+          </Card>
         </div>
       </>
     )
@@ -84,23 +95,44 @@ export default function CropJourney({ lang, plot, plots, onPlot, go }) {
       <Header lang={lang} />
 
       <div className="pad cj-wrap">
-        {plots?.length > 1 && (
-          <div className="cj-fieldrow">
-            {plots.map(p => (
+        {/* The field switcher.
+            ─────────────────────────────────────────────────────────────────
+            It used to appear only when a farmer already had two fields, which
+            made a second field something you had to know was possible. It is
+            always here now, each chip carrying the crop it is actually
+            growing, and the last chip adds one — so the whole set of fields is
+            visible and extendable from the screen about crops.
+
+            Switching is not a display filter. `onPlot` moves the app's
+            selected field, `load` re-fetches /api/crop-calendar for it, and
+            every screen behind the tabs follows — the stage rail, thresholds,
+            trap counts and history all belong to the chosen field. */}
+        <div className="cj-fieldrow">
+          {(plots || []).map(p => {
+            const c = CROPS.find(x => x[0] === p.crop)
+            return (
               <button key={p.id} onClick={() => onPlot(p.id)}
                       className={'cj-fieldchip' + (p.id === plot.id ? ' is-on' : '')}>
-                {p.name}
+                <span className="cj-fieldchip__em">{c?.[3] || '🌱'}</span>
+                <span className="cj-fieldchip__txt">
+                  <b>{p.name}</b>
+                  <span>{bi(lang, c?.[1] || p.crop, c?.[2])}</span>
+                </span>
               </button>
-            ))}
-          </div>
-        )}
+            )
+          })}
+          <button className="cj-fieldchip cj-fieldchip--add" onClick={() => go('addField')}>
+            <Icon name="seedling" size={14} />
+            {bi(lang, 'Add field', 'शेत जोडा')}
+          </button>
+        </div>
 
         {busy && <Loading lines={5} />}
         {err && <ErrorNote error={err} lang={lang} onRetry={load} />}
 
         {cal && !busy && (
           <>
-            <CropHero cal={cal} lang={lang} />
+            <CropHero cal={cal} lang={lang} onNewCrop={() => setNewCrop(true)} />
             <StageRail cal={cal} lang={lang} onPick={setOpenStage} />
             <PreventionWindow cal={cal} lang={lang} go={go} />
             <Mission cal={cal} lang={lang} go={go} />
@@ -117,6 +149,20 @@ export default function CropJourney({ lang, plot, plots, onPlot, go }) {
 
       <StageSheet stage={openStage} cal={cal} lang={lang}
                   onClose={() => setOpenStage(null)} go={go} />
+
+      {/* The same sheet the Fields screen uses, not a second one: starting a
+          crop closes one cycle and opens another, and that must behave
+          identically wherever it is started from. */}
+      <NewCropSheet plot={newCrop ? plot : null} lang={lang}
+                    onClose={() => setNewCrop(false)}
+                    onDone={async () => {
+                      setNewCrop(false)
+                      /* The plots list carries the crop and sowing date the
+                         chips and the hero read, so it is refreshed before the
+                         calendar is re-fetched for the new cycle. */
+                      if (reload) await reload(plot.id)
+                      load()
+                    }} />
     </>
   )
 }
@@ -131,7 +177,7 @@ function Header({ lang }) {
 }
 
 /* ── who and where ─────────────────────────────────────────────────────── */
-function CropHero({ cal, lang }) {
+function CropHero({ cal, lang, onNewCrop }) {
   const { crop, field, crop_stage: st, next_stage: next } = cal
   const pct = st.progress == null ? null : Math.round(st.progress * 100)
 
@@ -149,6 +195,18 @@ function CropHero({ cal, lang }) {
             {crop.sown_on && <> · {fmtDate(crop.sown_on, lang)}</>}
           </div>
         </div>
+        {/* Changing what this field grows closes the running crop cycle and
+            opens a new one. The field's records are not touched — that is
+            what makes this a passport rather than a season of notes — so the
+            stage rail, the thresholds and the calendar re-derive from the new
+            sowing date while the history stays. */}
+        {onNewCrop && (
+          <button className="cj-hero__change" onClick={onNewCrop}
+                  aria-label={bi(lang, 'Change crop', 'पीक बदला')}>
+            <Icon name="calendar" size={14} />
+            {bi(lang, 'Change crop', 'पीक बदला')}
+          </button>
+        )}
       </div>
 
       {st.stage ? (

@@ -9,10 +9,14 @@ import React, { useEffect, useState } from 'react'
 import { api } from '../api'
 import { Card, Empty, ErrorNote, Loading, Prov, Sheet, bi, fmtDate } from '../ui'
 
-const CROPS = [
-  ['tomato', 'Tomato', 'टोमॅटो'], ['grape', 'Grape', 'द्राक्ष'], ['onion', 'Onion', 'कांदा'],
-  ['maize', 'Maize', 'मका'], ['cotton', 'Cotton', 'कापूस'], ['soybean', 'Soybean', 'सोयाबीन'],
-  ['pigeonpea', 'Pigeonpea', 'तूर'],
+/* id, English, Marathi, and the glyph — a fourth element rather than a second
+   table, so a crop cannot end up named in one place and drawn in another.
+   Existing `[id, en, mr]` destructuring ignores it. */
+export const CROPS = [
+  ['tomato', 'Tomato', 'टोमॅटो', '🍅'], ['grape', 'Grape', 'द्राक्ष', '🍇'],
+  ['onion', 'Onion', 'कांदा', '🧅'], ['maize', 'Maize', 'मका', '🌽'],
+  ['cotton', 'Cotton', 'कापूस', '🌱'], ['soybean', 'Soybean', 'सोयाबीन', '🌿'],
+  ['pigeonpea', 'Pigeonpea', 'तूर', '🫘'],
 ]
 const TALUKAS = [
   ['pimpalgaon', 'Pimpalgaon Baswant'], ['niphad', 'Niphad'], ['dindori', 'Dindori'],
@@ -143,7 +147,12 @@ export function Fields({ lang, plots, plot, onPlot, go, reload }) {
    sheet says so, because "start a new crop" reads like something destructive
    and is not.
    ═══════════════════════════════════════════════════════════════════════════ */
-function NewCropSheet({ plot, lang, onClose, onDone }) {
+/* Exported so the Crop tab can open the same sheet.
+   ─────────────────────────────────────────────────────────────────────────
+   Changing what a field is growing is the same operation wherever it is
+   started from, and it closes one crop cycle and opens another — not a thing
+   to have two implementations of. */
+export function NewCropSheet({ plot, lang, onClose, onDone }) {
   const [crop, setCrop] = useState('tomato')
   const [sownOn, setSownOn] = useState(new Date().toISOString().slice(0, 10))
   const [variety, setVariety] = useState('')

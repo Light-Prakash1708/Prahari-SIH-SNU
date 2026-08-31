@@ -87,3 +87,53 @@ def test_patch_updates_only_what_was_sent(client, farmer, plot):
     assert r.json()["name"] == "Renamed block"
     assert r.json()["tank_litres"] == 16
     assert r.json()["crop"] == plot["crop"]
+
+
+def test_a_field_with_no_location_falls_back_to_the_farmers_own_taluka(client, farmer):
+    """The Add-field form offers "Use my account taluka" as its default. That
+    promise was being broken by a schema rule that rejected the request before
+    the router — which already resolves exactly this — could run. Adding a
+    second field is the ordinary case, so this path must work with nothing
+    filled in but a name, a crop, an area and a date."""
+    r = client.post("/api/plots", headers=farmer["headers"], json={
+        "name": "Maize strip", "crop": "maize", "area_acre": 2.5,
+        "sown_on": "2026-08-01", "location_source": "manual"})
+    assert r.status_code == 201, r.text
+    out = r.json()
+    # niphad is the taluka the farmer fixture registered with
+    assert out["taluka"] == "niphad"
+    # and it is given that taluka's coordinates, not left without a location:
+    # every infection model needs a point to fetch weather for.
+    assert out["lat"] is not None and out["lng"] is not None
+
+
+def test_a_taluka_prahari_does_not_cover_is_still_refused(client, farmer):
+    """Moving the location rule out of the schema must not have loosened it."""
+    r = client.post("/api/plots", headers=farmer["headers"], json={
+        "name": "Far field", "crop": "tomato", "area_acre": 1.0,
+        "sown_on": "2026-08-01", "location_source": "manual", "taluka": "atlantis"})
+    assert r.status_code == 400
+    assert r.json()["error"] == "unknown_taluka"
+
+
+def test_a_second_field_keeps_the_first_one_intact(client, farmer, plot):
+    """Switching fields is only meaningful if each carries its own records."""
+    second = client.post("/api/plots", headers=farmer["headers"], json={
+        "name": "Onion patch", "crop": "onion", "area_acre": 1.0,
+        "sown_on": "2026-07-01", "location_source": "manual"}).json()
+    assert second["id"] != plot["id"]
+    assert second["crop"] == "onion"
+
+    listed = client.get("/api/plots", headers=farmer["headers"]).json()["plots"]
+    by_id = {p["id"]: p for p in listed}
+    assert len(listed) == 2
+    assert by_id[plot["id"]]["crop"] == "tomato"
+    assert by_id[second["id"]]["crop"] == "onion"
+
+    # each field's calendar is its own — the crop, not the account's, decides
+    a = client.get(f"/api/crop-calendar/{plot['id']}", headers=farmer["headers"])
+    b = client.get(f"/api/crop-calendar/{second['id']}", headers=farmer["headers"])
+    if a.status_code == 200 and b.status_code == 200:
+        assert a.json()["crop"]["id"] == "tomato"
+        assert b.json()["crop"]["id"] == "onion"
+        assert a.json()["field"]["name"] != b.json()["field"]["name"]

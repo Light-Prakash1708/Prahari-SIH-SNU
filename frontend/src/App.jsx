@@ -254,7 +254,8 @@ export default function App() {
            endpoint. The older Crop screen is kept intact at 'cropRecord'
            rather than deleted; it holds the trap and passport detail the
            journey links out to. */
-        return <CropJourney lang={lang} plot={plot} plots={plots} onPlot={setPlotId} go={go} />
+        return <CropJourney lang={lang} plot={plot} plots={plots} onPlot={setPlotId} go={go}
+                            reload={reload} />
       case 'cropRecord':
         return <Crop lang={lang} plot={plot} plots={plots} onPlot={setPlotId} go={go} />
       case 'tools':

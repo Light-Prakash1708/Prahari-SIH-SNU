@@ -119,8 +119,20 @@ class PlotIn(BaseModel):
     def _location(self):
         if self.location_source in ("gps", "map") and (self.lat is None or self.lng is None):
             raise ValueError("GPS or map placement needs both latitude and longitude.")
-        if self.lat is None and self.taluka is None:
-            raise ValueError("Give coordinates, or choose a taluka.")
+        # No location rule here on purpose.
+        #
+        # This validator rejected a field that carried neither coordinates nor
+        # a taluka, which made "Add field" fail with a 422 whenever the farmer
+        # left the taluka on its default — the option the form itself labels
+        # "Use my account taluka". The router already resolves a location, in
+        # order: a drawn boundary's centroid, an explicit taluka, the nearest
+        # taluka to the coordinates, and finally the farmer's OWN taluka from
+        # their account. It cannot see the farmer from in here, so a schema
+        # that guesses on its behalf can only be wrong in one direction.
+        #
+        # Nothing is loosened: a field still ends up with a real taluka or the
+        # router raises `unknown_taluka`. The check simply moved to the place
+        # that has the farmer in hand.
         if self.sown_on > dt.date.today() + dt.timedelta(days=1):
             raise ValueError("The sowing date cannot be in the future.")
         if self.sown_on < dt.date.today() - dt.timedelta(days=730):

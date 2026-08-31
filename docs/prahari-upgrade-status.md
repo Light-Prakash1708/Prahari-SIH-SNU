@@ -250,3 +250,39 @@ fields with different crops is the normal case, not the advanced one — as well
 as in the drawer under My field.
 
 TESTS: 275 passed (265 before). ruff clean.
+
+## Fields, from the Crop tab
+
+The Crop tab now manages the fields it is about, rather than only displaying
+whichever one was selected elsewhere.
+
+- **The switcher is always there.** It used to appear only once a farmer
+  already had two fields, which made a second field something you had to know
+  was possible. Each chip carries the crop that field is actually growing, so
+  choosing between them does not depend on remembering which is which.
+- **"Add field"** is the last chip, and the empty state offers it too — the
+  screen about crops is the obvious place to register the first one.
+- **"Change crop"** sits on the hero, and opens the same sheet the Fields
+  screen uses. It closes the running crop cycle and opens a new one; the
+  field's scans, counts, sprays and diagnoses stay attached, which is what
+  makes it a passport rather than a season of notes.
+- Switching is not a display filter: the selection moves the app's active
+  field, the calendar re-fetches, and the stage rail, thresholds, trap counts
+  and history all follow.
+
+### A bug this uncovered — adding a field was broken
+
+`POST /api/plots` returned 422 whenever the taluka select was left on its
+default, which is the option the form itself labels "Use my account taluka".
+A `model_validator` on `PlotIn` required coordinates or an explicit taluka and
+rejected the request **before** the router — which already resolves a location
+in order (boundary centroid → explicit taluka → nearest taluka to the
+coordinates → the farmer's own taluka) — could run. The schema cannot see the
+farmer, so it was guessing on their behalf and could only be wrong in one
+direction.
+
+The rule moved to the place that has the farmer in hand. Nothing is loosened:
+a field still ends up with a real taluka or the router raises `unknown_taluka`,
+and a test asserts that refusal still happens.
+
+TESTS: 278 passed (265 before). Bundle 124 kB gzipped of 200.

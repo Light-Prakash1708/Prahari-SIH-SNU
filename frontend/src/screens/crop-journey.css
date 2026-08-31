@@ -208,3 +208,33 @@
   .cj-threatgrid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
   .cj-hero__stagelabel { font-size: 19px; }
 }
+
+/* ── the field switcher, always present ─────────────────────────────────────
+   Each chip carries the crop the field is actually growing, so choosing
+   between "Tomato block 1" and "Onion patch" does not depend on remembering
+   which is which. The add chip is the last one, and is drawn as an outline so
+   it reads as an action rather than as another field. */
+.cj-fieldchip {
+  display: flex; align-items: center; gap: 9px; padding: 8px 15px 8px 12px;
+  min-height: 46px; text-align: left; transition: all .2s var(--ease);
+}
+.cj-fieldchip__em { font-size: 17px; line-height: 1; flex: none; }
+.cj-fieldchip__txt { display: flex; flex-direction: column; line-height: 1.25; }
+.cj-fieldchip__txt b { font-size: 13.5px; font-weight: 800; }
+.cj-fieldchip__txt span { font-size: 11px; font-weight: 600; opacity: .72; }
+.cj-fieldchip.is-on { box-shadow: 0 2px 12px rgba(16,185,129,.16); }
+.cj-fieldchip--add {
+  gap: 7px; padding: 8px 16px; color: var(--g-700); background: transparent;
+  border: 1.5px dashed rgba(16,185,129,.45); font-size: 13px;
+}
+.cj-fieldchip--add:active { background: var(--g-050); }
+
+/* Changing the crop sits on the hero, next to the crop it would change. */
+.cj-hero__top { align-items: flex-start; }
+.cj-hero__change {
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: var(--r-pill);
+  background: var(--g-050); border: 1px solid var(--g-100);
+  color: var(--g-700); font-size: 11.5px; font-weight: 700; white-space: nowrap;
+}
+.cj-hero__change:active { background: var(--g-100); }
