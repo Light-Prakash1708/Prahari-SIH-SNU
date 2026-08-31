@@ -23,6 +23,7 @@ import { AddField, Fields, History } from './screens/Fields'
 import { Alerts, Forecast, Profile, Rescan, Traps } from './screens/More'
 import Saathi from './screens/Saathi'
 import Crop from './screens/Crop'
+import CropJourney from './screens/CropJourney'
 import Community from './screens/Community'
 import CommunityPost from './screens/CommunityPost'
 import CommunityNew from './screens/CommunityNew'
@@ -194,6 +195,13 @@ export default function App() {
       case 'agridoc':
         return <Saathi lang={lang} plot={plot} go={go} />
       case 'crop':
+        /* The Crop tab is now the Crop Journey — stage, prevention window,
+           mission, threat-by-stage, history — served by one aggregation
+           endpoint. The older Crop screen is kept intact at 'cropRecord'
+           rather than deleted; it holds the trap and passport detail the
+           journey links out to. */
+        return <CropJourney lang={lang} plot={plot} plots={plots} onPlot={setPlotId} go={go} />
+      case 'cropRecord':
         return <Crop lang={lang} plot={plot} plots={plots} onPlot={setPlotId} go={go} />
       case 'soil':
         if (!plot) return <NoField lang={lang} go={go} />
@@ -221,7 +229,7 @@ export default function App() {
 
   const activeTab = ['home', 'crop', 'scan', 'community', 'agridoc'].includes(route.name)
     ? route.name
-    : ['addField', 'history', 'fields', 'forecast', 'traps', 'soil', 'water']
+    : ['addField', 'history', 'fields', 'forecast', 'traps', 'soil', 'water', 'cropRecord']
         .includes(route.name) ? 'crop'
     : ['communityPost', 'communityNew'].includes(route.name) ? 'community'
     : route.name === 'saathi' ? 'agridoc'

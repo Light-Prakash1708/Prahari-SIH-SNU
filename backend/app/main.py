@@ -52,6 +52,7 @@ from .routers import (
     agronomy,
     auth,
     community,
+    cropcalendar,
     decisions,
     demo,
     expert,
@@ -220,6 +221,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router)
     app.include_router(plots.router)
     app.include_router(risk.router)
+    app.include_router(cropcalendar.router)
     app.include_router(observations.router)
     app.include_router(traps_router())
     app.include_router(decisions.router)

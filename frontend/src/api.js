@@ -198,6 +198,10 @@ export const api = {
   newCycle: (id, body) => send(`/api/plots/${id}/cycles`, body),
   history: (id) => get(`/api/plots/${id}/history`),
 
+  // the crop journey — one request for the whole calendar screen
+  cropCalendar: (id, lang) =>
+    get(`/api/crop-calendar/${id}${lang ? `?lang=${lang}` : ''}`),
+
   // risk
   risk: (id) => get(`/api/risk/${id}`),
   forecast: (id) => get(`/api/risk/${id}/forecast`),

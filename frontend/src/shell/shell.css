@@ -242,6 +242,13 @@
 /* the shell reserves room for the fixed chrome so no card hides beneath it */
 .shell.px-chromed { padding-bottom: var(--botnav-h); }
 
+/* A bottom sheet is a modal surface: it must sit ABOVE the floating bar, and
+   its last row must clear the bar rather than ending underneath it. The bar's
+   own z-index (999) beat the sheet's (90), so a sheet opened over it had its
+   final option covered by the nav. */
+.scrim { z-index: 1100; }
+.sheet { padding-bottom: calc(var(--botnav-h) + env(safe-area-inset-bottom, 0px)); }
+
 /* ── living with the screens that were already here ───────────────────── */
 
 /* Several screens carry their own sticky sub-header (`.topbar`). With the

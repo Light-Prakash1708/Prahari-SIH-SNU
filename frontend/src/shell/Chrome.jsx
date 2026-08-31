@@ -25,6 +25,7 @@ const T = {
     traps: 'सापळे', soil: 'माती', water: 'पाणी', alerts: 'सूचना',
     profile: 'प्रोफाइल', history: 'इतिहास', fieldsCount: 'शेते', queued: 'रांगेत',
     unread: 'न वाचलेल्या', ipm: 'निर्णय', guest: 'वापरकर्ता',
+    cropRecord: 'पीक नोंद',
   },
   en: {
     home: 'Home', crop: 'Crop', scan: 'Scan', community: 'Community', agridoc: 'AgriDoc',
@@ -33,6 +34,7 @@ const T = {
     traps: 'Traps', soil: 'Soil', water: 'Water', alerts: 'Alerts',
     profile: 'Profile', history: 'History', fieldsCount: 'Fields', queued: 'Queued',
     unread: 'Unread', ipm: 'Decide', guest: 'User',
+    cropRecord: 'Crop record',
   },
 }
 const t = (lang, k) => (T[lang] || T.en)[k] ?? T.en[k]
@@ -96,6 +98,10 @@ export function Drawer({ open, onClose, lang, route, go, role }) {
   const tools = role === 'farmer'
     ? [
         ['fields', 'map', t(lang, 'fields')],
+        /* The Crop tab leads with the journey; the older per-field record —
+           traps, passport, season detail — stays reachable here rather than
+           being removed. */
+        ['cropRecord', 'clipboard', t(lang, 'cropRecord')],
         ['forecast', 'radar', t(lang, 'forecast')],
         ['traps', 'bug', t(lang, 'traps')],
         ['soil', 'leaf', t(lang, 'soil')],

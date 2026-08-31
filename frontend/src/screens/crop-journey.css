@@ -1,0 +1,210 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRAHARI · Crop Journey — Saurjya's card language, one screen
+
+   Colour carries state, and it is never the only thing that does: every band
+   is paired with the word for it, because roughly one in twelve men in this
+   user base cannot separate the red from the green.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cj-wrap { padding-top: 14px; }
+.cj-section { margin-top: 20px; }
+.cj-h2 {
+  font-family: var(--display); font-size: 15px; font-weight: 800;
+  letter-spacing: -.1px; color: var(--ink); margin-bottom: 10px;
+}
+.cj-method { margin-top: 10px; line-height: 1.55; }
+
+/* tones — one place, used by every block below */
+.tone-ok   { --tone: var(--ok);   --tone-bg: var(--ok-bg);   --tone-line: var(--ok-line); }
+.tone-warn { --tone: var(--warn); --tone-bg: var(--warn-bg); --tone-line: var(--warn-line); }
+.tone-bad  { --tone: var(--bad);  --tone-bg: var(--bad-bg);  --tone-line: var(--bad-line); }
+.tone-info { --tone: var(--info); --tone-bg: var(--info-bg); --tone-line: var(--info-line); }
+
+/* ── field switcher ───────────────────────────────────────────────────── */
+.cj-fieldrow {
+  display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px;
+  margin-bottom: 4px; scrollbar-width: none;
+}
+.cj-fieldrow::-webkit-scrollbar { display: none; }
+.cj-fieldchip {
+  flex: none; min-height: 38px; padding: 8px 16px; border-radius: var(--r-pill);
+  background: var(--card); border: 1px solid var(--rule);
+  font-size: 13.5px; font-weight: 700; color: var(--muted); white-space: nowrap;
+}
+.cj-fieldchip.is-on {
+  background: var(--g-050); border-color: var(--accent-color); color: var(--g-900);
+}
+
+/* ── hero ─────────────────────────────────────────────────────────────── */
+.cj-hero { padding: 16px; }
+.cj-hero__top { display: flex; align-items: center; gap: 12px; }
+.cj-hero__em { font-size: 30px; line-height: 1; flex: none; }
+.cj-hero__crop { font-family: var(--display); font-size: 18px; font-weight: 800; color: var(--ink); }
+.cj-hero__variety { font-weight: 600; color: var(--muted); font-size: 14px; }
+.cj-hero__field { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+
+.cj-hero__stage {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+  margin-top: 16px;
+}
+.cj-hero__stagelabel {
+  font-family: var(--display); font-size: 22px; font-weight: 800;
+  color: var(--g-700); letter-spacing: -.3px; line-height: 1.15;
+}
+.cj-hero__day { font-size: 13px; font-weight: 700; color: var(--muted); margin-top: 2px; }
+.cj-hero__harvest { text-align: right; flex: none; }
+.cj-hero__harvest b {
+  display: block; font-family: var(--display); font-size: 20px;
+  font-weight: 800; color: var(--ink); line-height: 1;
+}
+.cj-hero__harvest span { font-size: 11px; color: var(--muted); font-weight: 600; }
+
+.cj-progress {
+  height: 8px; border-radius: 999px; background: var(--rule-soft);
+  margin-top: 12px; overflow: hidden;
+}
+.cj-progress span {
+  display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--g-400), var(--accent-color));
+  transition: width .4s ease;
+}
+.cj-hero__next { font-size: 13px; color: var(--ink-2); margin-top: 12px; }
+
+/* ── the stage rail ───────────────────────────────────────────────────── */
+.cj-rail {
+  display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 12px;
+  scrollbar-width: none;
+}
+.cj-rail::-webkit-scrollbar { display: none; }
+.cj-stage {
+  position: relative; flex: 1 0 92px; min-width: 92px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 12px 10px; border-radius: var(--r);
+  background: var(--card); border: 1px solid var(--rule); text-align: left;
+  transition: all .2s ease;
+}
+/* the connecting line — drawn between cards, not through them */
+.cj-stage + .cj-stage::before {
+  content: ''; position: absolute; left: -6px; top: 21px;
+  width: 6px; height: 2px; background: var(--rule);
+}
+.cj-stage__dot {
+  width: 12px; height: 12px; border-radius: 50%; flex: none;
+  background: var(--tone, var(--g-300)); box-shadow: 0 0 0 3px var(--tone-bg, var(--g-100));
+}
+.cj-stage__label { font-size: 12.5px; font-weight: 700; color: var(--ink-2); line-height: 1.25; }
+.cj-stage__days { font-size: 10.5px; color: var(--faint); font-weight: 600; }
+
+.cj-stage.is-done { background: var(--sunk); opacity: .78; }
+.cj-stage.is-now {
+  background: var(--g-050); border-color: var(--accent-color);
+  box-shadow: 0 0 0 1px var(--accent-color), var(--shadow);
+}
+.cj-stage.is-now .cj-stage__label { color: var(--g-900); font-weight: 800; }
+
+/* ── prevention window ────────────────────────────────────────────────── */
+.cj-pw {
+  margin-top: 18px; padding: 16px;
+  background: var(--tone-bg); border: 1px solid var(--tone-line);
+  border-left: 4px solid var(--tone);
+}
+.cj-pw__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cj-pw__badge {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--tone);
+}
+.cj-pw__state { font-size: 11.5px; font-weight: 700; color: var(--tone); }
+.cj-pw__title {
+  font-family: var(--display); font-size: 17px; font-weight: 800;
+  color: var(--ink); margin-top: 8px; line-height: 1.3;
+}
+.cj-pw__why {
+  font-size: 11.5px; font-weight: 800; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--muted); margin-top: 14px;
+}
+.cj-pw__factors { list-style: none; margin-top: 8px; display: grid; gap: 8px; }
+.cj-pw__factors li {
+  display: flex; gap: 9px; align-items: flex-start;
+  font-size: 13.5px; line-height: 1.5; color: var(--ink-2);
+}
+.cj-pw__factors .em { flex: none; font-size: 15px; line-height: 1.35; }
+.cj-pw__actions { margin-top: 16px; }
+.cj-pw__actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.cj-pw__secondary { display: flex; gap: 8px; margin-top: 10px; }
+.cj-pw__method { margin-top: 12px; line-height: 1.55; }
+
+.cj-minibtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 40px; padding: 8px 14px; border-radius: var(--r-pill);
+  background: var(--card); border: 1px solid var(--rule);
+  font-size: 12.5px; font-weight: 700; color: var(--ink-2);
+}
+.cj-minibtn:hover { border-color: var(--accent-color); color: var(--g-900); }
+
+/* ── mission ──────────────────────────────────────────────────────────── */
+.cj-mission { margin-top: 20px; padding: 16px; }
+.cj-task { padding: 14px; border-left: 4px solid var(--tone); }
+.cj-task__row { display: flex; gap: 11px; align-items: flex-start; }
+.cj-task__em { font-size: 20px; line-height: 1.2; flex: none; }
+.cj-task__title { font-size: 14.5px; font-weight: 800; color: var(--ink); line-height: 1.3; }
+.cj-task__detail { font-size: 13px; color: var(--muted); line-height: 1.5; margin-top: 4px; }
+.cj-task__go { margin-top: 10px; }
+
+/* ── watchlist ────────────────────────────────────────────────────────── */
+.cj-watch { padding: 14px; }
+.cj-watch__head { display: flex; align-items: center; gap: 9px; }
+.cj-watch__em { font-size: 18px; flex: none; }
+.cj-watch__name { font-size: 14.5px; font-weight: 800; color: var(--ink); flex: 1; min-width: 0; }
+.cj-watch__scout { font-size: 13px; color: var(--muted); line-height: 1.5; margin-top: 7px; }
+
+/* ── threat by stage ──────────────────────────────────────────────────── */
+.cj-threatgrid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px;
+}
+.cj-threat {
+  display: grid; gap: 3px; padding: 12px 10px; border-radius: var(--r);
+  background: var(--tone-bg); border: 1px solid var(--tone-line);
+  text-align: left; position: relative;
+}
+.cj-threat__stage { font-size: 12.5px; font-weight: 800; color: var(--ink); line-height: 1.25; }
+.cj-threat__band {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--tone);
+}
+.cj-threat__count {
+  position: absolute; top: 10px; right: 10px;
+  font-family: var(--display); font-size: 15px; font-weight: 800; color: var(--tone);
+}
+
+/* ── the stage sheet ──────────────────────────────────────────────────── */
+.cj-sheetgroup { margin-bottom: 18px; }
+.cj-sheetgroup__title {
+  font-size: 11.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 8px;
+}
+.cj-sheetrow {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 11px 0; border-bottom: 1px solid var(--rule-soft);
+}
+.cj-sheetrow:last-child { border-bottom: none; }
+.cj-sheetrow .em { font-size: 17px; flex: none; line-height: 1.3; }
+.cj-sheetrow b { font-size: 14px; color: var(--ink); }
+
+/* ── history ──────────────────────────────────────────────────────────── */
+.cj-hist { background: var(--card); border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden; }
+.cj-hist__row {
+  display: flex; gap: 10px; align-items: center; padding: 12px 14px;
+  border-bottom: 1px solid var(--rule-soft); border-left: 3px solid var(--tone);
+}
+.cj-hist__row:last-child { border-bottom: none; }
+.cj-hist__date {
+  font-size: 11px; font-weight: 700; color: var(--faint);
+  width: 58px; flex: none; line-height: 1.3;
+}
+.cj-hist__em { font-size: 16px; flex: none; }
+.cj-hist__title { font-size: 13.5px; font-weight: 700; color: var(--ink); line-height: 1.35; }
+
+@media (max-width: 380px) {
+  .cj-threatgrid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+  .cj-hero__stagelabel { font-size: 19px; }
+}
