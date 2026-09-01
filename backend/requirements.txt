@@ -15,7 +15,7 @@ cryptography>=42
 
 # PostgreSQL — required for deployment, unused by the SQLite dev/demo build
 psycopg[binary]>=3.1
-
+psycopg2-binary>=2.9
 # Optional, provider-gated:
 #   onnxruntime  when VISION_PROVIDER=onnx
 #   boto3        when STORAGE_PROVIDER=s3
