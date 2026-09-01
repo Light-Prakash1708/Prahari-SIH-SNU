@@ -75,7 +75,7 @@ gzipped.
 ## Testing
 
 ```bash
-cd backend && python -m pytest tests -q     # 278 tests, ~140s
+cd backend && python -m pytest tests -q     # 295 tests, ~140s
 cd frontend && npm run build                # must be clean
 ```
 

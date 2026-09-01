@@ -58,6 +58,7 @@ from .routers import (
     expert,
     followups,
     ledger,
+    management,
     misc,
     observations,
     officer,
@@ -232,6 +233,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(officer.router)
     app.include_router(agronomy.router)
     app.include_router(ledger.router)
+    app.include_router(management.router)
     app.include_router(privacy.router)
     app.include_router(community.router)
     app.include_router(saathi.router)

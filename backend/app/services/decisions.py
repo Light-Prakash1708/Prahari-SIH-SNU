@@ -187,19 +187,7 @@ class DecisionService:
                  "ro": recheck_on, "tc": (threshold or {}).get("check_id"),
                  "dx": (diagnosis or {}).get("id"), "now": now_iso()})
 
-        headline = {
-            "do_not_spray": {"answer": "NO — NOT YET", "answer_mr": "नाही — अजून नाही",
-                             "tone": "green", "icon": "🟢"},
-            "non_chemical": {"answer": "ACT, BUT NOT WITH CHEMISTRY",
-                             "answer_mr": "उपाय करा — पण रासायनिक नको",
-                             "tone": "amber", "icon": "🟡"},
-            "intervene": {"answer": "ACTION REQUIRED", "answer_mr": "कृती आवश्यक",
-                          "tone": "red", "icon": "🔴"},
-            "expert_review": {"answer": "SEND TO AN EXPERT FIRST",
-                              "answer_mr": "आधी तज्ज्ञांकडे पाठवा", "tone": "amber", "icon": "🟡"},
-            "scout_again": {"answer": "COUNT FIRST", "answer_mr": "आधी मोजणी करा",
-                            "tone": "grey", "icon": "⚪"},
-        }[decision]
+        headline = _HEADLINE[decision]
         return {
             "id": did, "decision": decision, "reason_code": reason_code,
             "reason": reason, "reason_mr": reason_mr, "evidence": evidence,
@@ -210,9 +198,166 @@ class DecisionService:
             "verified_chemical_available": verified_available,
         }
 
+    # ── the disease path ───────────────────────────────────────────────────
+    def disease_decision(self, plot: dict[str, Any], target: str, *,
+                         assessment: dict[str, Any] | None = None,
+                         board_row: dict[str, Any] | None = None,
+                         diagnosis: dict[str, Any] | None = None,
+                         verified_available: bool | None = None,
+                         persist: bool = True) -> dict[str, Any]:
+        """The same gate, for a problem that has no count and no economic threshold.
+
+        A pest is decided by counting it against an ICAR threshold. A disease has
+        neither a trap nor a threshold row, and the audit found what that meant in
+        practice: asking this system about late blight returned "nothing counted
+        yet, record a count" — a count that does not exist for a disease. A farmer
+        arriving from a disease diagnosis could go no further.
+
+        Two measured things decide it instead, and **no third one is invented**:
+
+          · INCIDENCE — the farmer walks the field, inspects a fixed number of
+            plants and records how many show the symptom. Affected ÷ inspected is
+            arithmetic they can check.
+          · THE PUBLISHED INFECTION MODEL — Hutton, TOMCAST, Gubler-Thomas, run
+            on this field's own weather. It already produces `fired` for the risk
+            board; nothing new is computed here.
+
+        What is deliberately NOT done: no percentage of incidence is treated as an
+        action threshold. There is no such published figure in this system's
+        reference tables, and putting one in would be inventing the single number
+        the whole decision turns on. So incidence is reported as measured, the
+        model is reported as it fired, and the decision is stated in terms of
+        both — never as "spray above N%".
+        """
+        evidence: list[dict[str, Any]] = []
+        day = _today()
+        if verified_available is None:
+            verified_available = bool(chemicals.verified_claims(self.db, plot["crop"], target))
+
+        fired = bool((board_row or {}).get("fired"))
+        model_name = (board_row or {}).get("model") or (board_row or {}).get("provenance", {}).get("model")
+        level = (board_row or {}).get("level")
+        unforecast = level == "unforecast"
+
+        decision = reason_code = None
+        reason = reason_mr = ""
+        recheck_hours = 72
+
+        if diagnosis is not None and diagnosis.get("abstained"):
+            decision, reason_code = "do_not_spray", "low_confidence"
+            reason = ("PRAHARI is not confident enough about what this is to recommend a "
+                      "treatment for it. Treating the wrong disease costs money and does not "
+                      "stop the right one.")
+            reason_mr = "हे नेमके काय आहे याबद्दल प्रहरी खात्रीशीर नाही, त्यामुळे उपचार सुचवला जात नाही."
+            recheck_hours = 24
+            evidence.append({"kind": "diagnosis", "detail": diagnosis.get("abstain_reason"),
+                             "explain": diagnosis.get("explain")})
+
+        elif assessment is None:
+            decision, reason_code = "scout_again", "no_observation"
+            reason = ("Nothing has been assessed in this field yet. A diagnosis says what may "
+                      "be there; walking the field and recording how many plants actually show "
+                      "it is what says whether to act. Inspect a set number of plants and "
+                      "record how many are affected.")
+            reason_mr = ("या शेतात अजून पाहणी झालेली नाही. निदान काय असू शकते ते सांगते; "
+                         "किती झाडांवर प्रत्यक्ष लक्षणे आहेत हे पाहणीच सांगते.")
+            recheck_hours = 24
+
+        else:
+            inc = assessment["incidence_pct"]
+            evidence.append({
+                "kind": "field_assessment",
+                "detail": (f"{assessment['plants_affected']} of "
+                           f"{assessment['plants_inspected']} plants showing symptoms "
+                           f"({inc}%), assessed {assessment['assessed_on']}"),
+            })
+            if board_row and not unforecast:
+                evidence.append({
+                    "kind": "infection_model",
+                    "detail": ((board_row.get("detail") or "")
+                               or f"{model_name}: {'conditions met' if fired else 'conditions not met'}"),
+                    "source": (board_row.get("provenance") or {}).get("source"),
+                })
+            elif unforecast:
+                evidence.append({
+                    "kind": "infection_model",
+                    "detail": ("No implementable published infection model for this disease on "
+                               "this crop, so weather is not part of this decision."),
+                })
+
+            if inc == 0 and not fired:
+                decision, reason_code = "do_not_spray", "not_present_not_conducive"
+                reason = ("No plant you inspected is showing it, and the weather has not met the "
+                          "published infection criteria. Keep walking the field on the same "
+                          "interval — this is the cheapest moment in the whole season.")
+                reason_mr = ("तुम्ही पाहिलेल्या एकाही झाडावर लक्षणे नाहीत आणि हवामानही अनुकूल नाही. "
+                             "तपासणी चालू ठेवा.")
+                recheck_hours = 96
+            elif inc == 0 and fired:
+                decision, reason_code = "non_chemical", "conducive_not_yet_present"
+                reason = ("Nothing is showing yet, but the weather has met the published "
+                          "infection criteria — this is the prevention window. Sanitation and "
+                          "airflow now are worth more than any spray later.")
+                reason_mr = ("अजून लक्षणे दिसत नाहीत, पण हवामान संसर्गासाठी अनुकूल झाले आहे — "
+                             "हीच प्रतिबंधाची वेळ आहे.")
+                recheck_hours = 48
+            elif not fired:
+                decision, reason_code = "non_chemical", "present_not_conducive"
+                reason = (f"{inc}% of the plants you inspected are showing it, but the weather "
+                          "has not met the published infection criteria, so it is not being "
+                          "driven right now. Remove affected material and re-assess.")
+                reason_mr = (f"तपासलेल्या {inc}% झाडांवर लक्षणे आहेत, पण हवामान सध्या अनुकूल नाही. "
+                             "बाधित भाग काढून टाका आणि पुन्हा पाहणी करा.")
+                recheck_hours = 72
+            elif not verified_available:
+                decision, reason_code = "expert_review", "no_verified_chemical"
+                reason = chemicals.UNAVAILABLE_MESSAGE
+                reason_mr = chemicals.UNAVAILABLE_MESSAGE_MR
+                recheck_hours = 24
+                evidence.append({"kind": "label_claim",
+                                 "detail": ("No label claim for this crop and disease has been "
+                                            "verified against the CIB&RC list on this instance.")})
+            else:
+                decision, reason_code = "intervene", "present_and_conducive"
+                reason = (f"{inc}% of the plants you inspected are showing it and the weather has "
+                          "met the published infection criteria. Both are true at once, which is "
+                          "when a foliar disease runs. Work the ladder from the top; the chemical "
+                          "rung is open because a verified label claim exists.")
+                reason_mr = ("तपासलेल्या झाडांवर लक्षणे आहेत आणि हवामानही अनुकूल आहे. "
+                             "उपाययोजना वरपासून सुरू करा.")
+                recheck_hours = 48
+
+        did = "DEC-" + uuid.uuid4().hex[:10].upper()
+        recheck_on = (day + dt.timedelta(hours=recheck_hours)).isoformat() if recheck_hours else None
+        if persist:
+            self.db.execute(
+                "INSERT INTO decisions (id, plot_id, target, decision, reason_code, reason,"
+                " reason_mr, evidence, recheck_after_hours, recheck_on, diagnosis_id, created_at)"
+                " VALUES (:id,:p,:t,:d,:rc,:r,:rmr,:ev,:rh,:ro,:dx,:now)",
+                {"id": did, "p": plot["id"], "t": target, "d": decision, "rc": reason_code,
+                 "r": reason, "rmr": reason_mr, "ev": dumps(evidence), "rh": recheck_hours,
+                 "ro": recheck_on, "dx": (diagnosis or {}).get("id"), "now": now_iso()})
+
+        headline = _HEADLINE[decision]
+        if decision == "scout_again":
+            # The pest wording says COUNT FIRST. Nothing is counted for a disease.
+            headline = {**headline, "answer": "ASSESS THE FIELD FIRST",
+                        "answer_mr": "आधी शेताची पाहणी करा"}
+        return {
+            "id": did, "decision": decision, "reason_code": reason_code,
+            "reason": reason, "reason_mr": reason_mr, "evidence": evidence,
+            "recheck_after_hours": recheck_hours, "recheck_on": recheck_on,
+            "target": target, "target_name": reference.problem_name(target),
+            "target_name_mr": reference.problem_name(target, "mr"),
+            "target_kind": "disease",
+            **headline,
+            "verified_chemical_available": verified_available,
+        }
+
     # ── the IPM ladder + screened chemical options ─────────────────────────
     def prescription(self, plot: dict[str, Any], target: str, stage: dict[str, Any],
-                     *, chemical_authorised: bool) -> dict[str, Any]:
+                     *, chemical_authorised: bool,
+                     scout: dict[str, Any] | None = None) -> dict[str, Any]:
         """Chemical options come ONLY from verified label claims. A draft row is
         never rendered as an option, and its product name is never printed —
         naming it is half of recommending it."""
@@ -246,7 +391,7 @@ class DecisionService:
         ladder = prescribe.ladder(
             reference.IPM, target,
             bool(chemical_authorised and screened.get("recommended")),
-            screened.get("recommended"))
+            screened.get("recommended"), scout=scout)
         if chemical_authorised and not claims:
             for step in ladder:
                 if step["key"] == "chemical":
@@ -281,6 +426,23 @@ class DecisionService:
             except Exception:
                 c["days_ago"] = 0
         return {"checks": checks, "summary": etl.ledger(checks)}
+
+
+# The five answers a decision can wear, shared by the pest and disease paths so
+# the two cannot drift into saying the same thing in different words.
+_HEADLINE = {
+    "do_not_spray": {"answer": "NO — NOT YET", "answer_mr": "नाही — अजून नाही",
+                     "tone": "green", "icon": "🟢"},
+    "non_chemical": {"answer": "ACT, BUT NOT WITH CHEMISTRY",
+                     "answer_mr": "उपाय करा — पण रासायनिक नको",
+                     "tone": "amber", "icon": "🟡"},
+    "intervene": {"answer": "ACTION REQUIRED", "answer_mr": "कृती आवश्यक",
+                  "tone": "red", "icon": "🔴"},
+    "expert_review": {"answer": "SEND TO AN EXPERT FIRST",
+                      "answer_mr": "आधी तज्ज्ञांकडे पाठवा", "tone": "amber", "icon": "🟡"},
+    "scout_again": {"answer": "COUNT FIRST", "answer_mr": "आधी मोजणी करा",
+                    "tone": "grey", "icon": "⚪"},
+}
 
 
 def chemical_rung_open(decision: dict[str, Any]) -> bool:

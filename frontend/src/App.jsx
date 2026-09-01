@@ -146,6 +146,7 @@ export default function App() {
     'home', 'crop', 'cropRecord', 'scan', 'community', 'communityNew', 'agridoc',
     'saathi', 'fields', 'more', 'soil', 'water', 'weeds', 'tools', 'expenses',
     'fertilizer', 'privacy', 'howItWorks', 'alerts', 'profile', 'history', 'cropJourney',
+    'decide',
     'forecast', 'traps', 'addField', 'officer', 'expert',
   ]), [])
   useEffect(() => {

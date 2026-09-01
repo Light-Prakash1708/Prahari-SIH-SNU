@@ -210,12 +210,33 @@ def screen(claims: list[dict[str, Any]], restricted: list[dict[str, Any]],
 
 
 def ladder(ipm: dict[str, Any], target: str, chemical_authorised: bool,
-           prescription: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """Cheapest rung first, always. Rung 3 is withheld until the threshold gate
-    authorises it — and when it is withheld, the app says so rather than leaving
-    an empty section that looks like an oversight."""
+           prescription: dict[str, Any] | None,
+           scout: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Cheapest rung first, always. The chemical rung is withheld until the
+    threshold gate authorises it — and when it is withheld, the app says so
+    rather than leaving an empty section that looks like an oversight.
+
+    `scout` adds the rung that was missing: MONITORING. It was absent because
+    the IPM tables describe interventions and monitoring is not one, which left
+    the ladder unable to express the thing PRAHARI recommends most often — keep
+    walking the field. Its content is the problem's own published scouting text
+    and the decision's own re-check interval; nothing here is composed prose.
+
+    Rungs with no entries in the knowledge base are omitted rather than filled.
+    A mechanical rung invented for a pest whose tables have none would be the
+    app making up agronomy, which is the one thing it must never do.
+    """
     lad = ipm.get(target, {"cultural": [], "biological": []})
-    steps = [
+    steps = []
+    if scout and scout.get("items"):
+        steps.append({
+            "rung": 0, "key": "monitor", "cost": 0,
+            "title": "Keep looking — this is the rung most seasons stay on",
+            "title_mr": "पाहणी चालू ठेवा — बहुतेक हंगाम इथेच थांबतात",
+            "items": list(scout["items"]),
+            "recheck_on": scout.get("recheck_on"),
+        })
+    steps += [
         {"rung": 1, "key": "cultural", "cost": 0,
          "title": "Do these first — they cost nothing",
          "title_mr": "आधी हे करा — खर्च शून्य",

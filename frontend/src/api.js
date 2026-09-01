@@ -261,6 +261,16 @@ export const api = {
     send('/api/saathi/key', { provider, api_key, model: model || undefined }, 'PUT'),
   saathiKeyClear: () => send('/api/saathi/key', {}, 'DELETE'),
 
+  /* management — the whole "Should I spray?" screen in one call, because a
+     phone on a village network should not make seven round trips to assemble
+     one answer. */
+  management: (plot_id, target, lang) => {
+    const q = new URLSearchParams({ lang: lang || 'mr' })
+    if (target) q.set('target', target)
+    return get(`/api/management/${plot_id}?${q}`, { cache: true })
+  },
+  assessDisease: (plot_id, body) => send(`/api/management/${plot_id}/assessment`, body),
+
   // admin — staff, the chemical gate, the audit trail
   adminOverview: () => get('/api/admin/overview', { cache: false }),
   adminStaff: () => get('/api/admin/staff', { cache: false }),

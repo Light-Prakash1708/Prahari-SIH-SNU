@@ -339,3 +339,42 @@ SQL, not a parameter, so it cannot be widened into a farmer directory) and
 `GET /api/admin/overview`. Admin actions now record the acting role.
 
 TESTS: 278 passed. ruff clean. Bundle 126 kB gzipped of 200.
+
+## v8 — View Management: the decision, and the disease that had nowhere to go
+
+The "Should I spray?" screen became "What should I do?", with the decision
+still the first thing on it. Nine sections in the order the questions get asked
+standing in a field, and everything below the evidence folds.
+
+**The brief's central premise did not hold, and that is worth stating.** It
+asked to stop deriving field severity from diagnosis confidence. No such code
+existed — the count has always come from `threshold_checks`. So nothing was
+separated; instead the two are now *shown* separately, side by side, each with
+a sentence saying what it means and what it does not, and a test asserts that a
+confident diagnosis with nothing counted leaves the decision at `no_count`.
+
+**The real break was diseases**, found by asking the running API. A disease has
+no trap count and no economic threshold, so `?target=late_blight` returned
+"nothing counted yet, record a count" — a count that does not exist for a
+disease — and the screen's own chip list filtered to pests, so a disease
+arriving from a scan was not even selectable. A farmer who scanned a leaf and
+got late blight could go no further.
+
+A disease is now decided by two measured things and no invented third one:
+
+- **incidence** — the farmer walks the field, inspects a set number of plants,
+  records how many show it. The app does the division in front of them
+  (`6 ÷ 10 = 60%`) and stores both numbers, so it can be re-derived.
+- **the published infection model** — Hutton, TOMCAST — firing on this field's
+  own weather, already computed for the risk board.
+
+No incidence percentage is treated as an action threshold. There is no such
+published figure in the reference tables and putting one in would be inventing
+the number the whole decision turns on.
+
+Also: a MONITOR rung was added to the IPM ladder — it was missing because the
+IPM tables describe interventions and monitoring is not one, which left the
+ladder unable to express what PRAHARI recommends most often. Its content is the
+problem's own published scouting text, in both languages.
+
+One additive migration, `006_disease_assessments.sql`. TESTS: 295 (278 before).

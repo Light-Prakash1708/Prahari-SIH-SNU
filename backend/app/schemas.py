@@ -425,3 +425,19 @@ class DeleteAccountIn(BaseModel):
     confirm: str = Field(min_length=1, max_length=40)
     community_mode: Literal["delete", "anonymise"] = "delete"
     reason: str | None = Field(default=None, max_length=300)
+
+
+# ── a disease field assessment ──────────────────────────────────────────────
+#
+# Two counts and a band. Deliberately NOT a percentage: an incidence that
+# arrives ready-made cannot be checked, and the value of this record is that
+# affected ÷ inspected is arithmetic a farmer or an agronomist can redo.
+class DiseaseAssessmentIn(BaseModel):
+    problem: str = Field(min_length=1, max_length=60)
+    plants_inspected: int = Field(ge=1, le=500)
+    plants_affected: int = Field(ge=0, le=500)
+    spread_band: Literal["few_spots", "several_leaves", "most_leaves"] | None = None
+    part: Literal["lower_leaves", "upper_leaves", "stem", "fruit"] | None = None
+    assessed_on: dt.date | None = None
+    note: str | None = Field(default=None, max_length=300)
+    client_ref: str | None = Field(default=None, max_length=64)

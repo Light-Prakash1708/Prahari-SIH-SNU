@@ -608,3 +608,114 @@
   background: var(--g-050); border-color: var(--g-500); color: var(--g-700);
   box-shadow: 0 2px 10px rgba(16,185,129,.14);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Management · "What should I do?"
+
+   The page answers nine questions in order, and the order is the order they
+   get asked standing in a field. Only the first two are open by default —
+   everything a farmer does not need in the first five seconds folds.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.mg { padding-bottom: 36px; }
+
+/* The decision. One card, one lamp, one sentence — and the two numbers the
+   decision actually turned on, side by side, so the answer can be argued with. */
+.mg-decision {
+  border-radius: var(--r-xl); padding: 20px 18px; color: #fff;
+  box-shadow: var(--shadow-md); position: relative; overflow: hidden;
+}
+.mg-decision::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle at 84% 12%, rgba(255,255,255,.16) 0%, transparent 46%);
+}
+.mg-decision.green { background: linear-gradient(150deg, #0B3D2C 0%, #14603F 60%, #1D7038 100%); }
+.mg-decision.amber { background: linear-gradient(150deg, #7C4A03 0%, #B45309 60%, #D97706 100%); }
+.mg-decision.red   { background: linear-gradient(150deg, #7F1D1D 0%, #B91C1C 60%, #DC2626 100%); }
+.mg-decision.grey  { background: linear-gradient(150deg, #334155 0%, #475569 60%, #64748B 100%); }
+.mg-decision__lamp { font-size: 26px; line-height: 1; }
+.mg-decision__ans {
+  font-family: var(--display); font-size: 22px; font-weight: 800;
+  letter-spacing: -.5px; margin-top: 8px; line-height: 1.15;
+}
+.mg-decision__for { font-size: 13px; opacity: .82; margin-top: 3px; font-weight: 600; }
+.mg-decision__why { font-size: 13.5px; line-height: 1.6; margin-top: 10px; opacity: .94; }
+.mg-decision__facts {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 12px; margin-top: 16px; padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,.2); position: relative; z-index: 1;
+}
+.mg-decision__facts .k { display: block; font-size: 10.5px; opacity: .72; font-weight: 600; }
+.mg-decision__facts b { font-family: var(--display); font-size: 17px; font-weight: 800; }
+.mg-decision .btn { position: relative; z-index: 1; background: rgba(255,255,255,.94); color: var(--g-900); box-shadow: none; }
+
+/* The two values that must never be read as one another. */
+.mg-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.mg-two__cell {
+  display: flex; flex-direction: column; gap: 3px;
+  background: var(--sunk); border: 1px solid var(--rule-soft);
+  border-radius: var(--r); padding: 12px;
+}
+.mg-two__cell .k {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--muted);
+}
+.mg-two__cell b { font-family: var(--display); font-size: 17px; font-weight: 800; }
+.mg-band { text-transform: capitalize; }
+.mg-band.high { color: var(--ok); }
+.mg-band.moderate { color: var(--warn); }
+.mg-band.low { color: var(--muted); font-size: 14px !important; }
+
+.mg-prev { border-color: var(--warn-line); background: var(--warn-bg); }
+.mg-prev.high { border-color: rgba(220,38,38,.35); }
+.mg-expert { border-color: var(--info-line); background: var(--info-bg); }
+.mg-follow { border-color: var(--g-300); background: var(--g-050); }
+
+.mg-first {
+  border-color: var(--g-500);
+  background: linear-gradient(140deg, var(--g-050), #fff 70%);
+}
+.mg-first__title { font-family: var(--display); font-weight: 800; font-size: 15px; margin: 3px 0 4px; }
+
+/* Today's list. Ticking is local and says so — it is a farmer's own scratchpad,
+   not a second task database. */
+.mg-check {
+  display: flex; align-items: flex-start; gap: 11px; width: 100%; text-align: left;
+  padding: 11px 12px; border-radius: var(--r); background: var(--sunk);
+  border: 1.5px solid transparent; margin-bottom: 7px; transition: all .2s var(--ease);
+}
+.mg-check .box {
+  flex: none; width: 21px; height: 21px; border-radius: 7px; margin-top: 1px;
+  border: 1.5px solid var(--rule); background: #fff; display: grid; place-items: center;
+  font-size: 12px; font-weight: 800; color: #fff;
+}
+.mg-check.is-on { background: var(--g-050); border-color: var(--g-300); }
+.mg-check.is-on .box { background: var(--g-500); border-color: var(--g-500); }
+.mg-check .txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.mg-trend { display: flex; gap: 6px; margin-top: 10px; }
+.mg-trend__pt {
+  flex: 1; min-width: 0; text-align: center; padding: 9px 4px;
+  background: var(--sunk); border-radius: 10px; border: 1.5px solid transparent;
+}
+.mg-trend__pt b { display: block; font-family: var(--display); font-size: 16px; font-weight: 800; }
+.mg-trend__pt[aria-current] { background: var(--g-050); border-color: var(--g-300); }
+
+.mg-hist { margin-top: 8px; }
+.mg-hist__row {
+  display: flex; align-items: flex-start; gap: 10px; padding: 9px 0;
+  border-top: 1px solid var(--rule-soft);
+}
+.mg-hist__row:first-child { border-top: 0; }
+.mg-hist__em { flex: none; }
+.mg-hist__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+
+.mg-fold summary { font-size: 13px; }
+
+/* The ladder rungs become disclosures; monitoring and the free rung stay open,
+   the rest fold. */
+.rung > summary { list-style: none; cursor: pointer; }
+.rung > summary::-webkit-details-marker { display: none; }
+.rung > summary::after { content: '▾'; margin-left: 8px; color: var(--faint); font-size: 11px; }
+.rung[open] > summary::after { transform: rotate(180deg); display: inline-block; }
+
+@media (max-width: 360px) { .mg-two { grid-template-columns: 1fr; } }

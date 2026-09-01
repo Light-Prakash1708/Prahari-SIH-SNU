@@ -1,76 +1,72 @@
-# View Management upgrade — audit
+# View Management upgrade
 
-CURRENT STAGE: 0 — audit only. No application code modified.
-STATUS: complete, waiting for "START MANAGEMENT STAGE 1".
+CURRENT STAGE: 12 of 12 — complete.
+STATUS: 295 backend tests pass (278 before), ruff clean, frontend builds,
+walked through a browser on a 380 px viewport for both a pest and a disease.
 
-## CURRENT IMPLEMENTATION
-- Screen: `frontend/src/screens/Decide.jsx` (455 lines), route `decide`, title
-  "Should I Spray?". Entered from Scan, Home agenda, Crop, More, Tools.
-- API: `GET /api/decisions/{plot_id}/should-i-spray?target=` →
-  `routers/decisions.py` → `services/decisions.py::spray_decision` +
-  `prescription`, with `etl.py`, `prescribe.py`, `chemicals.py`, `reference.py`.
-- Count source: latest row in `threshold_checks` — a real recorded field count.
-- Recording an application (`POST /api/applications`) already INSERTs a
-  `followups` row with `due_on` and queues a notification.
+## COMPLETED
+- Decision card with five states, the two numbers it turned on, and next review
+- "Why PRAHARI says this" — evidence rows, each labelled and sourced, folded
+- Field evidence: AI confidence and field measurement side by side, never merged
+- **Disease path** — the real gap. A disease had no count, so the screen asked
+  for one that does not exist. It now takes a field assessment instead.
+- Prevention window, today's action, trend, actionable ladder with a MONITOR
+  rung, chemical gate, expert escalation, follow-up, field history
+- Everything below the decision folds; only the decision and the evidence open
 
-## REUSABLE LOGIC (do not rebuild any of this)
-- The decision state machine already covers spec states A–F: abstained
-  diagnosis → `low_confidence`; no count → `no_count`; below ETL →
-  `etl_not_crossed`; `act-nonchemical` band; life stage unreachable →
-  `life_stage_unsuitable`; no verified claim → `expert_review`; crossed →
-  `intervene`. Each carries evidence rows and `recheck_after_hours`.
-- ETL with per-stage `stage_factor`, provenance, economics, count trend +
-  `trend_alert`, `saving_if_not_sprayed`.
-- IPM ladder per target from `data/ipm.json`, with per-item cost; chemical rung
-  gated on a VERIFIED CIB&RC claim. `prescribe.py` does MOA rotation, PHI,
-  restricted list, flowering check, dose arithmetic.
-- Prevention window: `cropcalendar._prevention_window` (built, not on Decide).
-- Agenda/scout mission: `agenda.py`. Follow-ups: `routers/followups.py` with the
-  self-report outcome path. Expert: `POST /api/observations/{id}/expert-review`.
-  History: `GET /api/plots/{id}/history`. All exist and are unused by Decide.
-- Authorization: every route calls `visible_plot(db, user, plot_id)`.
+## THE ONE THING THE BRIEF ASKED FOR THAT WAS NOT THERE
+§7 asked to stop deriving a field severity from diagnosis confidence. **No such
+code existed.** The count has always come from `threshold_checks`. Nothing was
+"separated" because nothing was joined; instead the two are now *shown*
+separately, each with a sentence saying what it does and does not mean, and
+`test_management.py` asserts a confident diagnosis with no count leaves the
+decision at `no_count`.
 
-## PROBLEMS (verified, not assumed)
-1. **Spec §7 does not apply here.** I searched for a posterior/confidence →
-   count or severity conversion and there is none. Count comes only from
-   `threshold_checks`. There is nothing to fix; nothing should be "separated".
-2. **Diseases are a dead end.** Verified against the API: `target=late_blight`
-   returns `no_count` and asks for a count. Diseases have no trap count — they
-   need severity/incidence. Decide's chip list also filters
-   `kind === 'pest' && etl != null`, so a disease arriving from Scan is not
-   even selectable. This is the real diagnosis→management break.
-3. Missing on screen though present in the backend: prevention window, today's
-   scout task, follow-up loop, before/after, field history, expert escalation
-   button (even when the decision itself is `expert_review`).
-4. IPM ladder is display-only — no "add to plan"; a missing rung (these targets
-   return cultural/biological/chemical only) is silently absent.
-5. Everything renders expanded; no hierarchy, no collapsibles.
-6. Weather is NOT an input to `spray_decision`. Spec §8/§20 must not claim it.
+## FILES MODIFIED
+backend: `management.py` (new, composition only), `routers/management.py` (new),
+`services/decisions.py` (+`disease_decision`, shared `_HEADLINE`),
+`prescribe.py` (+monitor rung), `schemas.py`, `main.py`,
+`schema/006_disease_assessments.sql` (new)
+frontend: `screens/Decide.jsx` (rewritten body, sub-components kept),
+`screens/saurjya.css` (+`.mg-*`), `api.js`, `App.jsx` (deep-linkable `decide`)
 
-## FILES TO MODIFY
-`frontend/src/screens/Decide.jsx`, `backend/app/services/decisions.py`,
-`backend/app/routers/decisions.py`, `backend/app/etl.py` (disease path only),
-`backend/tests/test_safety.py` + a new `test_management.py`.
+## APIS USED
+Existing: `/should-i-spray`, `/recommendations`, `/applications`, `/followups`,
+`/plots/{id}/history`, `expert-review`, `risk.board`, `agenda`, prevention
+window. New: `GET /api/management/{plot_id}` (aggregates the above — it owns no
+agronomy and a test asserts its verdict equals `/should-i-spray`'s) and
+`POST /api/management/{plot_id}/assessment`.
 
-## FILES TO AVOID
-auth/login, Home, Community, CropJourney/Fields, Soil, Saathi, Officer/Expert/
-Admin, `shell/`, `brand.css`, `polish.css`, all schema files.
+## NEW LOGIC
+`disease_decision()` — a disease is decided by measured incidence AND the
+published infection model firing on this field's weather. **No incidence
+percentage is treated as an action threshold**: no such published figure exists
+in the reference tables, and inventing one would be inventing the number the
+whole decision turns on. States: not present + not conducive → monitor;
+not present + conducive → prevention window; present + not conducive →
+non-chemical; present + conducive → act, chemical only if a verified claim
+exists, else expert review.
 
-## NEW BACKEND LOGIC REQUIRED
-Only two things are genuinely missing:
-- a **disease severity path** (assessed incidence vs an action level) so
-  §26 state B/C works for a disease, not just a pest;
-- surfacing existing services on this screen. A single
-  `GET /api/management/{plot_id}?target=` aggregating should-i-spray +
-  prevention window + agenda + open follow-up + history would remove 4 round
-  trips on a mobile network. It must compose, own no agronomy.
-DATABASE: no schema change identified as necessary. If the disease path needs
-a severity record, `observations`/`threshold_checks` are candidates first.
+## DATABASE
+One additive migration, `006_disease_assessments.sql`. Reason: a disease needs
+incidence and `threshold_checks` is a pest-count table whose every other column
+would be null and later misread as a measurement. Backward compatible — a plot
+with no row behaves exactly as before. Nothing dropped, renamed or reseeded.
 
-## IMPLEMENTATION ORDER
-1 decision card + states · 2 disease severity path · 3 why-this-decision ·
-4 field evidence + add observation · 5 prevention window + today's action ·
-6 trend · 7 actionable IPM ladder · 8 chemical gate + resistance ·
-9 follow-up + before/after · 10 history · 11 collapsibles + i18n · 12 tests.
+## TESTS
+`test_management.py`, 17: confidence is never a measurement; a disease is never
+asked for a count; a confident diagnosis alone never opens the chemical rung;
+incidence shows its arithmetic; a ready-made percentage is refused (422); more
+affected than inspected is refused (400); assessments are idempotent; one
+observation is never called a trend; the ladder leads with monitoring; the new
+screen agrees with the endpoint it composes; the old endpoint still works;
+cross-farmer and anonymous access refused.
 
-TESTS: none added yet. NEXT EXACT ACTION: await "START MANAGEMENT STAGE 1".
+## KNOWN ISSUES
+- Prevention-window factor strings and some infection-model detail are English
+  only. They come from the forecast engine and are shared with the crop journey;
+  translating generated agronomic text is a separate, deliberate piece of work.
+- No mechanical rung: `ipm.json` has no mechanical entries for these targets.
+  Inventing them would be inventing agronomy, so the rung is absent, not empty.
+
+NEXT EXACT ACTION: none — the upgrade is complete.
