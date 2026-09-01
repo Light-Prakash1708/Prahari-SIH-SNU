@@ -8,7 +8,7 @@
 FROM node:20-alpine AS ui
 WORKDIR /ui
 COPY frontend/package*.json ./
-RUN npm ci --omit=dev --no-audit --fund=false || npm install --no-audit --fund=false
+RUN npm ci --no-audit --fund=false
 COPY frontend/ ./
 RUN npm run build
 
