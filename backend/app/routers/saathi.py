@@ -1,6 +1,7 @@
 """PRAHARI · /api/saathi — the grounded agricultural assistant."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -15,6 +16,8 @@ from ..deps import current_user, db_dep, visible_plot
 from ..errors import bad_request
 from ..obs import audit
 from ..runtime import get_runtime
+
+log = logging.getLogger("prahari.saathi")
 
 router = APIRouter(prefix="/api/saathi", tags=["assistant"])
 
@@ -60,21 +63,16 @@ def ask(data: AskIn, user: dict[str, Any] = Depends(current_user),
     cfg = _llm_for(db, user)
     out["llm"] = {"available": bool(cfg), "used": False}
     if cfg and data.enhance:
-        facts = {
-            "prahari_answer": answer.text,
-            "sources": answer.sources,
-            "supporting_data": answer.data,
-            "field": saathi_mod.field_facts(db, rt, plot),
-        }
-        # An ungrounded answer is handed the field facts and nothing else. If
-        # those do not answer the question the model must return
-        # INSUFFICIENT_CONTEXT, and the refusal stands — which is the whole
-        # rule the farmer asked for: PRAHARI's data, or no answer.
-        if not answer.grounded:
-            facts.pop("prahari_answer", None)
-        verdict = llm_mod.rephrase(
-            provider=cfg["provider"], key=cfg["key"], model=cfg.get("model"),
-            question=data.question, facts=facts, lang=data.lang)
+        # Everything from here down can only change the WORDING of an answer
+        # that is already correct and already in `out`. So it gets a net: an
+        # unexpected failure while assembling the facts or calling the provider
+        # costs the rewrite, never the answer. Without this a TypeError in the
+        # bundle would 500 a request that had a good reply sitting in hand.
+        try:
+            verdict = _rephrased(db, rt, plot, answer, data, cfg)
+        except Exception as exc:                     # pragma: no cover - net
+            log.exception("saathi enhancement failed; serving the retrieved answer")
+            verdict = {"used": False, "reason": f"enhancement error: {type(exc).__name__}"}
         if verdict.get("used"):
             out["answer"] = verdict["text"]
             out["answer_template"] = answer.text_mr if data.lang == "mr" else answer.text
@@ -87,6 +85,10 @@ def ask(data: AskIn, user: dict[str, Any] = Depends(current_user),
         else:
             out["llm"] = {"available": True, "used": False,
                           "reason": verdict.get("reason", "")}
+            if verdict.get("quota"):
+                # Named separately because it is the one reason that is about
+                # the account rather than about the answer.
+                out["llm"]["quota"] = True
             if verdict.get("rejected"):
                 # Kept so a reviewer can see WHAT was thrown away. It is never
                 # rendered as an answer.
@@ -96,6 +98,31 @@ def ask(data: AskIn, user: dict[str, Any] = Depends(current_user),
           detail={"intent": answer.intent, "grounded": answer.grounded,
                   "llm_used": out["llm"].get("used")})
     return out
+
+
+def _rephrased(db: Database, rt, plot, answer, data: AskIn,
+               cfg: dict[str, Any]) -> dict[str, Any]:
+    """Hand the retrieved facts to the model and return its verdict.
+
+    Split out so the caller can put one net around the whole of it — assembling
+    the bundle and calling the provider are equally capable of failing, and
+    neither may cost the farmer the answer PRAHARI already has.
+    """
+    facts = {
+        "prahari_answer": answer.text,
+        "sources": answer.sources,
+        "supporting_data": answer.data,
+        "field": saathi_mod.field_facts(db, rt, plot),
+    }
+    # An ungrounded answer is handed the field facts and nothing else. If those
+    # do not answer the question the model must return INSUFFICIENT_CONTEXT,
+    # and the refusal stands — which is the whole rule the farmer asked for:
+    # PRAHARI's data, or no answer.
+    if not answer.grounded:
+        facts.pop("prahari_answer", None)
+    return llm_mod.rephrase(
+        provider=cfg["provider"], key=cfg["key"], model=cfg.get("model"),
+        question=data.question, facts=facts, lang=data.lang)
 
 
 # ── the farmer's own key ────────────────────────────────────────────────────
@@ -134,7 +161,7 @@ def key_status(user: dict[str, Any] = Depends(current_user),
         "deployment_fallback": bool(s.llm_provider in llm_mod.PROVIDERS and s.llm_api_key),
         "providers": [
             {"id": "gemini", "label": "Google Gemini",
-             "where": "aistudio.google.com/apikey", "default_model": "gemini-2.0-flash"},
+             "where": "aistudio.google.com/apikey", "default_model": "gemini-2.5-flash"},
             {"id": "openai", "label": "OpenAI",
              "where": "platform.openai.com/api-keys", "default_model": "gpt-4o-mini"},
         ],

@@ -93,7 +93,17 @@ class Settings(BaseSettings):
     llm_api_key: str | None = None
     llm_model: str | None = None
     llm_timeout_seconds: float = 20.0
-    llm_max_output_tokens: int = 600
+    # Sized so a reasoning pass cannot consume the whole budget before any
+    # text is produced. On the Gemini 2.5 models thinking tokens are billed
+    # against this cap first; at 600 the reply can come back completely empty
+    # with finishReason MAX_TOKENS, which looks like a broken key. The answer
+    # itself is 3-6 sentences — the prompt says so and the guards check it — so
+    # the headroom costs nothing on a successful call.
+    llm_max_output_tokens: int = 2048
+    # A key over its quota answers 429 to every question until the window
+    # rolls. Asking anyway costs the farmer a timeout before they receive the
+    # retrieved answer they would have had instantly.
+    llm_cooldown_seconds: int = 300
     # The symptom-feature classifier is NOT a neural network. It is allowed to
     # produce a ranked differential when no trained model is configured, but it
     # is always labelled as what it is, and a deployment can switch it off.

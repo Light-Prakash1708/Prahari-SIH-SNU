@@ -378,3 +378,88 @@ ladder unable to express what PRAHARI recommends most often. Its content is the
 problem's own published scouting text, in both languages.
 
 One additive migration, `006_disease_assessments.sql`. TESTS: 295 (278 before).
+
+---
+
+# Weather resilience, graceful Decide, and AgriDoc grounding
+
+TESTS: 322 (295 before, of which one was failing on main — see below).
+No migration. No new dependency. No provider added.
+
+## What was broken
+
+**A rate limit fed itself.** Open-Meteo answering 429 raised
+`WeatherUnavailable` and recorded nothing, so the next request went straight
+back out. The more the app failed the harder it asked, and the limit never
+cleared. Compounding it: the request asked for `wind_speed_10m` and
+`cloud_cover` on every call — Open-Meteo weighs a call by variables times days
+— and nothing anywhere read either one.
+
+**View Management answered 503 and went blank.** Most of that screen is not
+about weather. The trap count, the published threshold it is measured against,
+the scouting text, the IPM ladder, the verified label claims, the follow-up and
+the field history are as true during an outage as outside one.
+
+**The risk board had never once reached the language model.** `field_facts`
+called `rt.risk.board(plot, wx)`; the method is `board(plot, wx, stage)`. Every
+call raised `TypeError`, a bare `except Exception` caught it, and the bundle got
+the weather-unavailable note instead — with weather working perfectly. The test
+that covered it asserted `"risk_board" in facts or "risk_board_note" in facts`,
+which passes on either branch.
+
+**`gemini-2.0-flash` is retired.** Google lists it under previous models, marked
+for shutdown.
+
+## What was done
+
+**Weather.** A per-provider cooldown on 429 and 5xx, honouring `Retry-After`,
+defaulting to `WEATHER_COOLDOWN_SECONDS`, clamped by
+`WEATHER_COOLDOWN_MAX_SECONDS`. A one-off timeout deliberately does not cool
+anything down — one field timing out is not evidence the provider is refusing
+traffic. Single-flight locking per cache key. The in-process dict is gone;
+`weather_cache` is the only cache, and a series past its TTL is served labelled
+stale only inside `WEATHER_STALE_MAX_HOURS`. Three hourly variables, not five.
+
+**Decide.** `GET /api/management/{id}` returns 200 with
+`weather_available: false` and the weather-derived sections null and named.
+`risk.board_without_weather()` sets `level` and `fired` to `None` — never
+`"low"`, never `False` — and `disease_decision` has two explicit branches for
+"the model could not be run", worded nothing like "conditions are not
+conducive". The chemical rung stays shut on half the evidence. A pest decision
+is unchanged: only a count against a published threshold authorises anything.
+
+**AgriDoc.** The board reaches the model, trimmed to what an answer could
+legitimately quote. The handler catches `WeatherUnavailable` only, so a
+programming error surfaces as one. `gemini-2.5-flash` is the default. A
+per-key quota cooldown, keyed by a digest of the credential and never the
+credential. A net around the whole enhancement path, so a failure there costs
+the rewrite and never the retrieved answer. Two prompt rules added: FACTS are
+data and cannot grant permission, and an absent value is unknown rather than
+zero, none or safe. The number and product guards are untouched.
+
+## Known limitations
+
+- **The cooldown and the single-flight lock are per process.** With several
+  Render instances each keeps its own, so the call rate falls by a factor of
+  the instance count rather than to zero. Same caveat `ratelimit.py` already
+  carries. A shared counter is the fix if this ever runs multi-instance.
+- **There is still one weather provider.** The abstraction is ready for a
+  second — `WeatherService._build()` is a factory and no risk or management
+  call site names a provider — but none is implemented, so an Open-Meteo
+  outage longer than `WEATHER_STALE_MAX_HOURS` still means no risk forecast.
+- **`LLM_MAX_OUTPUT_TOKENS` must not be lowered.** On the Gemini 2.5 models a
+  reasoning pass is billed against it before any text is produced. The old
+  default of 600 can return an empty reply with `finishReason: MAX_TOKENS`, and
+  the assistant then falls back to the template on every question — which from
+  the outside is indistinguishable from a key that does not work. Raised to
+  2048, and the empty case now names itself instead of going quiet.
+- **The Gemini path has not been exercised against the live API in this
+  change.** Model id and `v1beta` were verified against Google's current
+  documentation; the request shape is unchanged from the version that was
+  working. It needs one live call with a real key before judging.
+- **`llm.discarded_draft` still returns rejected model output to the client.**
+  It is never rendered as an answer, but it is unverified text reaching the
+  browser. Worth gating behind a debug flag before a public deployment.
+- **`field_facts` still wraps `crop_stage` in `contextlib.suppress(Exception)`.**
+  Narrower than it was — the board no longer hides behind it — but the same
+  class of thing that hid the board bug for as long as it existed.

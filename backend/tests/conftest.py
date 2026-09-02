@@ -46,15 +46,19 @@ def env(tmp_path, monkeypatch):
 
 
 @pytest.fixture(scope="function", autouse=True)
-def _no_inherited_weather_cooldown():
-    """The provider cooldown lives in module state, which is what makes it work
-    across requests. It must not leak across TESTS: one test that simulates a
-    429 would otherwise silently disable weather for everything that ran after
-    it, and the failures would land far from the cause."""
-    from app.weather import clear_cooldowns
-    clear_cooldowns()
+def _no_inherited_cooldowns():
+    """Provider cooldowns live in module state, which is what makes them work
+    across requests. They must not leak across TESTS: one test that simulates a
+    429 would otherwise silently disable weather — or the assistant's model —
+    for everything that ran after it, and the failures would land far from the
+    cause."""
+    from app.llm import clear_cooldowns as clear_llm
+    from app.weather import clear_cooldowns as clear_weather
+    clear_weather()
+    clear_llm()
     yield
-    clear_cooldowns()
+    clear_weather()
+    clear_llm()
 
 
 @pytest.fixture(scope="function")

@@ -43,6 +43,20 @@ services:
         value: none
       - key: ALLOW_FEATURE_ENGINE
         value: "true"
+      # AgriDoc's language model. The assistant works without it — answers are
+      # assembled from retrieved rows — and a key only changes their wording;
+      # every number in a reworded answer is checked against those rows first.
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: LLM_MODEL
+        value: gemini-2.5-flash
+      - key: LLM_API_KEY
+        # sync: false means Render prompts for this in the dashboard and it is
+        # never stored in this file. A key committed here would be public the
+        # moment the repository is, and would be readable by anyone who can see
+        # the blueprint. It is read server-side only and never sent to the
+        # browser. A farmer's own key is separate and encrypted at rest.
+        sync: false
       - key: STORAGE_PROVIDER
         value: local
       - key: SMS_PROVIDER
