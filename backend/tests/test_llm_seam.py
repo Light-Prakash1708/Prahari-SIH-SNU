@@ -336,7 +336,10 @@ def test_one_exhausted_key_does_not_disable_another_account(env):
 def test_the_cooldown_never_holds_the_credential(env):
     """Nothing that can leak a key may hold one."""
     llm.clear_cooldowns()
-    secret = "AIza-this-must-never-be-stored"
+    # Deliberately not shaped like a real Google key: a literal beginning
+    # AIza in a committed file is what push protection exists to stop, and
+    # the assertion does not care what the string is.
+    secret = "credential-that-must-never-be-stored"
     llm._open_cooldown("gemini", secret, 60)
     assert secret not in str(llm._LLM_COOLDOWN)
     assert all(secret not in k for k in llm._LLM_COOLDOWN)
