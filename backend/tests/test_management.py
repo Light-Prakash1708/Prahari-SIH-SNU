@@ -191,3 +191,102 @@ def test_one_farmer_cannot_assess_another_farmers_field(client, farmer, farmer_b
 
 def test_anonymous_access_is_refused(client, plot):
     assert client.get(f"/api/management/{plot['id']}").status_code == 401
+
+
+# ── weather unavailable: the screen degrades, it does not disappear ─────────
+# The whole reason this endpoint composes seven services into one call is that
+# a phone on a village network should not make seven round trips. The cost of
+# that decision is that one failing input used to take the whole screen with
+# it. These tests are the contract that it no longer does.
+
+import pytest
+
+
+@pytest.fixture
+def no_weather(monkeypatch):
+    """Every weather path on this screen fails, exactly as an Open-Meteo rate
+    limit makes it fail in production."""
+    from app import weather as wx_mod
+
+    def refuse(*a, **k):
+        raise wx_mod.WeatherUnavailable("open-meteo", "simulated rate limit")
+
+    monkeypatch.setattr(wx_mod.WeatherService, "series", refuse)
+    return refuse
+
+
+def test_the_screen_still_answers_when_weather_is_unavailable(
+        client, farmer, plot, no_weather):
+    """A 503 here blanked a screen that is mostly not about weather."""
+    r = client.get(f"/api/management/{plot['id']}", headers=farmer["headers"])
+    assert r.status_code == 200, r.text
+    m = r.json()
+    assert m["weather_available"] is False
+    assert m["weather_context"]["available"] is False
+    assert m["weather_context"]["reason"]
+    # The parts that need no weather are all still here.
+    assert m["decision"], "the decision is the screen; it must survive"
+    assert m["targets"], "the problem list comes from the reference tables"
+    assert m["ipm_ladder"], "the ladder is published practice, not a forecast"
+    assert "history" in m and "followup" in m and "trend" in m
+
+
+def test_a_missing_forecast_is_never_rendered_as_a_calm_one(
+        client, farmer, plot, no_weather):
+    """The failure this guards against is silent: `fired` defaulting to False
+    and a disease reading as 'conditions are not conducive' when in truth
+    nothing was computed at all."""
+    m = _mg(client, farmer["headers"], plot["id"])
+    for t in m["targets"]:
+        assert t.get("level") is None, f"{t['id']} shows a risk level with no weather"
+        assert t.get("fired") is None, f"{t['id']} claims a model verdict with no weather"
+    assert m["prevention_window"] is None
+    body = str(m).lower()
+    assert "not met the published infection criteria" not in body
+    assert "weather has not met" not in body
+
+
+def test_a_pest_decision_is_unchanged_by_a_weather_outage(
+        client, farmer, plot, monsoon, no_weather):
+    """Only a count against a published threshold authorises anything for a
+    pest. Weather is not an input, so an outage must not change the answer."""
+    r = client.post("/api/threshold", headers=farmer["headers"],
+                    json={"plot_id": plot["id"], "pest": "helicoverpa", "count": 2})
+    assert r.status_code in (200, 201), r.text
+    m = _mg(client, farmer["headers"], plot["id"], target="helicoverpa")
+    assert m["target_kind"] == "pest"
+    assert m["decision"]["decision"] in ("do_not_spray", "non_chemical",
+                                         "intervene", "expert_review")
+    assert m["threshold"] is not None, "the count and its threshold are weather-free"
+
+
+def test_a_disease_with_symptoms_says_the_model_could_not_run(
+        client, farmer, plot, no_weather):
+    """Symptoms measured, model unrunnable. The non-chemical rungs still apply;
+    the chemical rung must not open on half the evidence."""
+    _assess(client, farmer["headers"], plot["id"], inspected=100, affected=12)
+    m = _mg(client, farmer["headers"], plot["id"], target="late_blight")
+    d = m["decision"]
+    assert d["reason_code"] == "weather_unavailable_present"
+    assert d["decision"] == "non_chemical"
+    assert "could not" in d["reason"].lower()
+    kinds = [e.get("detail", "") for e in d["evidence"]]
+    assert any("could not be run" in k for k in kinds)
+    assert m["assessment"]["incidence_pct"] == 12.0, "the measurement is untouched"
+
+
+def test_a_disease_with_no_symptoms_asks_for_more_scouting_not_reassurance(
+        client, farmer, plot, no_weather):
+    _assess(client, farmer["headers"], plot["id"], inspected=100, affected=0)
+    m = _mg(client, farmer["headers"], plot["id"], target="late_blight")
+    d = m["decision"]
+    assert d["reason_code"] == "weather_unavailable_not_present"
+    assert d["decision"] == "scout_again"
+    assert "not the same as" in d["reason"]
+
+
+def test_ownership_still_holds_when_weather_is_unavailable(
+        client, farmer_b, plot, no_weather):
+    """A degraded screen is not a relaxed one."""
+    r = client.get(f"/api/management/{plot['id']}", headers=farmer_b["headers"])
+    assert r.status_code == 403, r.text

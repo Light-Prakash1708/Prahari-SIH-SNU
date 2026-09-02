@@ -204,6 +204,7 @@ class DecisionService:
                          board_row: dict[str, Any] | None = None,
                          diagnosis: dict[str, Any] | None = None,
                          verified_available: bool | None = None,
+                         weather_available: bool = True,
                          persist: bool = True) -> dict[str, Any]:
         """The same gate, for a problem that has no count and no economic threshold.
 
@@ -238,6 +239,13 @@ class DecisionService:
         model_name = (board_row or {}).get("model") or (board_row or {}).get("provenance", {}).get("model")
         level = (board_row or {}).get("level")
         unforecast = level == "unforecast"
+        # Weather could not be retrieved, so the infection model did not run.
+        # `fired` above is False for the same reason it would be False if the
+        # model HAD run and found nothing — which is why it must not be read
+        # here. "We do not know" and "conditions are not conducive" lead to
+        # opposite advice, and only one of them is true.
+        if not weather_available:
+            fired = None
 
         decision = reason_code = None
         reason = reason_mr = ""
@@ -271,7 +279,14 @@ class DecisionService:
                            f"{assessment['plants_inspected']} plants showing symptoms "
                            f"({inc}%), assessed {assessment['assessed_on']}"),
             })
-            if board_row and not unforecast:
+            if not weather_available:
+                evidence.append({
+                    "kind": "infection_model",
+                    "detail": ("Weather for this field could not be retrieved, so the published "
+                               "infection model could not be run. Whether conditions are "
+                               "conducive is unknown — this is not a finding that they are not."),
+                })
+            elif board_row and not unforecast:
                 evidence.append({
                     "kind": "infection_model",
                     "detail": ((board_row.get("detail") or "")
@@ -285,7 +300,35 @@ class DecisionService:
                                "this crop, so weather is not part of this decision."),
                 })
 
-            if inc == 0 and not fired:
+            if not weather_available and inc == 0:
+                # Nothing showing, and the model could not be run. The honest
+                # answer is "keep looking", not "conditions are unfavourable".
+                decision, reason_code = "scout_again", "weather_unavailable_not_present"
+                reason = ("No plant you inspected is showing it. PRAHARI could not retrieve "
+                          "the weather for this field, so the published infection model could "
+                          "not be run — that is not the same as the weather being unfavourable, "
+                          "and it is not being treated as one. Keep walking the field on the "
+                          "same interval; the forecast returns when weather does.")
+                reason_mr = ("तुम्ही पाहिलेल्या एकाही झाडावर लक्षणे नाहीत. हवामान मिळाले नाही, "
+                             "त्यामुळे संसर्ग मॉडेल चालवता आले नाही — याचा अर्थ हवामान प्रतिकूल "
+                             "आहे असा नव्हे. नेहमीप्रमाणे तपासणी चालू ठेवा.")
+                recheck_hours = 24
+            elif not weather_available:
+                # Symptoms are present and measured. The non-chemical rungs are
+                # worth doing whatever the weather is doing; the chemical rung
+                # stays shut, because half the evidence that opens it is missing.
+                decision, reason_code = "non_chemical", "weather_unavailable_present"
+                reason = (f"{inc}% of the plants you inspected are showing it. PRAHARI could "
+                          "not retrieve the weather for this field, so it cannot say whether "
+                          "conditions are driving it right now. Remove affected material and "
+                          "open the canopy up — both are worth doing either way. A chemical "
+                          "is not authorised on half the evidence; re-check when weather "
+                          "returns.")
+                reason_mr = (f"तपासलेल्या {inc}% झाडांवर लक्षणे आहेत. हवामान मिळाले नाही, त्यामुळे "
+                             "परिस्थिती अनुकूल आहे का हे सांगता येत नाही. बाधित भाग काढून टाका "
+                             "आणि हवा खेळती ठेवा. अर्ध्या पुराव्यावर रासायनिक उपाय दिला जात नाही.")
+                recheck_hours = 24
+            elif inc == 0 and not fired:
                 decision, reason_code = "do_not_spray", "not_present_not_conducive"
                 reason = ("No plant you inspected is showing it, and the weather has not met the "
                           "published infection criteria. Keep walking the field on the same "

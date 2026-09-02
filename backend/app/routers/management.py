@@ -26,7 +26,6 @@ from ..errors import bad_request
 from ..obs import audit
 from ..runtime import get_runtime
 from ..schemas import DiseaseAssessmentIn
-from ..weather import WeatherUnavailable
 
 router = APIRouter(prefix="/api/management", tags=["management"])
 
@@ -39,16 +38,18 @@ def management(plot_id: str, target: str | None = Query(None),
     """The decision, its evidence, the ladder, the trend, the day's work and the
     open follow-up — assembled from services that already produce each of them.
 
+    This endpoint used to answer 503 when weather was unavailable, which blanked
+    the whole screen — including the count, the published threshold, the
+    scouting text, the IPM ladder, the verified label claims, the follow-up and
+    the history, none of which need weather. It now answers 200 with
+    `weather_available: false`, the weather-derived sections null and named as
+    unavailable, and everything else intact. Nothing is estimated to fill the
+    gap; a missing forecast is never rendered as a calm one.
+
     Errors: 403 — you may only ask about your own field.
-            503 — weather is unavailable, and PRAHARI does not invent it.
     """
     plot = visible_plot(db, user, plot_id)
-    try:
-        return mgmt.build(db, get_runtime(), plot, target, lang)
-    except WeatherUnavailable as exc:
-        from ..errors import unavailable
-        raise unavailable("weather_unavailable", str(exc),
-                          "हवामान माहिती उपलब्ध नाही.") from exc
+    return mgmt.build(db, get_runtime(), plot, target, lang)
 
 
 @router.post("/{plot_id}/assessment", status_code=201,

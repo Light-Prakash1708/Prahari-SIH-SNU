@@ -35,6 +35,7 @@ const T = {
   waiting:    ['What if I wait?', 'थांबलो तर काय?'],
   conditions: ['Field conditions', 'शेतातील परिस्थिती'],
   rising:     ['Rising', 'वाढतोय'], falling: ['Falling', 'घटतोय'], flat: ['No change', 'बदल नाही'],
+  noWx:       ['No weather for this field right now', 'सध्या या शेताचे हवामान उपलब्ध नाही'],
 }
 const t = (lang, k) => bi(lang, T[k][0], T[k][1])
 
@@ -98,6 +99,20 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
 
         {busy && <Loading lines={4} />}
         {err && <ErrorNote error={err} lang={lang} onRetry={load} />}
+
+        {/* Weather can be unavailable — an Open-Meteo rate limit, a village
+            network — and this screen is mostly not about weather. It used to
+            vanish entirely; now it says which parts are missing and why, and
+            leaves the count, the threshold, the ladder and the history alone.
+            The banner exists so the absence is read as an absence: a farmer
+            who is not told will read a screen with no risk level as a screen
+            with no risk. */}
+        {m && !busy && m.weather_available === false && (
+          <p className="fb-unavailable">
+            <b>{t(lang, 'noWx')}</b>{' — '}
+            {bi(lang, m.weather_context?.note, m.weather_context?.note_mr)}
+          </p>
+        )}
         {m?.empty && !busy && (
           <Card><p className="small muted">{m.empty}</p>
             <button className="btn block" style={{ marginTop: 12 }} onClick={() => go('scan')}>

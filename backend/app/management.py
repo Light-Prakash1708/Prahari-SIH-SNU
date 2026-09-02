@@ -12,6 +12,19 @@ the prevention window and history by `cropcalendar.py`, the day's work by
 `agenda.py`. `backend/app/cropcalendar.py` is the model this file copies: if a
 threshold comparison ever appears below, it is in the wrong file.
 
+One thing it will not do: disappear because weather is unavailable. Most of
+this screen needs no weather at all — the count, the threshold it is measured
+against, the published scouting text, the IPM ladder, the verified label
+claims, the follow-up and the history are as true during an Open-Meteo outage
+as outside one, and they are what a farmer standing in a field opened the
+screen for. So a weather failure removes the parts that genuinely depend on
+weather, names itself where those parts were, and leaves the rest standing.
+
+What it must never do is let a missing forecast read as a calm one. `level` and
+`fired` are None rather than "low" and False, and the disease decision has its
+own branch for "the model could not be run" that is worded nothing like "the
+weather is not conducive".
+
 Two things it does decide, and both are about presentation rather than agronomy:
 
   · which targets are offerable at all. The old screen listed only pests with an
@@ -31,6 +44,7 @@ from . import cropcalendar, reference
 from .clock import today as _today
 from .db import Database
 from .services.decisions import chemical_rung_open
+from .weather import WeatherUnavailable
 
 _NOT_MANAGEABLE = {"healthy", "nitrogen_deficiency", "potassium_deficiency",
                    "magnesium_deficiency", "abiotic", "unknown"}
@@ -173,12 +187,67 @@ def _field_evidence(db: Database, plot: dict[str, Any], target: str,
     return out
 
 
+def _weather_context(wx: dict[str, Any] | None,
+                     err: WeatherUnavailable | None) -> dict[str, Any]:
+    """What the screen may say about weather — including that it has none.
+
+    Stated as context, never as a cause. Weather reaches the decision only
+    through a published infection model for a disease; for a pest it is not an
+    input at all, and this screen must not imply it is.
+    """
+    if wx is None:
+        return {
+            "available": False,
+            "source": None,
+            "days": [],
+            "reason": (err.reason if err else "Weather could not be retrieved."),
+            "provider": (err.provider if err else None),
+            "note": ("Weather for this field could not be retrieved, so no infection model "
+                     "was run and no risk level is shown. Nothing on this screen has been "
+                     "estimated to fill the gap. Everything below that does not depend on "
+                     "weather — your count, the published threshold it is measured against, "
+                     "what to look for and what you can do — is unchanged."),
+            "note_mr": ("या शेताचे हवामान मिळाले नाही, त्यामुळे कोणतेही संसर्ग मॉडेल चालवलेले नाही "
+                        "आणि धोक्याची पातळी दाखवलेली नाही. काहीही अंदाजाने भरलेले नाही. "
+                        "हवामानावर अवलंबून नसलेली माहिती — तुमची मोजणी, प्रकाशित मर्यादा, "
+                        "काय पहावे आणि काय करता येईल — जशीच्या तशी आहे."),
+        }
+    return {
+        "available": True,
+        "source": wx.get("source"),
+        "generated": wx.get("generated", False),
+        "warning": wx.get("warning"),
+        "stale": wx.get("stale"),
+        "stale_reason": wx.get("stale_reason"),
+        "freshness": wx.get("freshness"),
+        "note": ("Field conditions, shown so you can plan when to walk the field. "
+                 "For a disease, weather reaches the decision only through the "
+                 "published infection model named in the evidence."),
+        "note_mr": ("शेतातील परिस्थिती — कधी पाहणी करायची हे ठरवण्यासाठी. "
+                    "रोगाच्या बाबतीत हवामान फक्त प्रकाशित मॉडेलमार्फतच निर्णयात येते."),
+        "days": (wx.get("days") or [])[-1:],
+    }
+
+
 def build(db: Database, rt, plot: dict[str, Any], target: str | None,
           lang: str = "mr") -> dict[str, Any]:
     """Everything the management screen renders, in one call."""
     stage = rt.risk.crop_stage(plot)
-    wx = rt.risk.weather_series(plot)
-    board, _fired = rt.risk.board(plot, wx, stage)
+
+    # The one call on this screen that can fail for an external reason. It is
+    # caught HERE rather than at the router, because the router's only options
+    # are the whole screen or none of it, and none of it is the wrong answer.
+    wx: dict[str, Any] | None = None
+    weather_error: WeatherUnavailable | None = None
+    try:
+        wx = rt.risk.weather_series(plot)
+    except WeatherUnavailable as exc:
+        weather_error = exc
+
+    if wx is not None:
+        board, _fired = rt.risk.board(plot, wx, stage)
+    else:
+        board = rt.risk.board_without_weather(plot, stage)
     targets = _targets(board)
 
     if not targets:
@@ -212,6 +281,10 @@ def build(db: Database, rt, plot: dict[str, Any], target: str | None,
                 threshold["counted_on"] = str(check["checked_on"])
                 threshold["etl_provenance"] = {"source": (tr or {}).get("source"),
                                                "status": (tr or {}).get("status", "draft")}
+        # A pest decision is weather-independent by design: only a count
+        # against a published threshold authorises anything. `damaging_stage`
+        # already answers None when it cannot know, and None is never read as
+        # False, so this path is unchanged during an outage.
         decision = rt.decisions.spray_decision(
             plot, chosen, threshold=threshold, diagnosis=dx,
             damaging_stage=rt.risk.damaging_stage(plot, chosen))
@@ -219,7 +292,8 @@ def build(db: Database, rt, plot: dict[str, Any], target: str | None,
     else:
         assessment = latest_assessment(db, plot["id"], chosen)
         decision = rt.decisions.disease_decision(
-            plot, chosen, assessment=assessment, board_row=board_row, diagnosis=dx)
+            plot, chosen, assessment=assessment, board_row=board_row, diagnosis=dx,
+            weather_available=wx is not None)
 
     # The monitoring rung. Its content is the problem's OWN published scouting
     # text plus what a farmer must physically do to produce the measurement this
@@ -249,22 +323,29 @@ def build(db: Database, rt, plot: dict[str, Any], target: str | None,
     # The prevention window is built by the crop journey from exactly these
     # inputs; it is called here rather than reimplemented so the two screens can
     # never disagree about whether a window is open.
-    from . import forecast as fc_mod
-    traps = rt.risk.trap_state(plot, wx["days"], stage)
-    since = rt.risk._since_spray_index(wx["days"], plot["id"])
-    series = fc_mod.by_day(wx["days"], reference.problems_for_crop(plot["crop"]),
-                           horizon=4, since_idx=since)
-    head = fc_mod.headline(series, stage)
-    nearby = None
-    try:
-        z, _hot = rt.risk.nearby_z(plot["taluka"], plot["crop"])
-        assess = rt.outbreak.assess(plot["taluka"], "late_blight", crop=plot["crop"],
-                                    days=21, gi_z=z)
-        if assess:
-            nearby = {"level": assess.get("level"), "summary": assess.get("summary")}
-    except Exception:
+    # The prevention window is the one section that is weather ALL THE WAY
+    # DOWN — it exists to say "the models say act before you can see anything",
+    # which is a sentence only a model run on real weather may produce. With no
+    # weather there is no window, and it is null rather than an empty-looking
+    # calm one.
+    prevention = None
+    if wx is not None:
+        from . import forecast as fc_mod
+        traps = rt.risk.trap_state(plot, wx["days"], stage)
+        since = rt.risk._since_spray_index(wx["days"], plot["id"])
+        series = fc_mod.by_day(wx["days"], reference.problems_for_crop(plot["crop"]),
+                               horizon=4, since_idx=since)
+        head = fc_mod.headline(series, stage)
         nearby = None
-    prevention = cropcalendar._prevention_window(series, head, traps, stage, nearby)
+        try:
+            z, _hot = rt.risk.nearby_z(plot["taluka"], plot["crop"])
+            assess = rt.outbreak.assess(plot["taluka"], "late_blight", crop=plot["crop"],
+                                        days=21, gi_z=z)
+            if assess:
+                nearby = {"level": assess.get("level"), "summary": assess.get("summary")}
+        except Exception:
+            nearby = None
+        prevention = cropcalendar._prevention_window(series, head, traps, stage, nearby)
 
     mission = agenda_mod.agenda(db, rt, plot)
     followup = db.one(
@@ -292,19 +373,8 @@ def build(db: Database, rt, plot: dict[str, Any], target: str | None,
         "followup": ({"id": followup["id"], "due_on": str(followup["due_on"]),
                       "application_id": followup["application_id"]} if followup else None),
         "history": cropcalendar._history(db, rt, plot, limit=8),
-        "weather_context": {
-            "source": wx.get("source"), "generated": wx.get("generated", False),
-            "warning": wx.get("warning"),
-            # Stated as context, never as a cause. Weather reaches the decision
-            # only through a published infection model for a disease; for a pest
-            # it is not an input at all, and this screen must not imply it is.
-            "note": ("Field conditions, shown so you can plan when to walk the field. "
-                     "For a disease, weather reaches the decision only through the "
-                     "published infection model named in the evidence."),
-            "note_mr": ("शेतातील परिस्थिती — कधी पाहणी करायची हे ठरवण्यासाठी. "
-                        "रोगाच्या बाबतीत हवामान फक्त प्रकाशित मॉडेलमार्फतच निर्णयात येते."),
-            "days": (wx.get("days") or [])[-1:],
-        },
+        "weather_available": wx is not None,
+        "weather_context": _weather_context(wx, weather_error),
         **prescription,
         "day": _today().isoformat(),
     }

@@ -117,6 +117,61 @@ class RiskService:
         board.sort(key=lambda b: order.get(b.get("level", "low"), 9))
         return board, fired
 
+    # ── the same board, when the weather it runs on is missing ─────────────
+    WEATHER_UNAVAILABLE_NOTE = (
+        "Weather for this field could not be retrieved, so the published infection model "
+        "could not be run. PRAHARI does not know whether conditions are conducive. "
+        "That is not the same as conditions being unfavourable.")
+    WEATHER_UNAVAILABLE_NOTE_MR = (
+        "या शेताचे हवामान मिळाले नाही, त्यामुळे संसर्ग मॉडेल चालवता आले नाही. परिस्थिती अनुकूल "
+        "आहे की नाही हे प्रहरीला माहीत नाही — याचा अर्थ 'धोका नाही' असा नव्हे.")
+
+    def board_without_weather(self, plot: dict[str, Any],
+                              stage: dict[str, Any]) -> list[dict[str, Any]]:
+        """Every problem this crop can have, with NO risk level attached.
+
+        `level` and `fired` are None — never "low", never False. A missing input
+        is not a reassuring input, and the screen must not be able to render the
+        two the same way. Everything here comes from the reference tables, which
+        need no weather: the problem list, the published thresholds and the
+        scouting text are as true during an outage as outside one, and they are
+        most of what the decision screen is for.
+        """
+        crop = plot["crop"]
+        board: list[dict[str, Any]] = []
+
+        for pid, p in reference.problems_for_crop(crop).items():
+            board.append({
+                "kind": "disease", "id": pid, "name": p["name"], "name_mr": p["mr"],
+                "em": p["em"], "sci": p["sci"], "scout": p.get("scout"),
+                "scout_mr": p.get("mr_scout"), "speed": p.get("speed"),
+                "level": None, "fired": None, "risk_unavailable": True,
+                "detail": self.WEATHER_UNAVAILABLE_NOTE,
+                "detail_mr": self.WEATHER_UNAVAILABLE_NOTE_MR,
+                "provenance": reference.MODEL_PROVENANCE.get(p.get("model", ""), {}),
+            })
+
+        for pid, p in reference.pests_for_crop(crop).items():
+            th = reference.threshold_for(pid, crop)
+            board.append({
+                "kind": "pest", "id": pid, "name": p["name"], "name_mr": p["mr"],
+                "em": p["em"], "sci": p["sci"], "scout": p["scout"],
+                "scout_mr": p["mr_scout"], "trap": p["trap"], "unit": p["unit"],
+                "etl": th["etl"] if th else None,
+                "etl_source": th["source"] if th else None,
+                "etl_status": (th or {}).get("status", "draft"),
+                # The growing-degree-day model needs the same weather, so the
+                # life stage is unknown too. `damaging: None` is what every
+                # caller already treats as "we do not know".
+                "level": None, "fired": None, "damaging": None, "stage": None,
+                "risk_unavailable": True,
+                "detail": self.WEATHER_UNAVAILABLE_NOTE,
+                "detail_mr": self.WEATHER_UNAVAILABLE_NOTE_MR,
+            })
+
+        board.sort(key=lambda b: (b["kind"] != "pest", b["name"]))
+        return board
+
     # ── trap state ─────────────────────────────────────────────────────────
     def trap_state(self, plot: dict[str, Any], days: list[dict],
                    stage: dict[str, Any]) -> list[dict]:
