@@ -110,10 +110,11 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
         {busy && plot && <Loading lines={4} />}
         {err && <ErrorNote error={err} lang={lang} onRetry={load} />}
 
-        {data && !busy && (
+        {!busy && (
           <>
             {/* ── FARM HEALTH ─────────────────────────────────────────── */}
-            <Card>
+            {data ? (
+<Card>
               <div className="row between" style={{ marginBottom: 12 }}>
                 <div className="card-title">{lang === 'mr' ? 'शेत आरोग्य' : 'Farm Health'}</div>
                 <Band band={data.health.band}
@@ -170,6 +171,7 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
               </Why>
               {data.weather && <WeatherStrip weather={data.weather} />}
             </Card>
+) : null}
 
             {/* ── WHAT SHOULD I DO TODAY ──────────────────────────────── */}
             <h2 className="sect-title">
