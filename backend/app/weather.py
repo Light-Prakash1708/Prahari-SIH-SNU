@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import time
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -28,6 +29,12 @@ from .db import Database, dumps, loads
 from .errors import unavailable
 
 log = logging.getLogger("prahari.weather")
+
+# Short-lived weather cache to avoid repeated Open-Meteo requests.
+_WEATHER_CACHE = {}
+_WEATHER_CACHE_TTL = 45 * 60       # 45 minutes
+_WEATHER_STALE_TTL = 6 * 60 * 60   # up to 6 hours on provider failure
+
 
 # Reused unchanged from the prototype: it is the correct rollup and the models
 # are calibrated against exactly this shape.
@@ -94,13 +101,68 @@ class OpenMeteoProvider(WeatherProvider):
         }
         if self.s.weather_api_key:
             params["apikey"] = self.s.weather_api_key
-        try:
-            r = httpx.get(self.s.weather_api_url, params=params,
-                          timeout=self.s.weather_timeout_seconds)
-            r.raise_for_status()
-            payload = r.json()
-        except Exception as exc:
-            raise WeatherUnavailable(self.name, f"{type(exc).__name__}: {str(exc)[:160]}") from exc
+        cache_key = (
+            round(float(lat), 4),
+            round(float(lng), 4),
+            int(back),
+            int(forward),
+        )
+
+        now_mono = time.monotonic()
+        cached = _WEATHER_CACHE.get(cache_key)
+
+        # Use fresh cached weather instead of making another provider call.
+        if cached and now_mono - cached["saved_at"] < _WEATHER_CACHE_TTL:
+            payload = cached["payload"]
+        else:
+            try:
+                r = httpx.get(
+                    self.s.weather_api_url,
+                    params=params,
+                    timeout=self.s.weather_timeout_seconds,
+                )
+
+                if r.status_code == 429:
+                    if cached and now_mono - cached["saved_at"] < _WEATHER_STALE_TTL:
+                        log.warning(
+                            "Open-Meteo rate limited request; using cached weather "
+                            "for %.4f, %.4f",
+                            float(lat),
+                            float(lng),
+                        )
+                        payload = cached["payload"]
+                    else:
+                        raise WeatherUnavailable(
+                            self.name,
+                            "Open-Meteo rate limited the request. "
+                            "Weather will be retried later.",
+                        )
+                else:
+                    r.raise_for_status()
+                    payload = r.json()
+
+                    # Cache only a successful real provider response.
+                    _WEATHER_CACHE[cache_key] = {
+                        "saved_at": now_mono,
+                        "payload": payload,
+                    }
+
+            except WeatherUnavailable:
+                raise
+            except Exception as exc:
+                if cached and now_mono - cached["saved_at"] < _WEATHER_STALE_TTL:
+                    log.warning(
+                        "Open-Meteo failed; using cached weather for %.4f, %.4f: %s",
+                        float(lat),
+                        float(lng),
+                        str(exc)[:160],
+                    )
+                    payload = cached["payload"]
+                else:
+                    raise WeatherUnavailable(
+                        self.name,
+                        f"{type(exc).__name__}: {str(exc)[:160]}",
+                    ) from exc
 
         h = payload.get("hourly") or {}
         if not h.get("time"):
