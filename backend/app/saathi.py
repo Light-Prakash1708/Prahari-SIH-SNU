@@ -36,6 +36,7 @@ from typing import Any
 from . import chemicals, reference
 from .clock import today as _today
 from .db import Database
+from .weather import WeatherUnavailable
 
 # ── intents ─────────────────────────────────────────────────────────────────
 # Keyword sets, English and Marathi/Devanagari, plus common Latin-script Marathi
@@ -424,7 +425,6 @@ class Saathi:
         if not plot or not self.rt:
             return None
         from . import forecast as fc_mod
-        from .weather import WeatherUnavailable
         try:
             wx = self.rt.risk.weather_series(plot)
         except WeatherUnavailable as exc:
@@ -893,6 +893,31 @@ SUGGESTIONS = {
 
 
 # ── the context an optional language model is allowed to see ────────────────
+_BOARD_FACT_KEYS = (
+    "kind", "id", "name", "name_mr", "level", "fired", "detail",
+    "etl", "etl_source", "unit", "damaging", "stage", "model_caveat",
+    "no_model_note", "risk_unavailable",
+)
+
+
+def _board_fact(row: dict[str, Any]) -> dict[str, Any]:
+    """One risk-board row, trimmed to what an answer could legitimately quote.
+
+    The scouting prose and the full provenance blocks are dropped: they are
+    long, they are already reachable through the scouting and threshold
+    handlers, and every extra sentence in the bundle is another sentence a
+    model can drift towards. What stays is the identification, the level, and
+    the numbers — because `_numbers_agree` requires any number in the reply to
+    appear here, so a fact omitted is a sentence the model may not write.
+    """
+    out = {k: row[k] for k in _BOARD_FACT_KEYS if k in row and row[k] is not None}
+    prov = row.get("provenance") or {}
+    if prov.get("name"):
+        out["model"] = prov["name"]
+        out["model_source"] = prov.get("source")
+    return out
+
+
 def field_facts(db: Database, rt, plot: dict[str, Any] | None,
                 limit: int = 6) -> dict[str, Any]:
     """A compact, already-computed picture of THIS field.
@@ -916,11 +941,13 @@ def field_facts(db: Database, rt, plot: dict[str, Any] | None,
             "village": plot.get("village"), "sown_on": plot.get("sown_on"),
         },
     }
+    stage = None
     if rt:
         # A stage needs a sowing date and a crop cycle. A field without one is
         # a real state, not an error, and the bundle simply carries no stage.
         with contextlib.suppress(Exception):
-            out["crop_stage"] = rt.risk.crop_stage(plot)
+            stage = rt.risk.crop_stage(plot)
+            out["crop_stage"] = stage
 
     snap = db.one("SELECT * FROM health_snapshots WHERE plot_id = :p "
                   "ORDER BY day DESC LIMIT 1", {"p": plot["id"]})
@@ -955,13 +982,28 @@ def field_facts(db: Database, rt, plot: dict[str, Any] | None,
         "  AND done_observation IS NULL AND outcome IS NULL ORDER BY due_on LIMIT :n",
         {"p": plot["id"], "n": limit})
 
-    if rt:
+    if rt and stage is not None:
+        # `board` takes the crop stage as well. It was being called without it,
+        # which raised TypeError on every single call — and the bare `except
+        # Exception` here caught that and wrote the weather-unavailable note.
+        # The board therefore never reached the model, not once, and the note
+        # said the wrong reason. Catch ONLY the failure this line can honestly
+        # attribute to weather; a programming error must surface as one.
         try:
             wx = rt.risk.weather_series(plot)
-            out["risk_board"] = rt.risk.board(plot, wx)
-        except Exception:
+        except WeatherUnavailable as exc:
             # Weather is allowed to be unavailable and is never invented. The
             # model simply does not get a risk board, and cannot produce one.
-            out["risk_board_note"] = ("Weather is unavailable, so PRAHARI has no risk board "
-                                      "for this field right now. Do not estimate one.")
+            out["risk_board_note"] = (
+                f"Weather is unavailable for this field right now ({exc.reason}), so PRAHARI "
+                "has no risk board for it. Do not estimate one, and do not say conditions "
+                "are unfavourable — that is not what an absent forecast means.")
+        else:
+            board, _fired = rt.risk.board(plot, wx, stage)
+            out["risk_board"] = [_board_fact(b) for b in board]
+            out["risk_board_weather"] = {
+                "source": wx.get("source"),
+                "observed_through": wx.get("observed_through"),
+                "stale": bool(wx.get("stale")),
+            }
     return out

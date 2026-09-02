@@ -16,6 +16,8 @@ way nobody notices until a farmer measures out the wrong dose.
 """
 from __future__ import annotations
 
+import pytest
+
 from app import llm
 
 FACTS = {
@@ -123,22 +125,69 @@ def test_a_stored_key_is_removed_with_the_account(client, farmer, plot):
                      {"u": farmer["user_id"]}) == 0
 
 
-def test_field_facts_never_invent_a_risk_board_without_weather(client, farmer, plot):
-    """What the model is allowed to see is assembled from rows. When weather is
-    unavailable there is no board, and the bundle says so in words rather than
-    leaving a shape the model might fill in."""
+def _facts_for(plot):
     from app import saathi as saathi_mod
     from app.db import get_db
     from app.runtime import get_runtime
     plot_row = get_db().one("SELECT * FROM plots WHERE id = :i", {"i": plot["id"]})
-    facts = saathi_mod.field_facts(get_db(), get_runtime(), plot_row)
+    return saathi_mod.field_facts(get_db(), get_runtime(), plot_row)
+
+
+def test_field_facts_carry_the_risk_board_when_weather_is_available(client, farmer, plot):
+    """The positive half, and the one that was missing.
+
+    `field_facts` called `rt.risk.board(plot, wx)` without the crop stage the
+    method requires. Every call raised TypeError, a bare `except Exception`
+    caught it, and the bundle got the weather-unavailable note instead — with
+    weather working perfectly. The model was never once shown the risk board it
+    is supposed to be grounded in, and the old assertion here passed either
+    way, so nothing said so.
+    """
+    facts = _facts_for(plot)
     assert facts["field"]["crop"] == "tomato"
-    assert "risk_board" in facts or "risk_board_note" in facts
-    if "risk_board_note" in facts:
-        assert "Do not estimate" in facts["risk_board_note"]
+    assert "risk_board" in facts, "the board must reach the model when weather is available"
+    assert "risk_board_note" not in facts, "weather is available; do not claim otherwise"
+    board = facts["risk_board"]
+    assert board and all("id" in row and "kind" in row for row in board)
+    assert any(row["kind"] == "disease" for row in board)
+    # Trimmed to what an answer may quote: no scouting essays in the bundle.
+    assert all("scout" not in row and "provenance" not in row for row in board)
+    assert facts["risk_board_weather"]["source"]
+
+
+def test_field_facts_never_invent_a_risk_board_without_weather(client, farmer, plot,
+                                                               monkeypatch):
+    """When weather is genuinely unavailable there is no board, and the bundle
+    says so in words rather than leaving a shape the model might fill in."""
+    from app import weather as wx_mod
+    monkeypatch.setattr(
+        wx_mod.WeatherService, "series",
+        lambda *a, **k: (_ for _ in ()).throw(
+            wx_mod.WeatherUnavailable("open-meteo", "simulated rate limit")))
+    facts = _facts_for(plot)
+    assert "risk_board" not in facts
+    assert "Do not estimate" in facts["risk_board_note"]
+    assert "simulated rate limit" in facts["risk_board_note"]
+    # and it must not hand the model the other wrong conclusion either
+    assert "unfavourable" in facts["risk_board_note"]
     # nothing is fabricated for a field with no counts yet
     assert facts["recent_trap_counts"] == []
     assert facts["recent_sprays"] == []
+
+
+def test_a_programming_error_is_not_relabelled_as_a_weather_outage(client, farmer, plot,
+                                                                   monkeypatch):
+    """The bug above was invisible because the handler caught everything. A
+    TypeError in the board must surface as a TypeError, not as a sentence
+    telling the model that weather is unavailable."""
+    from app.services.risk import RiskService
+
+    def boom(*a, **k):
+        raise TypeError("board() missing 1 required positional argument")
+
+    monkeypatch.setattr(RiskService, "board", boom)
+    with pytest.raises(TypeError):
+        _facts_for(plot)
 
 
 # ── the whole path, with a stubbed provider ─────────────────────────────────
