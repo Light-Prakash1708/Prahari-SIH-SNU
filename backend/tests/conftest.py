@@ -45,6 +45,18 @@ def env(tmp_path, monkeypatch):
     return reload_settings()
 
 
+@pytest.fixture(scope="function", autouse=True)
+def _no_inherited_weather_cooldown():
+    """The provider cooldown lives in module state, which is what makes it work
+    across requests. It must not leak across TESTS: one test that simulates a
+    429 would otherwise silently disable weather for everything that ran after
+    it, and the failures would land far from the cause."""
+    from app.weather import clear_cooldowns
+    clear_cooldowns()
+    yield
+    clear_cooldowns()
+
+
 @pytest.fixture(scope="function")
 def client(env):
     from fastapi.testclient import TestClient

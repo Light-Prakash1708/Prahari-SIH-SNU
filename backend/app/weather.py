@@ -14,11 +14,35 @@ up an hourly series itself.
 The rule this module exists to enforce: when the provider fails, the caller
 gets an error, not a substitute series. A fabricated humidity number becomes a
 fabricated infection risk becomes a spray a farmer did not need.
+
+There is ONE cache, and it is the `weather_cache` table. An earlier version
+also kept a dict in process memory with a different key and a different TTL;
+two caches that cannot see each other are two chances to miss, and the dict was
+lost on every restart and duplicated per worker. What the process does hold is
+much smaller and is not data: a cooldown deadline per provider, and one lock
+per cache key.
+
+Three things keep this module off the provider's rate limiter:
+
+  · a COOLDOWN. A 429 or a 5xx parks the provider for a while, honouring
+    `Retry-After` when it is sent. Without it a rate-limited deployment retries
+    on every request and holds itself under the limit — the failure feeds
+    itself, which is exactly what was observed.
+  · SINGLE FLIGHT. Concurrent requests for the same cache key wait on one
+    lock, so a cold cache costs one HTTP call rather than one per request.
+  · a NARROW REQUEST. Only the three hourly variables the infection models
+    actually read are asked for. Open-Meteo weighs a call by variables times
+    days, and wind and cloud cover were being fetched, rolled up and read by
+    nothing.
+
+None of the three can invent a number. When they run out, the caller gets
+WeatherUnavailable and the screen says so.
 """
 from __future__ import annotations
 
 import datetime as dt
 import logging
+import threading
 import time
 from abc import ABC, abstractmethod
 from typing import Any
@@ -30,10 +54,84 @@ from .errors import unavailable
 
 log = logging.getLogger("prahari.weather")
 
-# Short-lived weather cache to avoid repeated Open-Meteo requests.
-_WEATHER_CACHE = {}
-_WEATHER_CACHE_TTL = 45 * 60       # 45 minutes
-_WEATHER_STALE_TTL = 6 * 60 * 60   # up to 6 hours on provider failure
+# ── what this process holds ────────────────────────────────────────────────
+# Not weather. A cooldown deadline per provider, and one lock per cache key.
+# Both are per-process, which is the honest scope: with several workers each
+# keeps its own, so the cooldown reduces the call rate by a factor of the
+# worker count rather than to zero. Correctness never depends on either — they
+# only decide whether an outbound call is attempted.
+_COOLDOWN: dict[str, float] = {}
+_COOLDOWN_REASON: dict[str, str] = {}
+_COOLDOWN_LOCK = threading.Lock()
+
+_INFLIGHT: dict[str, threading.Lock] = {}
+_INFLIGHT_GUARD = threading.Lock()
+
+
+def _cooldown_remaining(provider: str) -> float:
+    """Seconds left before this provider may be called again. 0.0 when open."""
+    with _COOLDOWN_LOCK:
+        until = _COOLDOWN.get(provider)
+    if until is None:
+        return 0.0
+    left = until - time.monotonic()
+    return left if left > 0 else 0.0
+
+
+def _cooldown_reason(provider: str) -> str:
+    with _COOLDOWN_LOCK:
+        return _COOLDOWN_REASON.get(provider, "")
+
+
+def _open_cooldown(provider: str, seconds: float, reason: str) -> None:
+    with _COOLDOWN_LOCK:
+        until = time.monotonic() + max(0.0, seconds)
+        # Never shorten a cooldown that is already longer — a second 429
+        # arriving mid-cooldown must not reset the clock downwards.
+        if until > _COOLDOWN.get(provider, 0.0):
+            _COOLDOWN[provider] = until
+            _COOLDOWN_REASON[provider] = reason
+
+
+def clear_cooldowns() -> None:
+    """Test seam. Nothing in the application calls this."""
+    with _COOLDOWN_LOCK:
+        _COOLDOWN.clear()
+        _COOLDOWN_REASON.clear()
+
+
+def _key_lock(key: str) -> threading.Lock:
+    with _INFLIGHT_GUARD:
+        lock = _INFLIGHT.get(key)
+        if lock is None:
+            lock = _INFLIGHT[key] = threading.Lock()
+        if len(_INFLIGHT) > 5000:                  # bound the dict, not the locks in use
+            _INFLIGHT.clear()
+            _INFLIGHT[key] = lock
+        return lock
+
+
+def parse_retry_after(value: str | None) -> float | None:
+    """`Retry-After` as seconds. Accepts the delta-seconds form and the HTTP-date
+    form; returns None for anything else, so a malformed header falls back to
+    the configured default rather than parking the provider forever."""
+    if not value:
+        return None
+    v = value.strip()
+    try:
+        return max(0.0, float(int(v)))
+    except ValueError:
+        pass
+    try:
+        from email.utils import parsedate_to_datetime
+        when = parsedate_to_datetime(v)
+    except (TypeError, ValueError):
+        return None
+    if when is None:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=dt.UTC)
+    return max(0.0, (when - dt.datetime.now(dt.UTC)).total_seconds())
 
 
 # Reused unchanged from the prototype: it is the correct rollup and the models
@@ -74,6 +172,15 @@ class NullProvider(WeatherProvider):
                 "note": "WEATHER_PROVIDER is not set. Risk forecasting is disabled."}
 
 
+# The only hourly variables anything downstream reads. wind_speed_10m and
+# cloud_cover were fetched, rolled up into wind_kmh_mean / wind_kmh_max /
+# cloud_pct_mean, and read by no screen, no model and no service — while
+# Open-Meteo weighs a request by variables times days. Adding a variable here
+# costs quota on every field, every refresh, so add one only when something
+# actually reads it.
+HOURLY = "temperature_2m,relative_humidity_2m,precipitation"
+
+
 class OpenMeteoProvider(WeatherProvider):
     """Open-Meteo: free, no API key, hourly temperature / RH / precipitation and
     a 16-day forecast. Mahavedh — Maharashtra's ~2,060-station automatic weather
@@ -93,90 +200,65 @@ class OpenMeteoProvider(WeatherProvider):
             raise WeatherUnavailable(self.name, f"httpx is not installed: {exc}") from exc
         params = {
             "latitude": round(float(lat), 4), "longitude": round(float(lng), 4),
-            "hourly": "temperature_2m,relative_humidity_2m,precipitation,"
-                      "wind_speed_10m,cloud_cover",
+            "hourly": HOURLY,
             "past_days": max(1, min(int(back), 92)),
             "forecast_days": max(1, min(int(forward) + 1, 16)),
             "timezone": "Asia/Kolkata",
         }
         if self.s.weather_api_key:
             params["apikey"] = self.s.weather_api_key
-        cache_key = (
-            round(float(lat), 4),
-            round(float(lng), 4),
-            int(back),
-            int(forward),
-        )
 
-        now_mono = time.monotonic()
-        cached = _WEATHER_CACHE.get(cache_key)
+        # A cooldown is in force: do not spend a request finding out that the
+        # limit is still there. The caller falls back to labelled-stale cache or
+        # is told weather is unavailable — never to a substitute series.
+        left = _cooldown_remaining(self.name)
+        if left > 0:
+            raise WeatherUnavailable(
+                self.name,
+                f"{_cooldown_reason(self.name) or 'provider unavailable'}; "
+                f"not retried for another {int(left) + 1}s")
 
-        # Use fresh cached weather instead of making another provider call.
-        if cached and now_mono - cached["saved_at"] < _WEATHER_CACHE_TTL:
-            payload = cached["payload"]
-        else:
-            try:
-                r = httpx.get(
-                    self.s.weather_api_url,
-                    params=params,
-                    timeout=self.s.weather_timeout_seconds,
-                )
+        try:
+            r = httpx.get(self.s.weather_api_url, params=params,
+                          timeout=self.s.weather_timeout_seconds)
+        except Exception as exc:
+            raise WeatherUnavailable(
+                self.name, f"{type(exc).__name__}: {str(exc)[:160]}") from exc
 
-                if r.status_code == 429:
-                    if cached and now_mono - cached["saved_at"] < _WEATHER_STALE_TTL:
-                        log.warning(
-                            "Open-Meteo rate limited request; using cached weather "
-                            "for %.4f, %.4f",
-                            float(lat),
-                            float(lng),
-                        )
-                        payload = cached["payload"]
-                    else:
-                        raise WeatherUnavailable(
-                            self.name,
-                            "Open-Meteo rate limited the request. "
-                            "Weather will be retried later.",
-                        )
-                else:
-                    r.raise_for_status()
-                    payload = r.json()
+        if r.status_code == 429 or r.status_code >= 500:
+            # The two shapes of "stop asking". Honour Retry-After when it is
+            # sent; otherwise use the configured default. Clamped either way so
+            # a hostile or mistaken header cannot park weather for a day.
+            hinted = parse_retry_after(r.headers.get("Retry-After")
+                                       if hasattr(r, "headers") else None)
+            seconds = hinted if hinted is not None else float(self.s.weather_cooldown_seconds)
+            seconds = max(1.0, min(seconds, float(self.s.weather_cooldown_max_seconds)))
+            why = ("Open-Meteo rate limited the request"
+                   if r.status_code == 429 else
+                   f"Open-Meteo returned HTTP {r.status_code}")
+            _open_cooldown(self.name, seconds, why)
+            log.warning("weather provider cooling down",
+                        extra={"provider": self.name, "status": r.status_code,
+                               "seconds": round(seconds)})
+            raise WeatherUnavailable(
+                self.name, f"{why}. Not retried for {int(seconds)}s.")
 
-                    # Cache only a successful real provider response.
-                    _WEATHER_CACHE[cache_key] = {
-                        "saved_at": now_mono,
-                        "payload": payload,
-                    }
-
-            except WeatherUnavailable:
-                raise
-            except Exception as exc:
-                if cached and now_mono - cached["saved_at"] < _WEATHER_STALE_TTL:
-                    log.warning(
-                        "Open-Meteo failed; using cached weather for %.4f, %.4f: %s",
-                        float(lat),
-                        float(lng),
-                        str(exc)[:160],
-                    )
-                    payload = cached["payload"]
-                else:
-                    raise WeatherUnavailable(
-                        self.name,
-                        f"{type(exc).__name__}: {str(exc)[:160]}",
-                    ) from exc
+        try:
+            r.raise_for_status()
+            payload = r.json()
+        except Exception as exc:
+            raise WeatherUnavailable(
+                self.name, f"{type(exc).__name__}: {str(exc)[:160]}") from exc
 
         h = payload.get("hourly") or {}
         if not h.get("time"):
             raise WeatherUnavailable(self.name, "provider returned no hourly series")
 
         by_day: dict[dt.date, list[dict[str, float]]] = {}
-        wind: dict[dt.date, list[float]] = {}
-        cloud: dict[dt.date, list[float]] = {}
         times = h["time"]
         temps = h.get("temperature_2m") or []
         rhs = h.get("relative_humidity_2m") or []
         rains = h.get("precipitation") or []
-        winds = h.get("wind_speed_10m") or [None] * len(times)
-        clouds = h.get("cloud_cover") or [None] * len(times)
         for i, stamp_iso in enumerate(times):
             if i >= len(temps) or temps[i] is None or i >= len(rhs) or rhs[i] is None:
                 continue
@@ -185,22 +267,11 @@ class OpenMeteoProvider(WeatherProvider):
             by_day.setdefault(day, []).append(
                 {"t": float(temps[i]), "rh": float(rhs[i]),
                  "rain": float(rains[i] or 0.0) if i < len(rains) else 0.0})
-            if i < len(winds) and winds[i] is not None:
-                wind.setdefault(day, []).append(float(winds[i]))
-            if i < len(clouds) and clouds[i] is not None:
-                cloud.setdefault(day, []).append(float(clouds[i]))
         if not by_day:
             raise WeatherUnavailable(self.name, "provider returned an unusable hourly series")
 
-        days = []
-        for day, hours in sorted(by_day.items()):
-            row = _rollup(hours, day, future=day > today)
-            if wind.get(day):
-                row["wind_kmh_mean"] = round(sum(wind[day]) / len(wind[day]), 1)
-                row["wind_kmh_max"] = round(max(wind[day]), 1)
-            if cloud.get(day):
-                row["cloud_pct_mean"] = round(sum(cloud[day]) / len(cloud[day]), 0)
-            days.append(row)
+        days = [_rollup(hours, day, future=day > today)
+                for day, hours in sorted(by_day.items())]
         return {
             "source": "open-meteo",
             "source_kind": "live",
@@ -213,7 +284,12 @@ class OpenMeteoProvider(WeatherProvider):
         }
 
     def health(self):
-        return {"provider": self.name, "configured": True, "url": self.s.weather_api_url}
+        out = {"provider": self.name, "configured": True, "url": self.s.weather_api_url}
+        left = _cooldown_remaining(self.name)
+        if left > 0:
+            out["cooling_down_seconds"] = int(left) + 1
+            out["cooling_down_reason"] = _cooldown_reason(self.name)
+        return out
 
 
 class DemoWeatherProvider(WeatherProvider):
@@ -301,6 +377,32 @@ class WeatherService:
             {"k": key, "lat": float(lat), "lng": float(lng), "p": self.provider.name,
              "f": stamp, "e": expires, "pl": dumps(payload)})
 
+    def _stale(self, key: str) -> dict[str, Any] | None:
+        """A cached series past its TTL but still recent enough to be useful.
+
+        Real weather twelve hours old, labelled stale with the reason it could
+        not be refreshed, is honest and is what a farmer standing in a field
+        would rather have than nothing. Beyond the window it is withheld: an
+        infection model run on three-day-old humidity is not a cautious answer,
+        it is a wrong one wearing a timestamp.
+        """
+        row = self.db.one("SELECT * FROM weather_cache WHERE cache_key = :k", {"k": key})
+        if not row:
+            return None
+        fetched = parse_ts(row["fetched_at"])
+        if fetched is None:
+            return None
+        age_h = (now() - fetched).total_seconds() / 3600.0
+        if age_h > self.s.weather_stale_max_hours:
+            return None
+        payload = loads(row["payload"], {})
+        if not payload:
+            return None
+        payload["cached"] = True
+        payload["stale"] = True
+        payload["fetched_at"] = row["fetched_at"]
+        return payload
+
     # ── the call every risk path makes ─────────────────────────────────────
     def series(self, lat: float | None, lng: float | None, today: dt.date,
                back: int = 21, forward: int = 6,
@@ -311,25 +413,33 @@ class WeatherService:
         hit = self._from_cache(key)
         if hit:
             return self._decorate(hit, fresh=True)
-        try:
-            payload = self.provider.series(lat, lng, today, back, forward)
-        except WeatherUnavailable as exc:
-            stale = self.db.one("SELECT * FROM weather_cache WHERE cache_key=:k", {"k": key})
-            if allow_stale and stale:
-                # Stale real data, clearly labelled as stale, beats generated data.
-                payload = loads(stale["payload"], {})
-                payload["cached"] = True
-                payload["stale"] = True
-                payload["fetched_at"] = stale["fetched_at"]
-                payload["stale_reason"] = exc.reason
-                log.warning("weather provider failed; serving stale cache",
-                            extra={"provider": exc.provider, "reason": exc.reason})
-                return self._decorate(payload, fresh=False)
-            raise
-        self._store(key, lat, lng, payload)
-        payload["cached"] = False
-        payload["fetched_at"] = now_iso()
-        return self._decorate(payload, fresh=True)
+
+        # Single flight. Ten screens opening on one field at once used to make
+        # ten identical provider calls, all of them missing the same cold
+        # cache; now nine of them wait here and then read what the first one
+        # stored. The lock is per cache key, so different fields never block
+        # each other.
+        lock = _key_lock(key)
+        with lock:
+            hit = self._from_cache(key)
+            if hit:
+                return self._decorate(hit, fresh=True)
+            try:
+                payload = self.provider.series(lat, lng, today, back, forward)
+            except WeatherUnavailable as exc:
+                stale = self._stale(key) if allow_stale else None
+                if stale is not None:
+                    # Stale real data, clearly labelled as stale, beats
+                    # generated data — and beats a blank screen.
+                    stale["stale_reason"] = exc.reason
+                    log.warning("weather provider failed; serving stale cache",
+                                extra={"provider": exc.provider, "reason": exc.reason})
+                    return self._decorate(stale, fresh=False)
+                raise
+            self._store(key, lat, lng, payload)
+            payload["cached"] = False
+            payload["fetched_at"] = now_iso()
+            return self._decorate(payload, fresh=True)
 
     def _decorate(self, payload: dict[str, Any], fresh: bool) -> dict[str, Any]:
         fetched = parse_ts(payload.get("fetched_at"))

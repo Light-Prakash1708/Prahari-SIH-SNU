@@ -63,6 +63,16 @@ class Settings(BaseSettings):
     weather_api_key: str | None = None
     weather_cache_minutes: int = 90
     weather_timeout_seconds: float = 8.0
+    # After a 429 or a 5xx the provider is left alone for this long. Without it
+    # a rate-limited deployment retries on every request and holds itself under
+    # the limit indefinitely — the failure amplifies instead of clearing.
+    # `Retry-After`, when the provider sends one, wins over this default.
+    weather_cooldown_seconds: int = 120
+    weather_cooldown_max_seconds: int = 900
+    # How old a cached series may be and still be served, clearly labelled
+    # stale, when the provider cannot be reached. Real weather twelve hours old
+    # and marked as such is honest; generated weather never is.
+    weather_stale_max_hours: int = 12
 
     # ── vision ─────────────────────────────────────────────────────────────
     # onnx | api | none
