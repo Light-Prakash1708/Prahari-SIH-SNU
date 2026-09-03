@@ -793,6 +793,17 @@ class WeatherService:
         self.db = db
         self.s = settings or get_settings()
         self.provider = self._build(demo_profile_fn)
+        # Separate from `provider` on purpose. It is not in the chain and is
+        # never tried alongside a live source — it exists only for the moment
+        # after every live provider AND the cache have already failed.
+        self._demo_fallback: WeatherProvider | None = None
+        if self.s.weather_demo_fallback:
+            self._demo_fallback = DemoWeatherProvider(demo_profile_fn)
+            log.warning(
+                "WEATHER_DEMO_FALLBACK is ON — if every live provider and the cache "
+                "fail, GENERATED weather will be served and the infection models will "
+                "run on it. Every such response is labelled. Turn this off in normal "
+                "operation.")
 
     def _build(self, demo_profile_fn) -> WeatherProvider:
         p = self.s.weather_provider
@@ -916,6 +927,36 @@ class WeatherService:
                     log.warning("weather provider failed; serving stale cache",
                                 extra={"provider": exc.provider, "reason": exc.reason})
                     return self._decorate(stale, fresh=False)
+
+                # Nothing live, and nothing remembered. Either the screen goes
+                # dark or it runs on a generated series that says so on its
+                # face. Which of those is right is a deployment decision, not
+                # this module's, so it is a flag — and the answer is only ever
+                # yes when someone has explicitly said so.
+                if self._demo_fallback is not None:
+                    demo = self._demo_fallback.series(lat, lng, today, back, forward)
+                    demo["fetched_at"] = now_iso()
+                    demo["cached"] = False
+                    demo["demo_fallback"] = True
+                    demo["fallback_after"] = exc.reason
+                    # The provider's own warning says "DEMO_MODE is on", which
+                    # is not what happened here — the flag did, after every
+                    # live source failed. The sentence a judge reads has to be
+                    # the true one.
+                    demo["warning"] = ("This is not real weather. Live weather could not be "
+                                       "retrieved, so a generated series is standing in.")
+                    demo["note"] = ("GENERATED WEATHER — no live provider and no cached "
+                                    "reading were available. The infection models are "
+                                    "untouched and are running on this series exactly as "
+                                    "they run on a real one; only the weather is invented.")
+                    log.warning(
+                        "no live weather and no cache; serving GENERATED weather",
+                        extra={"provider": exc.provider, "reason": exc.reason,
+                               "serving": self._demo_fallback.name})
+                    # NEVER stored. The cache is for real readings; writing this
+                    # into it would outlive the outage and be indistinguishable
+                    # from a remembered observation an hour later.
+                    return self._decorate(demo, fresh=False)
                 raise
             # A short series is NOT stored. The cache key describes the window
             # that was asked for, so writing a one-day payload under it would
@@ -946,6 +987,11 @@ class WeatherService:
     def health(self) -> dict[str, Any]:
         h = self.provider.health()
         h["kind"] = self.provider.kind
+        if self._demo_fallback is not None:
+            h["demo_fallback"] = True
+            h["demo_fallback_note"] = (
+                "If every live provider and the cache fail, generated weather is served "
+                "and labelled. This is not normal operation.")
         return h
 
 
@@ -966,6 +1012,21 @@ def status_of(payload: dict[str, Any] | None) -> dict[str, Any]:
             "models_available": False,
             "message": "Weather update temporarily unavailable",
             "message_mr": "हवामान माहिती सध्या मिळत नाही",
+            "retryable": True,
+        }
+    if payload.get("source_kind") == "generated":
+        # Said first, because it outranks every other thing this object could
+        # report. A generated series is not stale data and not a degraded
+        # reading — it is not an observation at all.
+        return {
+            "available": True,
+            "provider": payload.get("source"),
+            "stale": False,
+            "code": "demo",
+            "generated": True,
+            "models_available": True,
+            "message": "Demo weather — generated, not observed",
+            "message_mr": "प्रात्यक्षिकासाठी तयार केलेले हवामान — प्रत्यक्ष निरीक्षण नाही",
             "retryable": True,
         }
     if payload.get("insufficient_history"):

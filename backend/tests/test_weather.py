@@ -977,3 +977,102 @@ def test_the_weather_api_key_is_never_written_to_a_log(env, monkeypatch, caplog)
     configure_logging()
     for noisy in ("httpx", "httpcore", "urllib3"):
         assert logging.getLogger(noisy).level >= logging.WARNING, noisy
+
+
+# ── the fallback pipeline, tier by tier ─────────────────────────────────────
+# live -> stale cache -> generated (opt-in) -> honest failure.
+# The last two tiers are the ones worth pinning: one must never be mistaken for
+# an observation, and the other must never appear unless someone asked for it.
+
+def _svc(env, demo_fallback=False, **over):
+    from app.config import Settings
+    from app.db import Database
+    from app.weather import WeatherService
+    s = Settings(**{**env.model_dump(), "weather_demo_fallback": demo_fallback, **over})
+    db = Database(s)
+    db.migrate()
+    return WeatherService(db, s, demo_profile_fn=lambda: "monsoon"), db, s
+
+
+def _dead(*a, **k):
+    from app.weather import WeatherUnavailable
+    raise WeatherUnavailable("open-meteo", "simulated total outage")
+
+
+def test_a_live_provider_is_used_and_labelled_live(env):
+    """Tier 1 · nothing below it runs while a live provider answers."""
+    ws, _db, _s = _svc(env, demo_fallback=True)
+    out = ws.series(20.08, 74.11, dt.date(2026, 8, 27))
+    assert out["source_kind"] != "generated" or env.weather_provider == "demo"
+    assert not out.get("demo_fallback")
+
+
+def test_the_cache_is_preferred_over_generated_weather(env, monkeypatch):
+    """Tier 2 · a real reading from an hour ago beats an invented one from now,
+    even with the fallback armed. Stale real data is still data."""
+    ws, db, _s = _svc(env, demo_fallback=True)
+    ws.series(20.08, 74.11, dt.date(2026, 8, 27))          # warm the cache
+    db.execute("UPDATE weather_cache SET expires_at = '2000-01-01T00:00:00.000Z'")
+    monkeypatch.setattr(ws.provider, "series", _dead)
+    out = ws.series(20.08, 74.11, dt.date(2026, 8, 27))
+    assert out["stale"] is True
+    assert not out.get("demo_fallback"), "the cache must win over generated weather"
+
+
+def test_with_no_cache_the_generated_series_stands_in(env, monkeypatch):
+    """Tier 3 · and it says what it is, in every field that carries provenance."""
+    from app.weather import status_of
+    ws, db, _s = _svc(env, demo_fallback=True)
+    monkeypatch.setattr(ws.provider, "series", _dead)
+    db.execute("DELETE FROM weather_cache")
+    out = ws.series(20.08, 74.11, dt.date(2026, 8, 27))
+    assert out["demo_fallback"] is True
+    assert out["source_kind"] == "generated"
+    assert out["warning"], "a generated series must carry its warning"
+    assert "DEMO_MODE" not in out["warning"], \
+        "the flag brought this on, not DEMO_MODE — say the true thing"
+    assert "not real weather" in out["warning"]
+    assert out["days"], "and it must be a usable series, not an empty shell"
+    st = status_of(out)
+    assert st["code"] == "demo" and st["generated"] is True
+    assert "generated" in st["message"].lower()
+    # it is never written into the cache — an hour later it would be
+    # indistinguishable from a remembered observation
+    assert db.scalar("SELECT COUNT(*) FROM weather_cache") == 0
+
+
+def test_the_fallback_is_off_unless_a_deployment_asks_for_it(env, monkeypatch):
+    """The default. Without the flag the failure is still a failure — which is
+    what this system is supposed to do with weather it does not have."""
+    from app.weather import WeatherUnavailable
+    ws, db, _s = _svc(env, demo_fallback=False)
+    monkeypatch.setattr(ws.provider, "series", _dead)
+    db.execute("DELETE FROM weather_cache")
+    with pytest.raises(WeatherUnavailable):
+        ws.series(20.08, 74.11, dt.date(2026, 8, 27))
+    assert ws.health().get("demo_fallback") is None
+
+
+def test_generated_weather_is_deterministic_for_one_field(env, monkeypatch):
+    """8 · refreshing the page must not reroll the weather."""
+    ws, db, _s = _svc(env, demo_fallback=True)
+    monkeypatch.setattr(ws.provider, "series", _dead)
+    db.execute("DELETE FROM weather_cache")
+    a = ws.series(20.08, 74.11, dt.date(2026, 8, 27))
+    b = ws.series(20.08, 74.11, dt.date(2026, 8, 27))
+    assert [d["date"] for d in a["days"]] == [d["date"] for d in b["days"]]
+    for x, y in zip(a["days"], b["days"], strict=True):
+        assert (x["tmin"], x["tmax"], x["rain_mm"], x["rh90_hours"]) == \
+               (y["tmin"], y["tmax"], y["rain_mm"], y["rh90_hours"])
+
+
+def test_generated_weather_carries_the_fields_the_models_read(env, monkeypatch):
+    """7 · the same structure, so the same pipeline runs on it unchanged."""
+    ws, db, _s = _svc(env, demo_fallback=True)
+    monkeypatch.setattr(ws.provider, "series", _dead)
+    db.execute("DELETE FROM weather_cache")
+    out = ws.series(20.08, 74.11, dt.date(2026, 8, 27))
+    for day in out["days"]:
+        assert {"date", "tmin", "tmax", "rh_mean", "rh90_hours", "rain_mm",
+                "hours_21_30", "future"} <= set(day)
+    assert any(d["future"] for d in out["days"]), "a forecast portion exists"

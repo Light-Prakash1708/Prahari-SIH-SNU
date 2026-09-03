@@ -241,7 +241,10 @@ def _weather_context(wx: dict[str, Any] | None,
         "source": wx.get("source"),
         "sources": wx.get("sources"),
         "history_days": wx.get("history_days"),
-        "generated": wx.get("generated", False),
+        # `source_kind`, not `generated` — the payload has never carried a
+        # `generated` key, so this always reported False and the banner on this
+        # screen would have stayed silent on a generated series.
+        "generated": wx.get("source_kind") == "generated",
         "warning": wx.get("warning"),
         # `stale` comes from status_of above and stays a real boolean —
         # re-setting it from the payload put None back, and the screen then had

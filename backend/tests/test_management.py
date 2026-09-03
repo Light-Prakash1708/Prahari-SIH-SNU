@@ -442,3 +442,89 @@ def test_the_field_board_still_lists_every_field_on_a_short_plan(client, farmer,
     b = r.json()
     assert b["count"] >= 1
     assert all("name" in c and "crop" in c for c in b["fields"])
+
+
+# ── the generated fallback, end to end ─────────────────────────────────────
+
+@pytest.fixture
+def demo_fallback_on(monkeypatch):
+    """Every live provider down, no cache, and the fallback armed."""
+    from app.runtime import get_runtime
+    from app.weather import DemoWeatherProvider, WeatherUnavailable
+    rt = get_runtime()
+
+    def dead(*a, **k):
+        raise WeatherUnavailable("open-meteo", "simulated total outage")
+
+    monkeypatch.setattr(rt.weather.provider, "series", dead)
+    rt.weather._demo_fallback = DemoWeatherProvider(lambda: "monsoon")
+    rt.db.execute("DELETE FROM weather_cache")
+    return rt
+
+
+def test_the_dashboard_renders_on_generated_weather_instead_of_503(
+        client, farmer, plot, demo_fallback_on):
+    """13 · with the fallback armed the farmer screens answer 200. This is the
+    whole point of the flag, and the reason it is a flag."""
+    for path in (f"/api/fields/{plot['id']}/health",
+                 f"/api/risk/{plot['id']}",
+                 f"/api/management/{plot['id']}",
+                 f"/api/fields/{plot['id']}/today",
+                 "/api/plots/board"):
+        r = client.get(path, headers=farmer["headers"])
+        assert r.status_code == 200, f"{path} -> {r.status_code}: {r.text[:160]}"
+
+
+def test_generated_weather_runs_the_real_risk_pipeline(client, farmer, plot,
+                                                       demo_fallback_on):
+    """12 · nothing is short-circuited. The published infection models run on
+    the generated series exactly as they run on a real one, and produce levels
+    with the same provenance attached — which is precisely why the series has
+    to be labelled everywhere it goes."""
+    body = client.get(f"/api/risk/{plot['id']}", headers=farmer["headers"]).json()
+    board = body["board"]
+    assert board, "the risk board is computed, not stubbed"
+    diseases = [b for b in board if b["kind"] == "disease" and b.get("level")]
+    assert diseases, "the infection models actually ran"
+    assert any(b.get("provenance", {}).get("source") for b in diseases), \
+        "and each still names the published model behind it"
+    assert body["weather"]["status"]["code"] == "demo"
+    assert body["weather"]["generated"] is True
+
+
+def test_generated_weather_is_labelled_on_every_screen_that_shows_it(
+        client, farmer, plot, demo_fallback_on):
+    """11 · a judge must never read generated weather as an observation."""
+    risk = client.get(f"/api/risk/{plot['id']}", headers=farmer["headers"]).json()
+    w = risk["weather"]
+    assert w["generated"] is True and w["warning"]
+    assert w["status"]["code"] == "demo"
+
+    m = client.get(f"/api/management/{plot['id']}", headers=farmer["headers"]).json()
+    ctx = m["weather_context"]
+    assert ctx["generated"] is True, "the Decide banner reads this flag"
+    assert ctx["code"] == "demo"
+
+    h = client.get(f"/api/fields/{plot['id']}/health", headers=farmer["headers"]).json()
+    assert h["weather"]["generated"] is True
+
+
+def test_without_the_flag_the_dashboard_still_refuses_to_invent_weather(
+        client, farmer, plot, monkeypatch):
+    """The default deployment is unchanged: no flag, no generated weather, and
+    the honest failure that this project's rules require."""
+    from app.runtime import get_runtime
+    from app.weather import WeatherUnavailable
+    rt = get_runtime()
+    monkeypatch.setattr(
+        rt.weather.provider, "series",
+        lambda *a, **k: (_ for _ in ()).throw(
+            WeatherUnavailable("open-meteo", "simulated total outage")))
+    rt.weather._demo_fallback = None
+    rt.db.execute("DELETE FROM weather_cache")
+    r = client.get(f"/api/risk/{plot['id']}", headers=farmer["headers"])
+    assert r.status_code == 503
+    assert "estimated" in r.json()["message"]
+    # and Management still degrades to 200 rather than blanking
+    assert client.get(f"/api/management/{plot['id']}",
+                      headers=farmer["headers"]).status_code == 200

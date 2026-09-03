@@ -109,6 +109,19 @@ class Settings(BaseSettings):
     # stale, when the provider cannot be reached. Real weather twelve hours old
     # and marked as such is honest; generated weather never is.
     weather_stale_max_hours: int = 12
+    # LAST RESORT, AND OFF BY DEFAULT.
+    #
+    # When every live provider has failed AND there is no cached reading, this
+    # lets the deterministic generated series stand in so a presentation does
+    # not die on a venue firewall. It is a real trade and it is not free: the
+    # infection models then run on invented weather and produce real-looking
+    # risk levels, which is the one thing this system is otherwise built to
+    # refuse. It is therefore opt-in, announced at startup, and labelled in
+    # every payload it touches (source_kind "generated", status code "demo",
+    # and the warning banner the UI already renders).
+    #
+    # Turn it off again after the demo.
+    weather_demo_fallback: bool = False
 
     # ── vision ─────────────────────────────────────────────────────────────
     # onnx | api | none
