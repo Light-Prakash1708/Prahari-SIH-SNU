@@ -94,7 +94,12 @@ def demo_series(lat: float, lng: float, today: dt.date,
     """Late-August Nashik: the tail of the south-west monsoon, which is exactly
     when late blight and downy mildew fire. Generated, but generated to the
     right shape — the models below are unchanged when real data replaces it."""
-    rng = _Seeded(int(today.strftime("%Y%m%d")) + int(lat * 100))
+    # Seeded on the DATE and the PLACE, so one field on one day always
+    # produces the same forecast however many times a screen is refreshed, and
+    # two different fields produce different but equally stable ones. Longitude
+    # is in the seed as well as latitude: without it every field on the same
+    # parallel shared a forecast.
+    rng = _Seeded(int(today.strftime("%Y%m%d")) + int(lat * 100) + int(lng * 10_000))
     base = PROFILES.get(profile, PROFILES["monsoon"])
     out = []
     for offset in range(-back, forward + 1):

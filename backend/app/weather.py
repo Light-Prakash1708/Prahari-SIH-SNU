@@ -390,14 +390,58 @@ class WeatherApiProvider(WeatherProvider):
     # ── one hourly block, whatever endpoint produced it ────────────────────
     @staticmethod
     def _hours(day_block: dict[str, Any]) -> list[dict[str, float]]:
+        """The three the models read, plus the ones a farmer looks at.
+
+        wind, UV, cloud, feels-like, chance of rain and the condition text come
+        back in the same response at no extra cost — they were simply being
+        thrown away. They are carried as OBSERVED values on the day row and are
+        never fed to an infection model, which reads only temperature, humidity
+        and rainfall and is unchanged by their presence.
+        """
         out = []
         for h in day_block.get("hour") or []:
             t, rh = h.get("temp_c"), h.get("humidity")
             if t is None or rh is None:
                 continue
-            out.append({"t": float(t), "rh": float(rh),
-                        "rain": float(h.get("precip_mm") or 0.0)})
+            row = {"t": float(t), "rh": float(rh),
+                   "rain": float(h.get("precip_mm") or 0.0)}
+            for key, field in (("wind", "wind_kph"), ("uv", "uv"), ("cloud", "cloud"),
+                               ("feels", "feelslike_c"), ("pop", "chance_of_rain")):
+                v = h.get(field)
+                if v is not None:
+                    row[key] = float(v)
+            cond = (h.get("condition") or {}).get("text")
+            if cond:
+                row["cond"] = str(cond)
+            out.append(row)
         return out
+
+    @staticmethod
+    def _extras(hours: list[dict[str, Any]]) -> dict[str, Any]:
+        """Day-level display values, from the hours that actually carried them.
+
+        A key is absent rather than zero when the provider did not report it —
+        the view then omits that line instead of showing a confident nought.
+        """
+        def agg(key, fn):
+            vals = [h[key] for h in hours if key in h]
+            return round(fn(vals), 1) if vals else None
+
+        out = {
+            "wind_kmh_max": agg("wind", max),
+            "wind_kmh_mean": agg("wind", lambda v: sum(v) / len(v)),
+            "uv_max": agg("uv", max),
+            "cloud_pct_mean": agg("cloud", lambda v: sum(v) / len(v)),
+            "feels_like_max": agg("feels", max),
+            "rain_chance_pct": agg("pop", max),
+        }
+        conds = [h["cond"] for h in hours if h.get("cond")]
+        if conds:
+            # The condition that held for most of the daylight hours, not the
+            # one that happened to fall at midnight.
+            day = conds[6:19] or conds
+            out["condition"] = max(set(day), key=day.count)
+        return {k: v for k, v in out.items() if v is not None}
 
     def _get(self, path: str, params: dict[str, Any]):
         import httpx
@@ -491,8 +535,11 @@ class WeatherApiProvider(WeatherProvider):
 
         if not by_day:
             raise WeatherUnavailable(self.name, "provider returned no hourly series")
-        days = [_rollup(hours, day, future=day > today)
-                for day, hours in sorted(by_day.items())]
+        days = []
+        for day, hours in sorted(by_day.items()):
+            row = _rollup(hours, day, future=day > today)
+            row.update(self._extras(hours))
+            days.append(row)
         out = {
             "source": "weatherapi",
             "source_kind": "live",
@@ -770,15 +817,71 @@ class DemoWeatherProvider(WeatherProvider):
     def __init__(self, profile_fn=None):
         self._profile_fn = profile_fn or (lambda: "monsoon")
 
+    @staticmethod
+    def _display(day: dict[str, Any], lat: float, lng: float) -> dict[str, Any]:
+        """The values a farmer reads, generated from the day the models read.
+
+        Derived from that day's own temperature, humidity and rainfall rather
+        than rolled independently, so the card and the model can never disagree
+        with each other — a generated day that says "clear" while the infection
+        model fires on it would be worse than no card at all. Deterministic for
+        the same field and date, and every number is bounded to a sane range.
+        """
+        import hashlib
+        seed = int(hashlib.sha256(
+            f"{day['date']}:{round(lat, 4)}:{round(lng, 4)}".encode()).hexdigest()[:8], 16)
+        jitter = (seed % 1000) / 1000.0            # 0.0-1.0, stable for this day
+        rain, rh, tmax = day["rain_mm"], day["rh_mean"], day["tmax"]
+
+        if rain >= 10:
+            cond, cloud = "Heavy rain", 92
+        elif rain >= 2:
+            cond, cloud = "Rain showers", 80
+        elif rain > 0.2:
+            cond, cloud = "Light rain", 68
+        elif rh >= 80:
+            cond, cloud = "Humid and overcast", 62
+        elif rh >= 60:
+            cond, cloud = "Partly cloudy", 42
+        else:
+            cond, cloud = "Sunny", 14
+
+        # Rain that fell is certainty, not probability; a dry day still carries
+        # the humidity's worth of chance.
+        pop = 90 if rain >= 5 else 70 if rain >= 1 else 45 if rain > 0.2 \
+            else max(0, min(60, int(rh) - 30))
+        uv = max(1, min(11, round(11 - cloud / 12 + jitter)))
+        wind = round(6 + jitter * 14 + (6 if rain >= 2 else 0), 1)
+        # Paired with the temperature the card actually shows — the day mean —
+        # so "24°C, feels like 33°C" cannot happen. Heat index only diverges
+        # from the dry-bulb reading in warm, humid air.
+        tmean = day.get("tmean", tmax)
+        feels = round(tmean + (2.8 if (tmean >= 27 and rh >= 65) else 0.0)
+                      + jitter * 1.4, 1)
+        bearing = ["W", "WSW", "SW", "SSW", "S", "WNW", "NW", "N"][seed % 8]
+        return {
+            "condition": cond,
+            "cloud_pct_mean": float(cloud),
+            "rain_chance_pct": float(pop),
+            "uv_max": float(uv),
+            "wind_kmh_max": wind,
+            "wind_kmh_mean": round(wind * 0.7, 1),
+            "wind_dir": bearing,
+            "feels_like": feels,
+        }
+
     def series(self, lat, lng, today, back, forward):
         profile = self._profile_fn() or "monsoon"
         p = PROFILES.get(profile, PROFILES["monsoon"])
+        days = demo_series(lat, lng, today, back, forward, profile)
+        for d in days:
+            d.update(self._display(d, lat, lng))
         return {
             "source": "deterministic-demo",
             "source_kind": "generated",
             "profile": profile,
             "profile_label": p["label"],
-            "days": demo_series(lat, lng, today, back, forward, profile),
+            "days": days,
             "note": ("GENERATED WEATHER — demo mode. Identical on every machine. The infection "
                      "models are untouched; only the weather they are fed changes, which is "
                      "exactly what changes in a real field."),
@@ -958,6 +1061,27 @@ class WeatherService:
                     # from a remembered observation an hour later.
                     return self._decorate(demo, fresh=False)
                 raise
+            # A short series is the state production ended up in: the primary
+            # answered, its plan covered one day, and the historical provider
+            # did not fill the rest. The models cannot run on it, so for THEM
+            # it is the same as no weather at all — and the demo tier exists
+            # precisely for that moment. It was never reached, because this
+            # payload came back as a success and the fallback below only ever
+            # saw an exception.
+            if payload.get("insufficient_history") and self._demo_fallback is not None:
+                demo = self._demo_fallback.series(lat, lng, today, back, forward)
+                demo.update({
+                    "fetched_at": now_iso(), "cached": False, "demo_fallback": True,
+                    "fallback_after": payload.get("insufficient_reason") or "short window",
+                    "warning": ("This is not real weather. The live forecast did not reach "
+                                "far enough back to run the models, so a generated series "
+                                "is standing in."),
+                })
+                log.warning("live window too short for the models; serving GENERATED weather",
+                            extra={"covered": payload.get("history_days"),
+                                   "requested": payload.get("history_days_requested")})
+                return self._decorate(demo, fresh=False)
+
             # A short series is NOT stored. The cache key describes the window
             # that was asked for, so writing a one-day payload under it would
             # answer the next twenty requests with a series that cannot run a
@@ -1061,6 +1185,199 @@ def status_of(payload: dict[str, Any] | None) -> dict[str, Any]:
         "message": msg,
         "message_mr": msg_mr,
         "retryable": False,
+    }
+
+
+# ── the farmer-facing view ──────────────────────────────────────────────────
+_DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+_DAY_MR = ("सोम", "मंगळ", "बुध", "गुरु", "शुक्र", "शनि", "रवि")
+
+
+def _condition_from(day: dict[str, Any]) -> str:
+    """A description of a day from what was actually measured on it.
+
+    Used only when the provider did not send a condition of its own —
+    Open-Meteo reports numbers, not words. It is a reading of the rainfall and
+    humidity this day recorded, which is why it can never contradict them.
+    """
+    rain, rh = day.get("rain_mm") or 0.0, day.get("rh_mean") or 0.0
+    if rain >= 10:
+        return "Heavy rain"
+    if rain >= 2:
+        return "Rain showers"
+    if rain > 0.2:
+        return "Light rain"
+    if rh >= 80:
+        return "Humid and overcast"
+    if rh >= 60:
+        return "Partly cloudy"
+    return "Clear"
+
+
+_ICON = {
+    "Heavy rain": "🌧️", "Rain showers": "🌦️", "Light rain": "🌦️",
+    "Humid and overcast": "☁️", "Partly cloudy": "⛅", "Clear": "☀️", "Sunny": "☀️",
+}
+
+
+def _icon_for(condition: str) -> str:
+    c = (condition or "").lower()
+    if "thunder" in c or "storm" in c:
+        return "⛈️"
+    if "heavy rain" in c or "torrential" in c:
+        return "🌧️"
+    if "rain" in c or "drizzle" in c or "shower" in c:
+        return "🌦️"
+    if "overcast" in c or "cloud" in c:
+        return "☁️" if "overcast" in c else "⛅"
+    if "mist" in c or "fog" in c or "haze" in c:
+        return "🌫️"
+    return _ICON.get(condition, "☀️")
+
+
+def _field_outlook(days: list[dict[str, Any]], crop: str | None) -> list[dict[str, str]]:
+    """What the numbers mean for a field, derived from those numbers.
+
+    Every line below is a reading of a value on this field's own forecast — the
+    rain total ahead, the humidity, the afternoon temperature. None of it is a
+    fixed message: a dry week and a wet one produce different cards, which is
+    the only thing that makes them worth showing.
+    """
+    ahead = [d for d in days if d.get("future")][:3]
+    if not ahead:
+        ahead = days[-3:]
+    if not ahead:
+        return []
+    rain3 = round(sum(d.get("rain_mm") or 0.0 for d in ahead), 1)
+    rh = max((d.get("rh_mean") or 0.0) for d in ahead)
+    hot = max((d.get("tmax") or 0.0) for d in ahead)
+    wet_hours = max((d.get("rh90_hours") or 0.0) for d in ahead)
+    out: list[dict[str, str]] = []
+
+    if rain3 >= 25:
+        out.append({"icon": "🌧️", "title": "Heavy rain ahead",
+                    "body": f"About {rain3} mm expected over the next three days. "
+                            "Hold off on spraying — it will wash off."})
+    elif rain3 >= 5:
+        out.append({"icon": "🌧️", "title": "Rain opportunity",
+                    "body": f"About {rain3} mm expected over the next three days. "
+                            "Useful for soil moisture; time any spray around it."})
+    elif rain3 > 0:
+        out.append({"icon": "🌦️", "title": "Light rain only",
+                    "body": f"Around {rain3} mm over three days — not enough to "
+                            "count on for irrigation."})
+    else:
+        out.append({"icon": "☀️", "title": "No rain expected",
+                    "body": "Nothing forecast over the next three days. Plan "
+                            "irrigation and spraying accordingly."})
+
+    if rh >= 85:
+        out.append({"icon": "💧", "title": "High humidity",
+                    "body": f"Peaking near {round(rh)}%. Foliar disease moves in "
+                            "air this damp — walk the field and look closely."})
+    elif rh >= 65:
+        out.append({"icon": "💧", "title": "Moderate humidity",
+                    "body": f"Around {round(rh)}%. Normal for the season."})
+    else:
+        out.append({"icon": "💧", "title": "Dry air",
+                    "body": f"Around {round(rh)}%. Low disease pressure from "
+                            "humidity, higher water demand."})
+
+    if hot >= 36:
+        out.append({"icon": "🔥", "title": "Heat stress likely",
+                    "body": f"Afternoons near {round(hot)}°C. Irrigate early, "
+                            "and avoid spraying in the heat of the day."})
+    elif hot >= 30:
+        out.append({"icon": "☀️", "title": "Warm afternoons",
+                    "body": f"Highs around {round(hot)}°C. Spray early morning "
+                            "or late evening."})
+    else:
+        out.append({"icon": "🌤️", "title": "Mild conditions",
+                    "body": f"Highs around {round(hot)}°C — comfortable for "
+                            "field work through the day."})
+
+    # The one line that is about this crop rather than the weather, and only
+    # when the weather actually warrants saying something.
+    if wet_hours >= 8:
+        crop_name = (crop or "the crop").replace("_", " ")
+        out.append({"icon": "⚠️", "title": "Crop attention",
+                    "body": f"{round(wet_hours)} hours near saturation. Check "
+                            f"{crop_name} foliage — lower leaves first."})
+    return out
+
+
+def forecast_view(payload: dict[str, Any] | None, plot: dict[str, Any] | None = None,
+                  days_ahead: int = 7) -> dict[str, Any]:
+    """Current conditions and a short forecast, in the shape a card renders.
+
+    Built from the same day rows the models read, so the card and the risk
+    board can never tell different stories about the same day. A field the
+    provider did not report is ABSENT rather than zero — Open-Meteo sends no
+    wind or UV, and a confident "0 km/h" would be a worse answer than no line.
+    """
+    st = status_of(payload)
+    if payload is None:
+        return {"available": False, "status": st, "current": None, "forecast": [],
+                "field_outlook": [], "source": None, "generated": False}
+
+    days = payload.get("days") or []
+    # The MOST RECENT observed day, not the oldest one in the window. Taking
+    # the first non-future row made "current conditions" report the start of
+    # the history window — yesterday, or three weeks ago — and dropped today
+    # out of the forecast strip entirely.
+    today = next((d for d in reversed(days) if not d.get("future")), None)
+    if today is None and days:
+        today = days[0]
+    upcoming = [d for d in days if d.get("future")]
+    window = ([today] if today else []) + upcoming
+    window = window[:max(1, days_ahead)]
+
+    def card(d: dict[str, Any]) -> dict[str, Any]:
+        cond = d.get("condition") or _condition_from(d)
+        try:
+            date = dt.date.fromisoformat(d["date"])
+            dow, dow_mr = _DAY_NAMES[date.weekday()], _DAY_MR[date.weekday()]
+        except (ValueError, KeyError):
+            dow = dow_mr = ""
+        row = {
+            "date": d.get("date"), "day": dow, "day_mr": dow_mr,
+            "label": d.get("label"),
+            "condition": cond, "icon": _icon_for(cond),
+            "temp_min_c": d.get("tmin"), "temp_max_c": d.get("tmax"),
+            "temp_mean_c": d.get("tmean"),
+            "humidity_pct": d.get("rh_mean"),
+            "rain_mm": d.get("rain_mm"),
+            "future": bool(d.get("future")),
+        }
+        # Present only when the source actually reported it.
+        if d.get("feels_like") is not None:
+            row["feels_like_c"] = d["feels_like"]
+        elif d.get("feels_like_max") is not None:
+            row["feels_like_c"] = d["feels_like_max"]
+        for key, field in (("rain_chance_pct", "rain_chance_pct"),
+                           ("wind_kmh", "wind_kmh_max"), ("wind_dir", "wind_dir"),
+                           ("uv_index", "uv_max"), ("cloud_pct", "cloud_pct_mean")):
+            if d.get(field) is not None:
+                row[key] = d[field]
+        return row
+
+    current = None
+    if today:
+        c = card(today)
+        c["temp_c"] = today.get("tmean")
+        current = c
+    return {
+        "available": True,
+        "status": st,
+        "source": payload.get("source"),
+        "sources": payload.get("sources"),
+        "generated": payload.get("source_kind") == "generated",
+        "warning": payload.get("warning"),
+        "fetched_at": payload.get("fetched_at"),
+        "freshness": payload.get("freshness"),
+        "current": current,
+        "forecast": [card(d) for d in window],
+        "field_outlook": _field_outlook(days, (plot or {}).get("crop")),
     }
 
 

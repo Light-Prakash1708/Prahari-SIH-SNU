@@ -1,15 +1,19 @@
 """PRAHARI · /api/risk and /api/fields — PREDICT, and What Changed / What Is Coming."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 
 from .. import reference
+from ..clock import today as _today
 from ..db import Database
 from ..deps import current_user, db_dep, visible_plot
 from ..runtime import get_runtime
-from ..weather import WeatherUnavailable, status_of, to_http_error
+from ..weather import WeatherUnavailable, forecast_view, status_of, to_http_error
+
+log = logging.getLogger("prahari.risk")
 
 router = APIRouter(prefix="/api", tags=["risk"])
 
@@ -100,6 +104,43 @@ def today(plot_id: str, user: dict[str, Any] = Depends(current_user),
     plot = visible_plot(db, user, plot_id)
     from ..agenda import agenda
     return agenda(db, get_runtime(), plot)
+
+
+@router.get("/fields/{plot_id}/weather", summary="Current conditions and the short forecast",
+            description=(
+                "The WEATHER card, which is a different question from the RISK board and is "
+                "answered separately.\n\n"
+                "The infection models accumulate over three weeks, so the risk board needs "
+                "three weeks of history and says so when it cannot get them. A farmer asking "
+                "what the weather is doing needs today and the days ahead — about a week — "
+                "and that window is one almost any plan can serve. Tying the two together is "
+                "what made a history limit look like a broken forecast.\n\n"
+                "Answers 200 while ANY tier can produce a series: live, then cache, then the "
+                "generated fallback when a deployment has armed it. `status.code` says which "
+                "— ok, demo, insufficient_history or provider_unavailable — and `generated` "
+                "is true whenever the numbers were not observed."))
+def weather(plot_id: str, days: int = Query(7, ge=1, le=14),
+            user: dict[str, Any] = Depends(current_user),
+            db: Database = Depends(db_dep)):
+    plot = visible_plot(db, user, plot_id)
+    rt = get_runtime()
+    try:
+        # A SHORT window on purpose. Asking for the models' twenty-one days
+        # here is what made the card fail on a plan that holds one: the card
+        # never needed them.
+        wx = rt.weather.series(plot.get("lat"), plot.get("lng"), _today(),
+                               back=1, forward=max(1, days - 1))
+    except WeatherUnavailable as exc:
+        # Even now this is not an error the screen should wear. There is a real
+        # reading behind an insufficient-history refusal; where there is not,
+        # the card says so quietly and the rest of the dashboard is untouched.
+        if exc.code == "insufficient_history" and exc.payload:
+            return forecast_view(exc.payload, plot, days_ahead=days)
+        log.warning("weather card unavailable",
+                    extra={"plot_id": plot_id, "provider": exc.provider,
+                           "reason": exc.reason, "code": exc.code})
+        return forecast_view(None, plot, days_ahead=days)
+    return forecast_view(wx, plot, days_ahead=days)
 
 
 @router.get("/fields/{plot_id}/nearby", summary="Nearby pressure, aggregated",

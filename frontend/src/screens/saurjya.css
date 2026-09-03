@@ -889,3 +889,89 @@
 .wx-late__ic { flex: none; font-size: 14px; }
 .wx-late__txt { flex: 1; min-width: 0; }
 .wx-late__go { flex: none; }
+
+/* ── weather card ────────────────────────────────────────────────────────
+   Same Card, same tokens, same type scale as everything else on Home. The
+   only new idea is the horizontal day strip, which scrolls rather than wraps
+   because seven days wrapped onto two rows stops reading as a sequence. */
+.wx-badge {
+  font-size: 9.5px; font-weight: 800; letter-spacing: .01em;
+  padding: 3px 8px; border-radius: var(--r-pill); white-space: nowrap;
+  max-width: 62%; overflow: hidden; text-overflow: ellipsis;
+}
+.wx-badge.live   { background: var(--ok-bg);   color: var(--ok);   border: 1px solid var(--ok-line); }
+.wx-badge.cached { background: var(--info-bg); color: var(--info); border: 1px solid var(--info-line); }
+.wx-badge.demo   { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
+
+.wx-now { display: flex; align-items: center; gap: 12px; }
+.wx-now__ic { font-size: 38px; line-height: 1; flex: none; }
+.wx-now__t { display: grid; gap: 1px; flex: 1; min-width: 0; }
+.wx-now__t > b { font-family: var(--display); font-weight: 800; font-size: 30px; line-height: 1; }
+.wx-now__cond { font-size: 13px; color: var(--ink-2); font-weight: 600; }
+.wx-now__hl { display: grid; justify-items: end; line-height: 1.2; flex: none; }
+.wx-now__hl b { font-family: var(--display); font-weight: 800; font-size: 17px; color: var(--ink); }
+.wx-now__hl span { font-size: 14px; color: var(--muted); font-weight: 700; }
+
+.wx-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.wx-chip {
+  display: grid; gap: 1px; padding: 6px 10px; border-radius: var(--r-sm);
+  background: var(--sunk); border: 1px solid var(--rule-soft);
+}
+.wx-chip em {
+  font-style: normal; font-size: 9px; font-weight: 700; letter-spacing: .02em;
+  text-transform: uppercase; color: var(--muted);
+}
+.wx-chip b { font-family: var(--display); font-weight: 800; font-size: 13px; color: var(--ink); }
+
+.wx-days {
+  display: flex; gap: 6px; margin: 12px -4px 0; padding: 0 4px 4px;
+  overflow-x: auto; scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+.wx-days::-webkit-scrollbar { height: 0; }
+.wx-day {
+  flex: none; width: 60px; scroll-snap-align: start;
+  display: grid; justify-items: center; gap: 2px;
+  padding: 9px 4px; border-radius: var(--r-sm);
+  background: var(--sunk); border: 1px solid var(--rule-soft);
+}
+.wx-day[aria-current] { background: var(--g-050); border-color: var(--g-100); }
+.wx-day__n { font-size: 10px; font-weight: 800; color: var(--muted); }
+.wx-day__ic { font-size: 17px; line-height: 1.1; }
+.wx-day__hi { font-family: var(--display); font-weight: 800; font-size: 14px; color: var(--ink); }
+.wx-day__lo { font-size: 12px; font-weight: 700; color: var(--muted); }
+.wx-day__r { font-size: 9.5px; font-weight: 700; color: var(--info); }
+
+.wx-outlook { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--rule-soft); }
+.wx-outlook__h {
+  font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+  font-size: 9.5px; margin-bottom: 8px;
+}
+.wx-out { display: flex; gap: 9px; padding: 6px 0; align-items: flex-start; }
+.wx-out__ic { font-size: 15px; flex: none; line-height: 1.35; }
+.wx-out__tx { font-size: 12px; line-height: 1.45; color: var(--ink-2); }
+.wx-out__tx b { display: block; font-size: 12.5px; color: var(--ink); }
+.wx-foot { margin-top: 10px; line-height: 1.5; }
+
+.wx-none {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  font-size: 12.5px; color: var(--muted);
+}
+.wx-skel { display: grid; gap: 8px; }
+.wx-skel i {
+  display: block; height: 14px; border-radius: 7px;
+  background: linear-gradient(90deg, var(--sunk), var(--rule-soft), var(--sunk));
+}
+.wx-skel i:first-child { height: 34px; }
+.wx-skel i:last-child { width: 60%; }
+
+/* The passport counters are buttons now. They must not LOOK like buttons —
+   the grid is a record, not a toolbar — so only the press state changes. */
+.passport .p { border: 1px solid var(--rule-soft); font: inherit; color: inherit;
+               cursor: pointer; text-align: center; }
+.passport .p:active { transform: scale(.97); }
+.pp-empty {
+  margin-top: 10px; padding: 10px 12px; border-radius: var(--r-sm);
+  background: var(--sunk); border: 1px dashed var(--rule);
+  font-size: 12px; line-height: 1.5; color: var(--muted);
+}

@@ -20,10 +20,11 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api'
 import {
-  Band, Card, ErrorNote, Gauge, Loading, Prov, WeatherStrip, Why,
+  Band, Card, ErrorNote, Gauge, Loading, Prov, Why,
   bi, fmtDate, levelLabel,
 } from '../ui'
 import { QuickActions } from './Sections'
+import WeatherCard from './WeatherCard'
 import Icon from '../shell/Icon'
 
 const GREET = (h, lang) => {
@@ -112,6 +113,14 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
 
         {!busy && (
           <>
+            {/* ── WEATHER ─────────────────────────────────────────────────
+                Deliberately outside the `data` guard below. `data` is the
+                risk/health response, which legitimately fails when the
+                infection models cannot get three weeks of history — and the
+                forecast has nothing to do with that. Its own request, its own
+                failure, its own label. */}
+            <WeatherCard lang={lang} plot={plot} />
+
             {/* ── FARM HEALTH ─────────────────────────────────────────── */}
             {data ? (
 <Card>
@@ -169,7 +178,9 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
                     ))}
                 <Prov label="Method" value={data.health.method} />
               </Why>
-              {data.weather && <WeatherStrip weather={data.weather} lang={lang} />}
+              {/* The strip that used to live here is now the weather card at
+                  the top of the screen, which renders whether or not this
+                  health response arrived. */}
             </Card>
 ) : null}
 
@@ -382,14 +393,19 @@ function Passport({ pass, data, todo, plot, stage, lang, go }) {
   const lastOn = lastSeen?.on || lastSeen?.at || null
   const next = todo?.items?.[0] || null
 
+  /* Each counter now opens the module that OWNS that kind of record, so the
+     number and the thing it counts are one tap apart. Where a record type has
+     no screen of its own, the destination is the field history, which lists
+     it — that is a real answer, not a placeholder route. */
   const cells = [
-    ['📷', n('scan'), lang === 'mr' ? 'तपासण्या' : 'Scans'],
-    ['🪤', n('count'), lang === 'mr' ? 'मोजण्या' : 'Counts'],
-    ['⚖️', (pass?.threshold_checks || []).length, lang === 'mr' ? 'पातळी' : 'Checks'],
-    ['🧪', (pass?.applications || []).length, lang === 'mr' ? 'फवारण्या' : 'Sprays'],
-    ['🔁', n('followup'), lang === 'mr' ? 'पुनर्तपासणी' : 'Follow-ups'],
-    ['✅', n('expert'), lang === 'mr' ? 'तज्ज्ञ' : 'Expert'],
+    ['📷', n('scan'), lang === 'mr' ? 'तपासण्या' : 'Scans', 'history'],
+    ['🪤', n('count'), lang === 'mr' ? 'मोजण्या' : 'Counts', 'traps'],
+    ['⚖️', (pass?.threshold_checks || []).length, lang === 'mr' ? 'पातळी' : 'Checks', 'decide'],
+    ['🧪', (pass?.applications || []).length, lang === 'mr' ? 'फवारण्या' : 'Sprays', 'expenses'],
+    ['🔁', n('followup'), lang === 'mr' ? 'पुनर्तपासणी' : 'Follow-ups', 'history'],
+    ['✅', n('expert'), lang === 'mr' ? 'तज्ज्ञ' : 'Expert', 'history'],
   ]
+  const recorded = cells.reduce((a, c) => a + (c[1] || 0), 0)
 
   return (
     <div className="pp">
@@ -481,16 +497,24 @@ function Passport({ pass, data, todo, plot, stage, lang, go }) {
         </div>
       ) : null}
 
-      {/* THE RECORD — unchanged, and the reason this is called a passport */}
+      {/* THE RECORD — the reason this is called a passport */}
       <div className="passport">
-        {cells.map(([ic, count, label], i) => (
-          <div className={`p ${count > 0 ? 'has' : ''}`} key={i}>
+        {cells.map(([ic, count, label, to], i) => (
+          <button type="button" className={`p ${count > 0 ? 'has' : ''}`} key={i}
+                  onClick={() => go(to)} aria-label={`${label}: ${count}`}>
             <div className="ic">{ic}</div>
             <div className="n">{count}</div>
             <div className="l">{label}</div>
-          </div>
+          </button>
         ))}
       </div>
+      {recorded === 0 && (
+        <p className="pp-empty">
+          {bi(lang,
+            'Nothing recorded for this crop yet. Scan a leaf or count a trap and it starts filling in — at harvest this is the record of what was used and when.',
+            'या पिकासाठी अजून नोंद नाही. पान स्कॅन करा किंवा सापळा मोजा — काढणीच्या वेळी हीच नोंद उपयोगी पडते.')}
+        </p>
+      )}
     </div>
   )
 }

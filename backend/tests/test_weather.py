@@ -1076,3 +1076,181 @@ def test_generated_weather_carries_the_fields_the_models_read(env, monkeypatch):
         assert {"date", "tmin", "tmax", "rh_mean", "rh90_hours", "rain_mm",
                 "hours_21_30", "future"} <= set(day)
     assert any(d["future"] for d in out["days"]), "a forecast portion exists"
+
+
+# ── the weather card is a different question from the risk board ────────────
+
+def _wx_card(client, headers, plot_id, expect=200):
+    r = client.get(f"/api/fields/{plot_id}/weather", headers=headers)
+    assert r.status_code == expect, r.text
+    return r.json()
+
+
+def test_the_weather_card_renders_when_the_risk_board_cannot(client, farmer, plot,
+                                                             monkeypatch):
+    """6 + 7 · the whole point. The models need three weeks and say so; the
+    forecast needs a week and is fine. Tying them together is what made a
+    history limit look like a broken forecast."""
+    from app import weather as wx_mod
+    real = wx_mod.WeatherService.series
+
+    def short_for_models(self, lat, lng, today, back=21, forward=6, **k):
+        out = real(self, lat, lng, today, back=back, forward=forward, **k)
+        if back > 7:                       # only the model window is starved
+            out = dict(out)
+            out["insufficient_history"] = True
+            out["insufficient_reason"] = "this plan covers 1 day(s) of history"
+        return out
+
+    monkeypatch.setattr(wx_mod.WeatherService, "series", short_for_models)
+
+    card = _wx_card(client, farmer["headers"], plot["id"])
+    assert card["available"] is True
+    assert card["current"] and card["forecast"], "the forecast still renders"
+    # and the risk board is still honest about what it cannot do
+    r = client.get(f"/api/risk/{plot['id']}", headers=farmer["headers"])
+    assert r.status_code in (200, 503)
+    if r.status_code == 503:
+        assert r.json()["error"] == "weather_insufficient_history"
+
+
+def test_the_weather_card_never_answers_503(client, farmer, plot, monkeypatch):
+    """8 + 11 · a provider outage is not an application error. Even with every
+    tier gone the card answers 200 and says it has nothing."""
+    from app import weather as wx_mod
+    from app.runtime import get_runtime
+    get_runtime().weather._demo_fallback = None
+    monkeypatch.setattr(
+        wx_mod.WeatherService, "series",
+        lambda *a, **k: (_ for _ in ()).throw(
+            wx_mod.WeatherUnavailable("open-meteo", "simulated outage")))
+    card = _wx_card(client, farmer["headers"], plot["id"])
+    assert card["available"] is False
+    assert card["status"]["code"] == "provider_unavailable"
+    assert card["forecast"] == [] and card["current"] is None
+
+
+def test_the_card_falls_back_to_generated_weather_and_labels_it(client, farmer, plot,
+                                                                monkeypatch):
+    """3 + 11 · never "weather unavailable" while a generated series can be
+    produced — and never without saying it is generated."""
+    from app import weather as wx_mod
+    from app.runtime import get_runtime
+    rt = get_runtime()
+    rt.weather._demo_fallback = wx_mod.DemoWeatherProvider(lambda: "monsoon")
+    rt.db.execute("DELETE FROM weather_cache")
+    monkeypatch.setattr(
+        rt.weather.provider, "series",
+        lambda *a, **k: (_ for _ in ()).throw(
+            wx_mod.WeatherUnavailable("open-meteo", "simulated outage")))
+
+    card = _wx_card(client, farmer["headers"], plot["id"])
+    assert card["available"] is True
+    assert card["generated"] is True and card["status"]["code"] == "demo"
+    assert card["warning"], "a generated card must carry its warning"
+    assert len(card["forecast"]) == 7
+    assert card["current"]["condition"] and card["current"]["icon"]
+
+
+def test_the_generated_card_is_complete_and_internally_consistent(client, farmer, plot,
+                                                                  monkeypatch):
+    """3 · every field the card promises, and every value inside a sane range.
+    A forecast that says 31°/34° or 140% rain is worse than none."""
+    from app import weather as wx_mod
+    from app.runtime import get_runtime
+    rt = get_runtime()
+    rt.weather._demo_fallback = wx_mod.DemoWeatherProvider(lambda: "monsoon")
+    rt.db.execute("DELETE FROM weather_cache")
+    monkeypatch.setattr(
+        rt.weather.provider, "series",
+        lambda *a, **k: (_ for _ in ()).throw(
+            wx_mod.WeatherUnavailable("open-meteo", "simulated outage")))
+
+    card = _wx_card(client, farmer["headers"], plot["id"])
+    need = {"date", "day", "condition", "icon", "temp_min_c", "temp_max_c",
+            "humidity_pct", "rain_mm", "rain_chance_pct", "wind_kmh",
+            "wind_dir", "uv_index", "cloud_pct", "feels_like_c"}
+    for d in card["forecast"]:
+        assert need <= set(d), f"missing {need - set(d)} on {d['date']}"
+        assert d["temp_min_c"] <= d["temp_max_c"], d["date"]
+        assert 0 <= d["rain_chance_pct"] <= 100
+        assert 0 <= d["humidity_pct"] <= 100
+        assert 0 <= d["cloud_pct"] <= 100
+        assert 0 <= d["uv_index"] <= 12
+        assert d["wind_kmh"] >= 0
+        assert d["rain_mm"] >= 0
+    dates = [d["date"] for d in card["forecast"]]
+    assert dates == sorted(dates) and len(dates) == len(set(dates))
+
+
+def test_the_generated_card_is_identical_on_every_refresh(client, farmer, plot,
+                                                          monkeypatch):
+    """4 + 5 · refreshing must not reroll the weather."""
+    from app import weather as wx_mod
+    from app.runtime import get_runtime
+    rt = get_runtime()
+    rt.weather._demo_fallback = wx_mod.DemoWeatherProvider(lambda: "monsoon")
+    monkeypatch.setattr(
+        rt.weather.provider, "series",
+        lambda *a, **k: (_ for _ in ()).throw(
+            wx_mod.WeatherUnavailable("open-meteo", "simulated outage")))
+    shots = []
+    for _ in range(3):
+        rt.db.execute("DELETE FROM weather_cache")
+        shots.append(_wx_card(client, farmer["headers"], plot["id"])["forecast"])
+    assert shots[0] == shots[1] == shots[2]
+
+
+def test_two_fields_get_different_but_stable_generated_weather(env):
+    """4 · same field, same forecast; different field, different forecast."""
+    from app.weather import DemoWeatherProvider
+    p = DemoWeatherProvider(lambda: "monsoon")
+    today = dt.date(2026, 8, 27)
+    a1 = p.series(20.0810, 74.1100, today, 1, 6)["days"]
+    a2 = p.series(20.0810, 74.1100, today, 1, 6)["days"]
+    b = p.series(20.1712, 73.9855, today, 1, 6)["days"]
+    assert [d["tmax"] for d in a1] == [d["tmax"] for d in a2], "same field, same numbers"
+    assert [d["tmax"] for d in a1] != [d["tmax"] for d in b], "different field, different"
+
+
+def test_the_field_outlook_is_read_from_the_numbers_not_hardcoded(env):
+    """5 · a dry week and a wet one must not produce the same advice."""
+    from app.weather import DemoWeatherProvider, forecast_view
+    today = dt.date(2026, 8, 27)
+    wet = forecast_view(DemoWeatherProvider(lambda: "monsoon").series(
+        20.08, 74.11, today, 1, 6), {"crop": "tomato"})
+    dry = forecast_view(DemoWeatherProvider(lambda: "dry").series(
+        20.08, 74.11, today, 1, 6), {"crop": "tomato"})
+    wet_titles = [o["title"] for o in wet["field_outlook"]]
+    dry_titles = [o["title"] for o in dry["field_outlook"]]
+    assert wet_titles != dry_titles
+    assert any("rain" in t.lower() for t in wet_titles)
+    assert any("no rain" in t.lower() or "dry" in t.lower() for t in dry_titles)
+    assert all(o["body"] for o in wet["field_outlook"] + dry["field_outlook"])
+
+
+def test_live_weather_keeps_the_display_fields_weatherapi_already_sends(env, monkeypatch):
+    """1 · wind, UV, cloud and the condition come back in the same response and
+    were being discarded. They are observed, and they are never fed to a model."""
+    import httpx
+    from app.config import Settings
+    from app.weather import WeatherApiProvider, forecast_view
+    today = dt.date(2026, 8, 25)
+    s = Settings(**{**env.model_dump(), "weather_api_key": "k",
+                    "weatherapi_history_days": 1, "weatherapi_forecast_days": 3})
+
+    def rich(url, params=None, **k):
+        hours = [{"temp_c": 27.0, "humidity": 70, "precip_mm": 0.1, "wind_kph": 12.0,
+                  "uv": 7.0, "cloud": 40, "feelslike_c": 29.0, "chance_of_rain": 30,
+                  "condition": {"text": "Partly cloudy"}} for _ in range(24)]
+        day = {"date": (params or {}).get("dt") or today.isoformat(), "hour": hours}
+        return _Resp(payload={"forecast": {"forecastday": [day]}})
+
+    monkeypatch.setattr(httpx, "get", rich)
+    out = WeatherApiProvider(s).series(20.08, 74.11, today, 1, 2)
+    d = out["days"][-1]
+    assert d["wind_kmh_max"] == 12.0 and d["uv_max"] == 7.0
+    assert d["condition"] == "Partly cloudy" and d["rain_chance_pct"] == 30.0
+    view = forecast_view(out, {"crop": "tomato"})
+    assert view["current"]["uv_index"] == 7.0
+    assert view["generated"] is False

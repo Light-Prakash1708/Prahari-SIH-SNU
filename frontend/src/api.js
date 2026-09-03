@@ -206,6 +206,10 @@ export const api = {
   risk: (id) => get(`/api/risk/${id}`),
   forecast: (id) => get(`/api/risk/${id}/forecast`),
   fieldHealth: (id) => get(`/api/fields/${id}/health`),
+  /* The weather card is its own request, because it is its own question. The
+     risk board needs three weeks of history; a forecast needs about a week,
+     and that difference is why one can fail while the other is fine. */
+  fieldWeather: (id) => get(`/api/fields/${id}/weather`, { cache: true }),
   today: (id) => get(`/api/fields/${id}/today`, { cache: true }),
   nearby: (id, problem) => get(`/api/fields/${id}/nearby${problem ? `?problem=${problem}` : ''}`),
 
