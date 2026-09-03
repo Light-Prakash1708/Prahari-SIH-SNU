@@ -57,10 +57,46 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 12_000_000
 
     # ── weather ────────────────────────────────────────────────────────────
-    # openmeteo | demo | none
-    weather_provider: str = "openmeteo"
-    weather_api_url: str = "https://api.open-meteo.com/v1/forecast"
+    # auto | weatherapi | openmeteo | demo | none
+    #
+    # "auto" is the production setting: WeatherAPI.com first when a key is
+    # present and it can cover the window being asked for, then Open-Meteo,
+    # then the cache. With no key it is exactly Open-Meteo, which is what this
+    # deployment did before, so "auto" is safe to set unconditionally.
+    weather_provider: str = "auto"
+
+    # ── WeatherAPI.com (primary) ───────────────────────────────────────────
+    # Read from the environment, backend only, never returned by any endpoint
+    # and never sent to the browser.
     weather_api_key: str | None = None
+    weatherapi_url: str = "https://api.weatherapi.com/v1"
+    # What the PLAN allows, not what we wish it allowed. The free tier gives a
+    # 3-day forecast and one day of history; the infection models need three
+    # weeks of past hourly readings, so on the free tier WeatherAPI cannot
+    # serve the risk window at all and the chain will skip straight past it to
+    # Open-Meteo. Raise these to match a paid plan and it becomes primary for
+    # the risk window too, with no code change. Getting them WRONG is the one
+    # thing that would hurt: a provider that claims a window it cannot fill
+    # returns a short series, and a short series silently changes what TOMCAST
+    # and the degree-day models compute.
+    weatherapi_history_days: int = 1
+    weatherapi_forecast_days: int = 3
+    # WeatherAPI returns ONE past day per request, so a 21-day history window is
+    # 21 requests where Open-Meteo serves the same window in one. That is the
+    # real reason the risk board keeps going to Open-Meteo even on a paid plan,
+    # and it is a deliberate default rather than an oversight: multiplying
+    # request volume by twenty is the opposite of fixing a rate limit. Raise
+    # this only if you have measured the quota and want the long window served
+    # by WeatherAPI anyway.
+    weatherapi_max_history_calls: int = 10
+
+    # ── Open-Meteo (fallback) ──────────────────────────────────────────────
+    weather_api_url: str = "https://api.open-meteo.com/v1/forecast"
+    # Open-Meteo needs no key. This is only for a commercial subscription, and
+    # it is a SEPARATE variable because WEATHER_API_KEY now belongs to
+    # WeatherAPI.com — sending one provider's credential to the other is how a
+    # key ends up in someone else's logs.
+    open_meteo_api_key: str | None = None
     weather_cache_minutes: int = 90
     weather_timeout_seconds: float = 8.0
     # After a 429 or a 5xx the provider is left alone for this long. Without it

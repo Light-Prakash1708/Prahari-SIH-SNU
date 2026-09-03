@@ -71,7 +71,7 @@ export function Forecast({ lang, plot, go }) {
                 {(lang === 'mr' ? data.headline.reasons_mr : data.headline.reasons).map((r, i) =>
                   <li key={i} style={{ marginTop: 5 }}>{r}</li>)}
               </ul>
-              <WeatherStrip weather={data.weather} />
+              <WeatherStrip weather={data.weather} lang={lang} />
             </Card>
 
             <Card>

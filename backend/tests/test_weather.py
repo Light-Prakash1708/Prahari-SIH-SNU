@@ -340,3 +340,208 @@ def test_a_rate_limit_is_never_retried(env, monkeypatch):
     with pytest.raises(wx.WeatherUnavailable):
         wx.OpenMeteoProvider(env).series(20.08, 74.11, dt.date(2026, 8, 25), 21, 6)
     assert len(calls) == 1
+
+
+# ── WeatherAPI.com as the primary, Open-Meteo behind it ─────────────────────
+
+def _wapi_day(date_str, temp=26.0, rh=80.0, rain=0.0):
+    return {"date": date_str,
+            "hour": [{"temp_c": temp, "humidity": rh, "precip_mm": rain} for _ in range(24)]}
+
+
+def _wapi(env, monkeypatch, **over):
+    from app.config import Settings
+    return Settings(**{**env.model_dump(), "weather_api_key": "test-key", **over})
+
+
+def test_weatherapi_declines_a_window_its_plan_cannot_cover(env):
+    """The whole reason this provider is not simply first in every case.
+
+    The free tier gives one day of history; the risk board asks for
+    twenty-one. Returning ten days would not be a smaller answer — TOMCAST
+    accumulates since the last spray and the degree-day models accumulate from
+    sowing, so a short series silently changes what they compute. It declines,
+    and the chain goes to Open-Meteo.
+    """
+    from app.config import Settings
+    from app.weather import WeatherApiProvider
+    s = Settings(**{**env.model_dump(), "weather_api_key": "k",
+                    "weatherapi_history_days": 1, "weatherapi_forecast_days": 3})
+    ok, why = WeatherApiProvider(s).can_serve(21, 6)
+    assert ok is False and "history" in why
+    # A paid plan raises the plan limit — and the window is STILL declined,
+    # because WeatherAPI returns one past day per request and twenty-one
+    # requests to replace Open-Meteo's one is the opposite of fixing a rate
+    # limit. Both gates have to be opened deliberately.
+    s2 = Settings(**{**env.model_dump(), "weather_api_key": "k",
+                     "weatherapi_history_days": 30, "weatherapi_forecast_days": 14})
+    ok2, why2 = WeatherApiProvider(s2).can_serve(21, 6)
+    assert ok2 is False and "separate requests" in why2
+    s3 = Settings(**{**env.model_dump(), "weather_api_key": "k",
+                     "weatherapi_history_days": 30, "weatherapi_forecast_days": 14,
+                     "weatherapi_max_history_calls": 25})
+    assert WeatherApiProvider(s3).can_serve(21, 6)[0] is True
+    # and a short window it CAN cover
+    assert WeatherApiProvider(s).can_serve(1, 2)[0] is True
+
+
+def test_weatherapi_without_a_key_never_claims_it_can_serve(env):
+    from app.weather import WeatherApiProvider
+    ok, why = WeatherApiProvider(env).can_serve(1, 1)
+    assert ok is False and "WEATHER_API_KEY" in why
+
+
+def test_weatherapi_rolls_its_hourly_readings_into_the_same_shape(env, monkeypatch):
+    """A · WeatherAPI succeeds. The internal contract is unchanged: the same
+    rollup, the same day keys, the same counted RH-hours."""
+    import httpx
+    from app.config import Settings
+    from app.weather import WeatherApiProvider
+    today = dt.date(2026, 8, 25)
+    s = Settings(**{**env.model_dump(), "weather_api_key": "k",
+                    "weatherapi_history_days": 2, "weatherapi_forecast_days": 3})
+    seen = []
+
+    def fake(url, params=None, **k):
+        seen.append((url, dict(params or {})))
+        if "history" in url:
+            return _Resp(payload={"forecast": {"forecastday": [_wapi_day(params["dt"], rh=95.0)]}})
+        return _Resp(payload={"forecast": {"forecastday": [
+            _wapi_day(today.isoformat()), _wapi_day((today + dt.timedelta(days=1)).isoformat())]}})
+
+    monkeypatch.setattr(httpx, "get", fake)
+    out = WeatherApiProvider(s).series(20.08, 74.11, today, 2, 1)
+    assert out["source"] == "weatherapi" and out["source_kind"] == "live"
+    day = out["days"][0]
+    assert day["rh90_hours"] == 24.0, "RH-hours are counted from the hourly series"
+    assert {"date", "tmin", "tmax", "rain_mm", "hours_21_30", "future"} <= set(day)
+    # the key travels as a parameter and never in the path
+    assert all(p.get("key") == "k" for _, p in seen)
+    assert all("k" not in u for u, _ in seen)
+
+
+def test_the_chain_falls_through_to_open_meteo(env, monkeypatch):
+    """B · WeatherAPI fails, Open-Meteo is tried."""
+    import httpx
+    from app.config import Settings
+    from app.weather import ChainProvider, OpenMeteoProvider, WeatherApiProvider
+    s = Settings(**{**env.model_dump(), "weather_api_key": "k",
+                    "weatherapi_history_days": 30, "weatherapi_forecast_days": 14,
+                    "weatherapi_max_history_calls": 25})
+    hits = []
+
+    def fake(url, params=None, **k):
+        hits.append(url)
+        if "weatherapi" in url:
+            return _Resp(500)
+        return _Resp(payload=_good_payload())
+
+    monkeypatch.setattr(httpx, "get", fake)
+    chain = ChainProvider([WeatherApiProvider(s), OpenMeteoProvider(s)])
+    out = chain.series(20.08, 74.11, dt.date(2026, 8, 25), 21, 6)
+    assert out["source"] == "open-meteo", "the fallback served it"
+    assert any("weatherapi" in h for h in hits), "the primary was tried first"
+
+
+def test_a_declining_primary_costs_no_request_at_all(env, monkeypatch):
+    """A provider that cannot cover the window is skipped, not called. On the
+    free tier that is every risk-board request, so it must be free."""
+    import httpx
+    from app.config import Settings
+    from app.weather import ChainProvider, OpenMeteoProvider, WeatherApiProvider
+    s = Settings(**{**env.model_dump(), "weather_api_key": "k",
+                    "weatherapi_history_days": 1, "weatherapi_forecast_days": 3})
+    hits = []
+
+    def fake(url, params=None, **k):
+        hits.append(url)
+        return _Resp(payload=_good_payload())
+
+    monkeypatch.setattr(httpx, "get", fake)
+    ChainProvider([WeatherApiProvider(s), OpenMeteoProvider(s)]).series(
+        20.08, 74.11, dt.date(2026, 8, 25), 21, 6)
+    assert not any("weatherapi" in h for h in hits)
+
+
+def test_both_providers_failing_raises_and_names_both(env, monkeypatch):
+    """C/D · with no cache behind it, the chain fails honestly rather than
+    inventing a series."""
+    import httpx
+    from app.config import Settings
+    from app.weather import ChainProvider, OpenMeteoProvider, WeatherApiProvider, WeatherUnavailable
+    s = Settings(**{**env.model_dump(), "weather_api_key": "k",
+                    "weatherapi_history_days": 30, "weatherapi_forecast_days": 14,
+                    "weatherapi_max_history_calls": 25})
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _Resp(503))
+    with pytest.raises(WeatherUnavailable) as exc:
+        ChainProvider([WeatherApiProvider(s), OpenMeteoProvider(s)]).series(
+            20.08, 74.11, dt.date(2026, 8, 25), 21, 6)
+    assert "weatherapi" in exc.value.reason and "open-meteo" in exc.value.reason
+
+
+def test_a_rejected_key_is_not_retried_on_every_screen(env, monkeypatch):
+    """A wrong key is a configuration fault, not a transient one. Retrying it
+    per farmer per screen spends the quota and fixes nothing."""
+    import httpx
+    from app import weather as wx
+    from app.config import Settings
+    s = Settings(**{**env.model_dump(), "weather_api_key": "bad",
+                    "weatherapi_history_days": 30, "weatherapi_forecast_days": 14,
+                    "weatherapi_max_history_calls": 25})
+    calls = []
+
+    def fake(*a, **k):
+        calls.append(1)
+        return _Resp(401)
+
+    monkeypatch.setattr(httpx, "get", fake)
+    p = wx.WeatherApiProvider(s)
+    with pytest.raises(wx.WeatherUnavailable):
+        p.series(20.08, 74.11, dt.date(2026, 8, 25), 21, 6)
+    with pytest.raises(wx.WeatherUnavailable):
+        p.series(20.08, 74.11, dt.date(2026, 8, 25), 21, 6)
+    assert len(calls) == 1, "the second attempt must not reach the provider"
+
+
+def test_auto_with_no_key_is_exactly_open_meteo(env, monkeypatch):
+    """H · the app must start and behave normally with no WEATHER_API_KEY."""
+    monkeypatch.setenv("WEATHER_PROVIDER", "auto")
+    from app.config import reload_settings
+    from app.db import Database
+    from app.weather import OpenMeteoProvider, WeatherService
+    s = reload_settings()
+    db = Database(s)
+    db.migrate()
+    ws = WeatherService(db, s)
+    assert isinstance(ws.provider, OpenMeteoProvider)
+    assert ws.health()["configured"] is True
+
+
+def test_the_status_object_never_carries_the_providers_own_words(env):
+    """What the phone is allowed to be told. 'Open-Meteo rate limited the
+    request' is a sentence for a log."""
+    from app.weather import WeatherUnavailable, status_of, to_http_error
+    down = status_of(None)
+    assert down["available"] is False and down["stale"] is False
+    assert down["provider"] is None and down["retryable"] is True
+    blob = str(down).lower()
+    for word in ("429", "rate limit", "open-meteo", "http", "weatherapi"):
+        assert word not in blob
+
+    err = to_http_error(WeatherUnavailable("open-meteo", "Open-Meteo rate limited the request"))
+    body = str(err.detail).lower()
+    for word in ("429", "rate limit", "open-meteo"):
+        assert word not in body, f"{word!r} reached the client payload"
+
+
+def test_the_status_object_labels_cached_weather_as_recent_not_broken(env):
+    from app.weather import status_of
+    fresh = status_of({"source": "weatherapi", "freshness": {"age_minutes": 4}})
+    assert fresh["available"] is True and fresh["stale"] is False
+    assert fresh["provider"] == "weatherapi"
+
+    old = status_of({"source": "open-meteo", "stale": True,
+                     "freshness": {"age_minutes": 40}})
+    assert old["available"] is True and old["stale"] is True
+    assert old["provider"] == "cache"
+    assert "recent weather" in old["message"].lower()

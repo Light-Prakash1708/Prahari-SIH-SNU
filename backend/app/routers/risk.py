@@ -9,7 +9,7 @@ from .. import reference
 from ..db import Database
 from ..deps import current_user, db_dep, visible_plot
 from ..runtime import get_runtime
-from ..weather import WeatherUnavailable, to_http_error
+from ..weather import WeatherUnavailable, status_of, to_http_error
 
 router = APIRouter(prefix="/api", tags=["risk"])
 
@@ -143,6 +143,9 @@ def nearby(plot_id: str, problem: str = Query("late_blight"),
 def _weather_view(wx: dict[str, Any]) -> dict[str, Any]:
     """What the UI must display about weather provenance, every time."""
     return {
+        # One flat object the UI can branch on without reading five fields and
+        # deciding for itself what "stale plus fresh false" means.
+        "status": status_of(wx),
         "source": wx.get("source"),
         "kind": wx.get("source_kind"),
         "source_url": wx.get("source_url"),
@@ -152,8 +155,10 @@ def _weather_view(wx: dict[str, Any]) -> dict[str, Any]:
         "fetched_at": wx.get("fetched_at"),
         "freshness": wx.get("freshness"),
         "cached": wx.get("cached"),
-        "stale": wx.get("stale"),
-        "stale_reason": wx.get("stale_reason"),
+        "stale": bool(wx.get("stale")),
+        # `stale_reason` was the provider's own sentence and is not sent. The
+        # reason a reading is stale is in the log; what the screen needs is in
+        # `status` above.
         "observed_through": wx.get("observed_through"),
         "forecast_from": wx.get("forecast_from"),
         "profile": wx.get("profile"),

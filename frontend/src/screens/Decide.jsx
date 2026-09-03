@@ -120,8 +120,13 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
             with no risk. */}
         {m && !busy && m.weather_available === false && (
           <p className="fb-unavailable">
-            <b>{t(lang, 'noWx')}</b>{' — '}
+            <b>{bi(lang, m.weather_context?.message || 'Weather update temporarily unavailable',
+                         m.weather_context?.message_mr || t(lang, 'noWx'))}</b>{' — '}
             {bi(lang, m.weather_context?.note, m.weather_context?.note_mr)}
+            {' '}
+            <button className="btn sm ghost" style={{ marginTop: 8 }} onClick={load}>
+              {bi(lang, 'Try again', 'पुन्हा')}
+            </button>
           </p>
         )}
         {m?.empty && !busy && (

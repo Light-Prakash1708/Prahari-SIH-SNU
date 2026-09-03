@@ -37,6 +37,7 @@ Two things it does decide, and both are about presentation rather than agronomy:
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from . import agenda as agenda_mod
@@ -44,7 +45,9 @@ from . import cropcalendar, reference
 from .clock import today as _today
 from .db import Database
 from .services.decisions import chemical_rung_open
-from .weather import WeatherUnavailable
+from .weather import WeatherUnavailable, status_of
+
+log = logging.getLogger("prahari.management")
 
 _NOT_MANAGEABLE = {"healthy", "nitrogen_deficiency", "potassium_deficiency",
                    "magnesium_deficiency", "abiotic", "unknown"}
@@ -196,12 +199,16 @@ def _weather_context(wx: dict[str, Any] | None,
     input at all, and this screen must not imply it is.
     """
     if wx is None:
+        # The provider's own words stay in the log. `err.reason` says things
+        # like "Open-Meteo rate limited the request", which is a sentence for
+        # whoever runs the deployment, not for a farmer holding a phone.
+        if err is not None:
+            log.warning("weather unavailable on the management screen",
+                        extra={"provider": err.provider, "reason": err.reason})
         return {
-            "available": False,
+            **status_of(None),
             "source": None,
             "days": [],
-            "reason": (err.reason if err else "Weather could not be retrieved."),
-            "provider": (err.provider if err else None),
             "note": ("Weather for this field could not be retrieved, so no infection model "
                      "was run and no risk level is shown. Nothing on this screen has been "
                      "estimated to fill the gap. Everything below that does not depend on "
@@ -213,12 +220,14 @@ def _weather_context(wx: dict[str, Any] | None,
                         "काय पहावे आणि काय करता येईल — जशीच्या तशी आहे."),
         }
     return {
-        "available": True,
+        **status_of(wx),
         "source": wx.get("source"),
         "generated": wx.get("generated", False),
         "warning": wx.get("warning"),
-        "stale": wx.get("stale"),
-        "stale_reason": wx.get("stale_reason"),
+        # `stale` comes from status_of above and stays a real boolean —
+        # re-setting it from the payload put None back, and the screen then had
+        # to decide for itself what a null meant. `stale_reason` is dropped
+        # entirely: it carried the provider's sentence.
         "freshness": wx.get("freshness"),
         "note": ("Field conditions, shown so you can plan when to walk the field. "
                  "For a disease, weather reaches the decision only through the "
@@ -243,6 +252,16 @@ def build(db: Database, rt, plot: dict[str, Any], target: str | None,
         wx = rt.risk.weather_series(plot)
     except WeatherUnavailable as exc:
         weather_error = exc
+    except Exception as exc:
+        # A broad catch, deliberately, and only around this one call. Weather
+        # is an external I/O boundary: a provider can return a shape nobody
+        # anticipated, a JSON library can raise, a DNS lookup can fail in a way
+        # httpx does not wrap. None of that is a reason to answer 500 and blank
+        # a screen whose count, threshold, ladder and history are all sitting
+        # right here. It is logged at exception level so it is not lost.
+        log.exception("weather failed unexpectedly; the screen degrades instead",
+                      extra={"plot_id": plot["id"]})
+        weather_error = WeatherUnavailable("unknown", f"{type(exc).__name__}")
 
     if wx is not None:
         board, _fired = rt.risk.board(plot, wx, stage)

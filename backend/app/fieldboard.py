@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import contextlib
 import datetime as dt
+import logging
 from typing import Any
 
 from . import reference
@@ -37,6 +38,8 @@ from .agenda import TONE_ACT, TONE_URGENT, agenda
 from .clock import today as _today
 from .db import Database
 from .weather import WeatherUnavailable
+
+log = logging.getLogger("prahari.fieldboard")
 
 # The order a farmer should walk their fields in. Urgency first, then the
 # health score ascending, then the season — an early crop is cheaper to save
@@ -125,12 +128,16 @@ def board(db: Database, rt, plots: list[dict[str, Any]], *,
             day = agenda(db, rt, plot, health=full, lang=lang)
         except WeatherUnavailable as exc:
             unavailable += 1
+            log.warning("weather unavailable for a field on the board",
+                        extra={"plot_id": plot["id"], "provider": exc.provider,
+                               "reason": exc.reason})
             card.update({
                 "score": None, "band": None, "trend": None,
                 "attention": "none", "items": [], "item_count": 0,
                 "unavailable": ("No weather is available for this field's coordinates right "
                                 "now, so PRAHARI cannot score it. Nothing is estimated."),
-                "unavailable_detail": str(exc)[:160],
+                # The provider's message goes to the log, never onto a card.
+                "unavailable_retryable": True,
             })
             cards.append(card)
             continue

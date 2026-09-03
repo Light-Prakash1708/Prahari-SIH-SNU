@@ -169,7 +169,7 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
                     ))}
                 <Prov label="Method" value={data.health.method} />
               </Why>
-              {data.weather && <WeatherStrip weather={data.weather} />}
+              {data.weather && <WeatherStrip weather={data.weather} lang={lang} />}
             </Card>
 ) : null}
 

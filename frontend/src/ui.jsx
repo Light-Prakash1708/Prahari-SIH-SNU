@@ -96,6 +96,29 @@ export const Loading = ({ lines = 3, label }) => (
 export const ErrorNote = ({ error, lang = 'en', onRetry }) => {
   if (!error) return null
   const msg = error.say ? error.say(lang) : (error.message || String(error))
+
+  /* Weather is enrichment, not a prerequisite, and it is the one failure a
+     farmer will meet routinely — a provider rate limit clears on its own. It
+     used to render as a full red-tone alert with the provider's own words
+     underneath it ("Open-Meteo rate limited the request. Not retried for
+     120s."), which reads as "the app is broken" for a condition that means
+     "this one number is late". A quiet line and a retry, instead. */
+  if (error.code === 'weather_unavailable') {
+    return (
+      <div className="note wx-late" role="status">
+        <span className="wx-late__ic">🌦</span>
+        <span className="wx-late__txt">
+          {bi(lang, 'Weather update temporarily unavailable',
+                    'हवामान माहिती सध्या मिळत नाही')}
+        </span>
+        {onRetry && (
+          <button className="btn sm ghost wx-late__go" onClick={onRetry}>
+            {bi(lang, 'Try again', 'पुन्हा')}
+          </button>
+        )}
+      </div>
+    )
+  }
   const tone = error.code === 'weather_unavailable' ? 'info'
     : (error.status === 403 || error.status === 401) ? 'warn' : 'bad'
   const PHOTO = ['not_an_image', 'unsupported_image_format', 'file_too_large',
@@ -111,7 +134,9 @@ export const ErrorNote = ({ error, lang = 'en', onRetry }) => {
     <div className={`note ${tone}`} role="alert">
       <div style={{ fontWeight: 700, marginBottom: 3 }}>{head}</div>
       <div>{msg}</div>
-      {error.detail?.reason && <div className="tiny faint" style={{ marginTop: 5 }}>{error.detail.reason}</div>}
+      {/* `detail` is for a log and a status page. Nothing from a provider is
+          printed here: it cannot help the person reading it, and it is the
+          difference between "your weather update is late" and "HTTP 429". */}
       {onRetry && error.retryable !== false && (
         <button className="btn sm ghost" style={{ marginTop: 10 }} onClick={onRetry}>Try again</button>
       )}
@@ -482,18 +507,28 @@ export const Banners = ({ online, queued, demo, stale, lang = 'en' }) => (
 )
 
 /* ── weather provenance strip — shown wherever weather drives a number ─── */
-export function WeatherStrip({ weather }) {
+export function WeatherStrip({ weather, lang = 'en' }) {
   if (!weather) return null
   const gen = weather.generated
   const age = weather.freshness?.age_minutes
+  const stale = weather.stale
+  /* Which SOURCE the reading came from still matters and still shows — the
+     provenance rule is unchanged. What changed is the sentence attached to a
+     stale one: "the provider is unreachable" describes our problem, and
+     "using recent weather data" describes theirs. */
   return (
-    <div className={`note ${gen ? 'warn' : weather.stale ? 'info' : ''}`} style={{ marginTop: 10 }}>
+    <div className={`note ${gen ? 'warn' : stale ? 'info' : ''}`} style={{ marginTop: 10 }}>
       <b>{gen ? '⚠ Generated weather (demo mode)' : `🌦 ${weather.source}`}</b>
       <div className="tiny" style={{ marginTop: 3 }}>
-        {weather.observed_through && <>Observed through {weather.observed_through}. </>}
-        {weather.forecast_from && <>Forecast from {weather.forecast_from}. </>}
-        {age != null && <>Updated {age < 1 ? 'just now' : `${age} min ago`}. </>}
-        {weather.stale && <><b>Stale</b> — the provider is unreachable, so this is the last real reading.</>}
+        {stale
+          ? bi(lang,
+              `Using recent weather data${age != null ? ` · updated ${age < 1 ? 'just now' : `${age} min ago`}` : ''}. A fresh update will be picked up automatically.`,
+              'अलीकडील हवामान माहिती वापरली आहे. नवीन माहिती आपोआप घेतली जाईल.')
+          : <>
+              {weather.observed_through && <>Observed through {weather.observed_through}. </>}
+              {weather.forecast_from && <>Forecast from {weather.forecast_from}. </>}
+              {age != null && <>Updated {age < 1 ? 'just now' : `${age} min ago`}. </>}
+            </>}
       </div>
     </div>
   )

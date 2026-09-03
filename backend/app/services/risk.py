@@ -19,12 +19,15 @@ wrong.
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from typing import Any
 
 from .. import forecast, health, reference, riskmodels, spatial
 from ..clock import today as _today
 from ..db import Database, dumps, loads
 from ..weather import WeatherService, WeatherUnavailable
+
+log = logging.getLogger("prahari.risk")
 
 
 class RiskService:
@@ -220,6 +223,15 @@ class RiskService:
         try:
             wx = self.weather_series(plot)
         except WeatherUnavailable:
+            return None
+        except Exception:
+            # Same answer, for the same reason. This method's whole contract is
+            # "None means we do not know", and an unexpected failure at the
+            # weather boundary is exactly not knowing. Catching only the tidy
+            # exception meant a surprise from a provider escaped all the way up
+            # and answered 500 for a screen that had a decision ready to show.
+            log.exception("phenology weather lookup failed; life stage is unknown",
+                          extra={"plot_id": plot.get("id")})
             return None
         return riskmodels.gdd_phenology(
             wx["days"], p["tbase"], p["dd_gen"], p["stages"])["damaging"]

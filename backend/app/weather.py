@@ -150,6 +150,19 @@ class WeatherProvider(ABC):
     name = "abstract"
     kind = "none"
 
+    def can_serve(self, back: int, forward: int) -> tuple[bool, str]:
+        """Whether this provider's PLAN covers the window being asked for.
+
+        The chain asks before it calls. A provider that cannot cover the window
+        is skipped rather than called and truncated, because a short series is
+        not a smaller answer — TOMCAST accumulates disease-severity values
+        since the last spray and the degree-day models accumulate from sowing,
+        so handing them ten days where they asked for twenty-one silently
+        changes what they compute. Refusing is the honest failure; the caller
+        falls through to the next provider or to labelled-stale cache.
+        """
+        return True, ""
+
     @abstractmethod
     def series(self, lat: float, lng: float, today: dt.date,
                back: int, forward: int) -> dict[str, Any]:
@@ -206,8 +219,8 @@ class OpenMeteoProvider(WeatherProvider):
             "forecast_days": max(1, min(int(forward) + 1, 16)),
             "timezone": "Asia/Kolkata",
         }
-        if self.s.weather_api_key:
-            params["apikey"] = self.s.weather_api_key
+        if self.s.open_meteo_api_key:
+            params["apikey"] = self.s.open_meteo_api_key
 
         # A cooldown is in force: do not spend a request finding out that the
         # limit is still there. The caller falls back to labelled-stale cache or
@@ -307,6 +320,207 @@ class OpenMeteoProvider(WeatherProvider):
         return out
 
 
+class WeatherApiProvider(WeatherProvider):
+    """WeatherAPI.com — the primary provider when a key is configured.
+
+    Two endpoints, because one call cannot cover both halves of the window:
+    `forecast.json` returns hourly for today and the days ahead, `history.json`
+    returns one past day per call. The models need hourly temperature, relative
+    humidity and precipitation, which is exactly what both return, so the rows
+    land in the same `_rollup` every other provider uses and the internal shape
+    is unchanged.
+
+    THE PLAN IS THE CONSTRAINT. The free tier is a 3-day forecast and one day
+    of history; PRAHARI's risk window is 21 days back. `can_serve` therefore
+    turns this provider DOWN for the risk window on a free key, and the chain
+    goes to Open-Meteo — which is the correct outcome, not a bug. Configure
+    WEATHERAPI_HISTORY_DAYS to whatever the plan actually allows and it becomes
+    primary for that window too.
+
+    One past day is one HTTP call, so a large history window is also a large
+    number of calls. `_history_call_budget` caps it, and a window that would
+    exceed the cap is declined rather than part-filled.
+    """
+    name = "weatherapi"
+    kind = "live"
+
+    def __init__(self, settings: Settings):
+        self.s = settings
+
+    def can_serve(self, back: int, forward: int) -> tuple[bool, str]:
+        if not self.s.weather_api_key:
+            return False, "no WEATHER_API_KEY is configured"
+        need_back = max(1, int(back))
+        if need_back > int(self.s.weatherapi_history_days):
+            return False, (f"the plan allows {self.s.weatherapi_history_days} day(s) of history "
+                           f"and this window needs {need_back}")
+        cap = int(self.s.weatherapi_max_history_calls)
+        if need_back > cap:
+            return False, (f"{need_back} days of history is {need_back} separate requests, "
+                           f"above the {cap}-call cap (WEATHERAPI_MAX_HISTORY_CALLS)")
+        if int(forward) + 1 > int(self.s.weatherapi_forecast_days):
+            return False, (f"the plan allows a {self.s.weatherapi_forecast_days}-day forecast "
+                           f"and this window needs {int(forward) + 1}")
+        return True, ""
+
+    # ── one hourly block, whatever endpoint produced it ────────────────────
+    @staticmethod
+    def _hours(day_block: dict[str, Any]) -> list[dict[str, float]]:
+        out = []
+        for h in day_block.get("hour") or []:
+            t, rh = h.get("temp_c"), h.get("humidity")
+            if t is None or rh is None:
+                continue
+            out.append({"t": float(t), "rh": float(rh),
+                        "rain": float(h.get("precip_mm") or 0.0)})
+        return out
+
+    def _get(self, path: str, params: dict[str, Any]):
+        import httpx
+        left = _cooldown_remaining(self.name)
+        if left > 0:
+            raise WeatherUnavailable(
+                self.name,
+                f"{_cooldown_reason(self.name) or 'provider unavailable'}; "
+                f"not retried for another {int(left) + 1}s")
+        try:
+            r = httpx.get(f"{self.s.weatherapi_url.rstrip('/')}/{path}",
+                          params={**params, "key": self.s.weather_api_key},
+                          timeout=self.s.weather_timeout_seconds)
+        except Exception as exc:
+            raise WeatherUnavailable(
+                self.name, f"{type(exc).__name__}: {str(exc)[:160]}") from exc
+
+        if r.status_code == 429 or r.status_code >= 500:
+            hinted = parse_retry_after(r.headers.get("Retry-After")
+                                       if hasattr(r, "headers") else None)
+            seconds = hinted if hinted is not None else float(self.s.weather_cooldown_seconds)
+            seconds = max(1.0, min(seconds, float(self.s.weather_cooldown_max_seconds)))
+            why = ("WeatherAPI rate limited the request" if r.status_code == 429
+                   else f"WeatherAPI returned HTTP {r.status_code}")
+            _open_cooldown(self.name, seconds, why)
+            log.warning("weather provider cooling down",
+                        extra={"provider": self.name, "status": r.status_code,
+                               "seconds": round(seconds)})
+            raise WeatherUnavailable(self.name, f"{why}. Not retried for {int(seconds)}s.")
+
+        if r.status_code in (401, 403):
+            # A bad key is a configuration fault, not a transient one. Cool the
+            # provider down hard so a wrong key does not spend a request per
+            # farmer per screen until someone notices.
+            _open_cooldown(self.name, float(self.s.weather_cooldown_max_seconds),
+                           "WeatherAPI rejected the key")
+            raise WeatherUnavailable(self.name, "WeatherAPI rejected the API key.")
+        try:
+            r.raise_for_status()
+            return r.json()
+        except Exception as exc:
+            raise WeatherUnavailable(
+                self.name, f"{type(exc).__name__}: {str(exc)[:160]}") from exc
+
+    def series(self, lat, lng, today, back, forward):
+        ok, why = self.can_serve(back, forward)
+        if not ok:
+            raise WeatherUnavailable(self.name, why)
+
+        q = f"{round(float(lat), 4)},{round(float(lng), 4)}"
+        by_day: dict[dt.date, list[dict[str, float]]] = {}
+
+        # History: one call per past day, oldest first.
+        for n in range(int(back), 0, -1):
+            day = today - dt.timedelta(days=n)
+            data = self._get("history.json", {"q": q, "dt": day.isoformat()})
+            for block in (data.get("forecast") or {}).get("forecastday") or []:
+                d = dt.date.fromisoformat(block["date"])
+                hours = self._hours(block)
+                if hours:
+                    by_day.setdefault(d, []).extend(hours)
+
+        # Forecast: today and the days ahead, in one call.
+        data = self._get("forecast.json", {
+            "q": q, "days": max(1, min(int(forward) + 1,
+                                       int(self.s.weatherapi_forecast_days))),
+            "aqi": "no", "alerts": "no",
+        })
+        for block in (data.get("forecast") or {}).get("forecastday") or []:
+            d = dt.date.fromisoformat(block["date"])
+            hours = self._hours(block)
+            if hours:
+                by_day.setdefault(d, []).extend(hours)
+
+        if not by_day:
+            raise WeatherUnavailable(self.name, "provider returned no hourly series")
+        days = [_rollup(hours, day, future=day > today)
+                for day, hours in sorted(by_day.items())]
+        return {
+            "source": "weatherapi",
+            "source_kind": "live",
+            "source_url": "https://www.weatherapi.com/",
+            "profile": None,
+            "days": days,
+            "note": ("Hourly WeatherAPI.com readings for this field's coordinates, rolled up "
+                     "here. Hours at RH \u2265 90% are counted from the hourly series, never "
+                     "estimated from a daily mean."),
+        }
+
+    def health(self):
+        out = {"provider": self.name, "configured": bool(self.s.weather_api_key),
+               "history_days": self.s.weatherapi_history_days,
+               "forecast_days": self.s.weatherapi_forecast_days}
+        left = _cooldown_remaining(self.name)
+        if left > 0:
+            out["cooling_down_seconds"] = int(left) + 1
+            out["cooling_down_reason"] = _cooldown_reason(self.name)
+        return out
+
+
+class ChainProvider(WeatherProvider):
+    """Try each provider in turn; return the first real series.
+
+    Order is configuration, not preference expressed in code: whatever
+    `_build` puts in the list is what gets tried. A provider that declines the
+    window is skipped without a request, and a provider in cooldown declines
+    itself for the same reason — so a rate-limited primary costs nothing on the
+    way to the fallback.
+
+    If every provider fails this raises, carrying each one's reason. It never
+    blends two providers into one series: a day from one source and a day from
+    another have different biases, and the infection models accumulate across
+    days.
+    """
+    kind = "live"
+
+    def __init__(self, providers: list[WeatherProvider]):
+        self.providers = providers
+        self.name = "+".join(p.name for p in providers) or "none"
+
+    def can_serve(self, back, forward):
+        for p in self.providers:
+            ok, _ = p.can_serve(back, forward)
+            if ok:
+                return True, ""
+        return False, "no configured provider covers this window"
+
+    def series(self, lat, lng, today, back, forward):
+        reasons = []
+        for p in self.providers:
+            ok, why = p.can_serve(back, forward)
+            if not ok:
+                reasons.append(f"{p.name}: {why}")
+                continue
+            try:
+                return p.series(lat, lng, today, back, forward)
+            except WeatherUnavailable as exc:
+                reasons.append(f"{p.name}: {exc.reason}")
+                log.warning("weather provider failed; trying the next",
+                            extra={"provider": p.name, "reason": exc.reason})
+        raise WeatherUnavailable(self.name, "; ".join(reasons) or "no provider configured")
+
+    def health(self):
+        return {"provider": self.name, "configured": bool(self.providers),
+                "chain": [p.health() for p in self.providers]}
+
+
 class DemoWeatherProvider(WeatherProvider):
     """A deterministic generated series, so a demo produces identical numbers on
     every laptop and cannot fail because a venue firewall blocked an API call.
@@ -346,6 +560,21 @@ class WeatherService:
 
     def _build(self, demo_profile_fn) -> WeatherProvider:
         p = self.s.weather_provider
+        if p in ("auto", "weatherapi"):
+            # WeatherAPI first when a key is configured, Open-Meteo behind it.
+            # With no key the chain is Open-Meteo alone, which is exactly what
+            # this deployment ran before — so "auto" is safe to set everywhere
+            # and the key is the only thing that changes behaviour.
+            chain: list[WeatherProvider] = []
+            if self.s.weather_api_key:
+                chain.append(WeatherApiProvider(self.s))
+            if p == "auto":
+                chain.append(OpenMeteoProvider(self.s))
+            if not chain:
+                log.warning("WEATHER_PROVIDER=weatherapi needs WEATHER_API_KEY; "
+                            "no weather provider is configured")
+                return NullProvider()
+            return chain[0] if len(chain) == 1 else ChainProvider(chain)
         if p == "openmeteo":
             return OpenMeteoProvider(self.s)
         if p == "demo":
@@ -477,10 +706,56 @@ class WeatherService:
         return h
 
 
+def status_of(payload: dict[str, Any] | None) -> dict[str, Any]:
+    """The one shape the frontend reads to decide what to show.
+
+    Deliberately free of technical detail. "Open-Meteo rate limited the
+    request" is a sentence for a log and a status page; a farmer standing in a
+    field gets told the update is late and offered a retry. The provider and
+    the reason stay in the server log, where someone can act on them.
+    """
+    if payload is None:
+        return {
+            "available": False,
+            "provider": None,
+            "stale": False,
+            "message": "Weather update temporarily unavailable",
+            "message_mr": "हवामान माहिती सध्या मिळत नाही",
+            "retryable": True,
+        }
+    stale = bool(payload.get("stale"))
+    age = (payload.get("freshness") or {}).get("age_minutes")
+    if stale:
+        when = (f"{age} min ago" if isinstance(age, int) and age < 90
+                else "earlier today" if isinstance(age, int) else "recently")
+        msg = f"Using recent weather data · updated {when}"
+        msg_mr = "अलीकडील हवामान माहिती वापरली आहे"
+    else:
+        msg = "Weather is up to date"
+        msg_mr = "हवामान माहिती अद्ययावत आहे"
+    return {
+        "available": True,
+        "provider": "cache" if stale else payload.get("source"),
+        "stale": stale,
+        "message": msg,
+        "message_mr": msg_mr,
+        "retryable": False,
+    }
+
+
 def to_http_error(exc: WeatherUnavailable):
+    # The technical reason goes to the log, not to the phone. It used to travel
+    # in `detail.reason`, which the error card printed verbatim — so a farmer
+    # opening the app during a rate limit read "Open-Meteo rate limited the
+    # request. Not retried for 120s." That sentence cannot help them and does
+    # not belong on the screen.
+    log.warning("weather unavailable",
+                extra={"provider": exc.provider, "reason": exc.reason})
     return unavailable(
         "weather_unavailable",
-        "Weather data could not be retrieved for this field, so risk cannot be forecast. "
-        "PRAHARI does not substitute invented weather.",
-        message_mr="या शेतासाठी हवामान माहिती मिळाली नाही. प्रहरी खोटी माहिती दाखवत नाही.",
-        detail={"provider": exc.provider, "reason": exc.reason})
+        "Weather update temporarily unavailable, so risk cannot be forecast right now. "
+        "Nothing has been estimated to fill the gap, and everything that does not depend "
+        "on weather is unchanged.",
+        message_mr=("हवामान माहिती सध्या मिळत नाही, त्यामुळे धोक्याचा अंदाज देता येत नाही. "
+                    "काहीही अंदाजाने भरलेले नाही; बाकी सर्व माहिती जशीच्या तशी आहे."),
+        detail={"code": "provider_unavailable"})

@@ -223,7 +223,10 @@ def test_the_screen_still_answers_when_weather_is_unavailable(
     m = r.json()
     assert m["weather_available"] is False
     assert m["weather_context"]["available"] is False
-    assert m["weather_context"]["reason"]
+    # The context carries a sentence a farmer can act on. The provider's own
+    # reason moved to the log — see the leak test further down.
+    assert m["weather_context"]["message"]
+    assert m["weather_context"]["retryable"] is True
     # The parts that need no weather are all still here.
     assert m["decision"], "the decision is the screen; it must survive"
     assert m["targets"], "the problem list comes from the reference tables"
@@ -290,3 +293,76 @@ def test_ownership_still_holds_when_weather_is_unavailable(
     """A degraded screen is not a relaxed one."""
     r = client.get(f"/api/management/{plot['id']}", headers=farmer_b["headers"])
     assert r.status_code == 403, r.text
+
+
+# ── weather is enrichment, and the screens prove it ────────────────────────
+
+def test_repeated_opens_do_not_repeat_the_provider_call(client, farmer, plot, monkeypatch):
+    """F · a farmer refreshing Home and Management must not spend a provider
+    request each time. The cache is what keeps a rate limit from being
+    self-inflicted."""
+    from app.weather import WeatherProvider
+    calls = []
+    real = WeatherProvider.series
+
+    def counted(self, *a, **k):
+        calls.append(self.name)
+        return real(self, *a, **k)
+
+    from app.weather import DemoWeatherProvider
+    inner = DemoWeatherProvider.series
+
+    def counted_demo(self, *a, **k):
+        calls.append(self.name)
+        return inner(self, *a, **k)
+
+    monkeypatch.setattr(DemoWeatherProvider, "series", counted_demo)
+    for _ in range(5):
+        assert client.get(f"/api/management/{plot['id']}",
+                          headers=farmer["headers"]).status_code == 200
+        assert client.get(f"/api/fields/{plot['id']}/health",
+                          headers=farmer["headers"]).status_code == 200
+    assert len(calls) <= 1, f"the provider was called {len(calls)} times for one field"
+
+
+def test_the_client_is_never_handed_the_providers_own_words(client, farmer, plot,
+                                                            monkeypatch):
+    """The farmer-facing failure. 'Open-Meteo rate limited the request' is a
+    sentence for a log; it used to be printed on the error card."""
+    import json as _json
+    from app import weather as wx_mod
+
+    def refuse(*a, **k):
+        raise wx_mod.WeatherUnavailable(
+            "open-meteo", "Open-Meteo rate limited the request. Not retried for 120s.")
+
+    monkeypatch.setattr(wx_mod.WeatherService, "series", refuse)
+    for path in (f"/api/management/{plot['id']}",
+                 f"/api/risk/{plot['id']}",
+                 f"/api/fields/{plot['id']}/health"):
+        r = client.get(path, headers=farmer["headers"])
+        assert r.status_code in (200, 503), f"{path} returned {r.status_code}"
+        body = _json.dumps(r.json()).lower()
+        for leak in ("rate limited", "429", "open-meteo", "retried for"):
+            assert leak not in body, f"{leak!r} reached the client from {path}"
+
+
+def test_a_weather_outage_is_never_a_500(client, farmer, plot, monkeypatch):
+    """A provider failure is an expected condition, not a crash."""
+    from app import weather as wx_mod
+    monkeypatch.setattr(
+        wx_mod.WeatherService, "series",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("provider exploded")))
+    r = client.get(f"/api/management/{plot['id']}", headers=farmer["headers"])
+    assert r.status_code != 500, r.text
+
+
+def test_the_management_screen_carries_a_structured_weather_status(client, farmer, plot):
+    """G · one object the UI branches on, rather than five fields it has to
+    interpret for itself."""
+    m = _mg(client, farmer["headers"], plot["id"])
+    st = m["weather_context"]
+    assert st["available"] is True
+    assert st["provider"]
+    assert st["stale"] is False
+    assert st["message"]

@@ -38,7 +38,20 @@ services:
       - key: TRUSTED_HOSTS
         value: prahari.onrender.com
       - key: WEATHER_PROVIDER
-        value: openmeteo
+        # WeatherAPI.com first when a key is present, Open-Meteo behind it,
+        # then the cache. With no key this is exactly Open-Meteo.
+        value: auto
+      - key: WEATHER_API_KEY
+        # sync: false means Render prompts for this in the dashboard and it is
+        # never stored in this file. Backend only — no weather key of any kind
+        # reaches the browser.
+        sync: false
+      # The FREE WeatherAPI plan. Raise these to match a paid plan; leaving
+      # them too high makes a provider claim a window it cannot fill.
+      - key: WEATHERAPI_HISTORY_DAYS
+        value: "1"
+      - key: WEATHERAPI_FORECAST_DAYS
+        value: "3"
       - key: VISION_PROVIDER
         value: none
       - key: ALLOW_FEATURE_ENGINE

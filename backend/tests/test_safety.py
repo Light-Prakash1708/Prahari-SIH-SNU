@@ -242,7 +242,16 @@ def test_weather_failure_produces_an_error_not_invented_weather(client, farmer, 
     body = r.json()
     assert body["error"] == "weather_unavailable"
     assert body["retryable"] is True
-    assert "does not substitute invented weather" in body["message"]
+    # The guarantee, checked as a property rather than as a phrase: the reply
+    # carries no series, no day rows and no numbers to mistake for readings.
+    # The wording is farmer-facing and may be reworded; what must never change
+    # is that there is nothing here to read as weather.
+    assert "estimated" in body["message"], "the promise is still stated in words"
+    assert "days" not in body and "weather" not in body
+    assert not any(isinstance(v, list) for v in body.values())
+    # and the provider's own sentence stays in the log, not on the phone
+    for leak in ("connection refused", "open-meteo", "429"):
+        assert leak not in str(body).lower()
     assert "days" not in body
 
 
