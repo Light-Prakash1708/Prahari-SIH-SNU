@@ -141,8 +141,22 @@ from .weather_demo import PROFILES, _rollup, demo_series  # noqa: E402
 
 
 class WeatherUnavailable(RuntimeError):
-    def __init__(self, provider: str, reason: str):
-        self.provider, self.reason = provider, reason
+    """`code` separates two states that need different answers.
+
+    `provider_unavailable` — nobody could be reached. Nothing is known.
+    `insufficient_history` — a provider answered, and its plan covers less
+    history than the infection models accumulate over. The current conditions
+    ARE known; what cannot be produced is a model verdict. Collapsing the two
+    into one message is what made a plan limit look like an outage.
+    """
+
+    def __init__(self, provider: str, reason: str, code: str = "provider_unavailable",
+                 payload: dict[str, Any] | None = None):
+        self.provider, self.reason, self.code = provider, reason, code
+        # For `insufficient_history` there IS a real reading behind the
+        # refusal. Carrying it lets a screen show today's conditions while
+        # still refusing to run a model that needs three weeks of them.
+        self.payload = payload
         super().__init__(f"{provider}: {reason}")
 
 
@@ -162,6 +176,16 @@ class WeatherProvider(ABC):
         falls through to the next provider or to labelled-stale cache.
         """
         return True, ""
+
+    def window_for(self, back: int, forward: int) -> tuple[int, int]:
+        """The largest slice of the requested window this provider can cover.
+
+        Used only after every provider that could cover the window IN FULL has
+        already failed. Returning less is not a smaller answer for the
+        accumulating models — the caller marks the result insufficient rather
+        than feeding it to them.
+        """
+        return int(back), int(forward)
 
     @abstractmethod
     def series(self, lat: float, lng: float, today: dt.date,
@@ -418,16 +442,33 @@ class WeatherApiProvider(WeatherProvider):
             raise WeatherUnavailable(
                 self.name, f"{type(exc).__name__}: {str(exc)[:160]}") from exc
 
+    def window_for(self, back: int, forward: int) -> tuple[int, int]:
+        if not self.s.weather_api_key:
+            return 0, 0
+        got_back = min(int(back), int(self.s.weatherapi_history_days),
+                       int(self.s.weatherapi_max_history_calls))
+        got_fwd = min(int(forward), max(0, int(self.s.weatherapi_forecast_days) - 1))
+        return max(0, got_back), max(0, got_fwd)
+
     def series(self, lat, lng, today, back, forward):
-        ok, why = self.can_serve(back, forward)
-        if not ok:
-            raise WeatherUnavailable(self.name, why)
+        if not self.s.weather_api_key:
+            raise WeatherUnavailable(self.name, "no WEATHER_API_KEY is configured")
+
+        # Ask for what the PLAN allows, not for what was requested. Asking for
+        # 21 days on a 1-day plan used to refuse the whole call, which — with
+        # no fallback behind it — left the farmer with nothing at all when the
+        # current conditions were sitting one request away. The shortfall is
+        # declared on the payload; deciding what may be computed from a short
+        # window is the caller's job, not this class's.
+        want_back, want_fwd = int(back), int(forward)
+        got_back, got_fwd = self.window_for(want_back, want_fwd)
+        short = got_back < want_back or got_fwd < want_fwd
 
         q = f"{round(float(lat), 4)},{round(float(lng), 4)}"
         by_day: dict[dt.date, list[dict[str, float]]] = {}
 
         # History: one call per past day, oldest first.
-        for n in range(int(back), 0, -1):
+        for n in range(got_back, 0, -1):
             day = today - dt.timedelta(days=n)
             data = self._get("history.json", {"q": q, "dt": day.isoformat()})
             for block in (data.get("forecast") or {}).get("forecastday") or []:
@@ -438,7 +479,7 @@ class WeatherApiProvider(WeatherProvider):
 
         # Forecast: today and the days ahead, in one call.
         data = self._get("forecast.json", {
-            "q": q, "days": max(1, min(int(forward) + 1,
+            "q": q, "days": max(1, min(got_fwd + 1,
                                        int(self.s.weatherapi_forecast_days))),
             "aqi": "no", "alerts": "no",
         })
@@ -452,16 +493,26 @@ class WeatherApiProvider(WeatherProvider):
             raise WeatherUnavailable(self.name, "provider returned no hourly series")
         days = [_rollup(hours, day, future=day > today)
                 for day, hours in sorted(by_day.items())]
-        return {
+        out = {
             "source": "weatherapi",
             "source_kind": "live",
             "source_url": "https://www.weatherapi.com/",
             "profile": None,
             "days": days,
+            "history_days": got_back,
+            "history_days_requested": want_back,
             "note": ("Hourly WeatherAPI.com readings for this field's coordinates, rolled up "
                      "here. Hours at RH \u2265 90% are counted from the hourly series, never "
                      "estimated from a daily mean."),
         }
+        if short:
+            # Real readings, and not enough of them. Said plainly on the
+            # payload so nothing downstream has to infer it from a length.
+            out["insufficient_history"] = True
+            out["insufficient_reason"] = (
+                f"this plan covers {got_back} day(s) of history; the infection models "
+                f"accumulate over {want_back}")
+        return out
 
     def health(self):
         out = {"provider": self.name, "configured": bool(self.s.weather_api_key),
@@ -502,11 +553,28 @@ class ChainProvider(WeatherProvider):
         return False, "no configured provider covers this window"
 
     def series(self, lat, lng, today, back, forward):
+        """Two passes, and the order matters more than anything else here.
+
+        FIRST every provider that can cover the window IN FULL. A complete
+        series is the only kind the infection models may run on, so a provider
+        offering a partial one must never shadow a provider offering the whole
+        thing — that would silently downgrade the risk board on a day when
+        Open-Meteo was working perfectly.
+
+        ONLY THEN a partial series, from whoever can produce the most of it.
+        That is a real answer to "what is the weather doing" even though it is
+        not enough to run an accumulating model on, and it is strictly better
+        than telling a farmer nothing. It arrives labelled, and the caller
+        decides what may be computed from it.
+        """
         reasons = []
+        partial: list[WeatherProvider] = []
         for p in self.providers:
             ok, why = p.can_serve(back, forward)
             if not ok:
                 reasons.append(f"{p.name}: {why}")
+                if p.window_for(back, forward)[0] > 0:
+                    partial.append(p)
                 continue
             try:
                 return p.series(lat, lng, today, back, forward)
@@ -514,6 +582,16 @@ class ChainProvider(WeatherProvider):
                 reasons.append(f"{p.name}: {exc.reason}")
                 log.warning("weather provider failed; trying the next",
                             extra={"provider": p.name, "reason": exc.reason})
+
+        for p in sorted(partial, key=lambda x: -x.window_for(back, forward)[0]):
+            try:
+                out = p.series(lat, lng, today, back, forward)
+                log.warning("no provider could cover the full window; serving a short one",
+                            extra={"provider": p.name,
+                                   "history_days": out.get("history_days")})
+                return out
+            except WeatherUnavailable as exc:
+                reasons.append(f"{p.name}: {exc.reason}")
         raise WeatherUnavailable(self.name, "; ".join(reasons) or "no provider configured")
 
     def health(self):
@@ -568,8 +646,14 @@ class WeatherService:
             chain: list[WeatherProvider] = []
             if self.s.weather_api_key:
                 chain.append(WeatherApiProvider(self.s))
-            if p == "auto":
-                chain.append(OpenMeteoProvider(self.s))
+            # Open-Meteo goes in for BOTH settings, not just "auto". Naming
+            # WeatherAPI used to mean "WeatherAPI alone", and on the free plan
+            # that provider declines the 21-day risk window — so the whole
+            # service failed with "the plan allows 1 day(s) of history and this
+            # window needs 21" and there was nothing behind it to ask. A
+            # deployment asking for a primary is asking for a primary, not for
+            # the removal of its fallback.
+            chain.append(OpenMeteoProvider(self.s))
             if not chain:
                 log.warning("WEATHER_PROVIDER=weatherapi needs WEATHER_API_KEY; "
                             "no weather provider is configured")
@@ -680,7 +764,13 @@ class WeatherService:
                                 extra={"provider": exc.provider, "reason": exc.reason})
                     return self._decorate(stale, fresh=False)
                 raise
-            self._store(key, lat, lng, payload)
+            # A short series is NOT stored. The cache key describes the window
+            # that was asked for, so writing a one-day payload under it would
+            # answer the next twenty requests with a series that cannot run a
+            # model — for the full ninety minutes, and long after the provider
+            # that could cover the window had recovered.
+            if not payload.get("insufficient_history"):
+                self._store(key, lat, lng, payload)
             payload["cached"] = False
             payload["fetched_at"] = now_iso()
             return self._decorate(payload, fresh=True)
@@ -719,9 +809,24 @@ def status_of(payload: dict[str, Any] | None) -> dict[str, Any]:
             "available": False,
             "provider": None,
             "stale": False,
+            "code": "provider_unavailable",
+            "models_available": False,
             "message": "Weather update temporarily unavailable",
             "message_mr": "हवामान माहिती सध्या मिळत नाही",
             "retryable": True,
+        }
+    if payload.get("insufficient_history"):
+        # Real current weather, and not enough history to forecast on. Saying
+        # "unavailable" here would be wrong — the farmer can see conditions.
+        return {
+            "available": True,
+            "provider": payload.get("source"),
+            "stale": bool(payload.get("stale")),
+            "code": "insufficient_history",
+            "models_available": False,
+            "message": "Showing current conditions · risk forecast needs more history",
+            "message_mr": "सध्याची परिस्थिती दाखवली आहे · अंदाजासाठी पुरेशी जुनी नोंद नाही",
+            "retryable": False,
         }
     stale = bool(payload.get("stale"))
     age = (payload.get("freshness") or {}).get("age_minutes")
@@ -737,6 +842,8 @@ def status_of(payload: dict[str, Any] | None) -> dict[str, Any]:
         "available": True,
         "provider": "cache" if stale else payload.get("source"),
         "stale": stale,
+        "code": "ok",
+        "models_available": True,
         "message": msg,
         "message_mr": msg_mr,
         "retryable": False,
@@ -750,7 +857,19 @@ def to_http_error(exc: WeatherUnavailable):
     # request. Not retried for 120s." That sentence cannot help them and does
     # not belong on the screen.
     log.warning("weather unavailable",
-                extra={"provider": exc.provider, "reason": exc.reason})
+                extra={"provider": exc.provider, "reason": exc.reason, "code": exc.code})
+    if exc.code == "insufficient_history":
+        # A different thing from an outage, and the client is told so. The
+        # weather is fine; the PLAN covers fewer days than the infection models
+        # accumulate over, so there is a reading but no forecast.
+        return unavailable(
+            "weather_insufficient_history",
+            "Current conditions are available, but the risk forecast needs more days of "
+            "past weather than this weather plan provides. Nothing has been estimated in "
+            "its place, and everything that does not depend on the forecast is unchanged.",
+            message_mr=("सध्याची परिस्थिती उपलब्ध आहे, पण अंदाजासाठी लागणारी जुनी हवामान नोंद "
+                        "पुरेशी नाही. अंदाजाने काहीही भरलेले नाही; बाकी माहिती जशीच्या तशी आहे."),
+            detail={"code": "insufficient_history"})
     return unavailable(
         "weather_unavailable",
         "Weather update temporarily unavailable, so risk cannot be forecast right now. "

@@ -103,13 +103,17 @@ export const ErrorNote = ({ error, lang = 'en', onRetry }) => {
      underneath it ("Open-Meteo rate limited the request. Not retried for
      120s."), which reads as "the app is broken" for a condition that means
      "this one number is late". A quiet line and a retry, instead. */
-  if (error.code === 'weather_unavailable') {
+  if (error.code === 'weather_unavailable' || error.code === 'weather_insufficient_history') {
+    const short = error.code === 'weather_insufficient_history'
     return (
       <div className="note wx-late" role="status">
         <span className="wx-late__ic">🌦</span>
         <span className="wx-late__txt">
-          {bi(lang, 'Weather update temporarily unavailable',
-                    'हवामान माहिती सध्या मिळत नाही')}
+          {short
+            ? bi(lang, 'Risk forecast needs more past weather than is available',
+                       'अंदाजासाठी पुरेशी जुनी हवामान नोंद उपलब्ध नाही')
+            : bi(lang, 'Weather update temporarily unavailable',
+                       'हवामान माहिती सध्या मिळत नाही')}
         </span>
         {onRetry && (
           <button className="btn sm ghost wx-late__go" onClick={onRetry}>

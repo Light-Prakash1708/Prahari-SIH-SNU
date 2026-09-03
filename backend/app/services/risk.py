@@ -38,8 +38,29 @@ class RiskService:
     # ── inputs ─────────────────────────────────────────────────────────────
     def weather_series(self, plot: dict[str, Any], back: int = 21,
                        forward: int = 6) -> dict[str, Any]:
-        return self.weather.series(plot.get("lat"), plot.get("lng"), _today(),
-                                   back=back, forward=forward)
+        """The series every model path runs on — complete, or not at all.
+
+        A provider whose plan covers less history than was asked for returns
+        what it has, marked. That is a genuine answer for "what is it doing
+        outside" and it is NOT one for TOMCAST or a degree-day model: both
+        accumulate from a start date, so a shorter window does not make them
+        less certain, it makes them compute a different number and present it
+        with the same confidence.
+
+        So it is refused here, once, at the single seam every model path goes
+        through — with its own code, and carrying the reading so a screen can
+        still show conditions. Every caller already handles WeatherUnavailable
+        by degrading rather than blanking, which is why this needs no new
+        branch anywhere else.
+        """
+        wx = self.weather.series(plot.get("lat"), plot.get("lng"), _today(),
+                                 back=back, forward=forward)
+        if wx.get("insufficient_history"):
+            raise WeatherUnavailable(
+                wx.get("source") or "unknown",
+                wx.get("insufficient_reason") or "not enough history to run the models",
+                code="insufficient_history", payload=wx)
+        return wx
 
     def crop_stage(self, plot: dict[str, Any]) -> dict[str, Any]:
         cycle = self.active_cycle(plot["id"])

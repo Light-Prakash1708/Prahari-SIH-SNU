@@ -198,6 +198,23 @@ def _weather_context(wx: dict[str, Any] | None,
     through a published infection model for a disease; for a pest it is not an
     input at all, and this screen must not imply it is.
     """
+    if wx is None and err is not None and err.code == "insufficient_history" and err.payload:
+        # A plan limit, not an outage. Today's readings are real and are shown;
+        # what is withheld is the forecast, and the note says which.
+        return {
+            **status_of(err.payload),
+            "source": err.payload.get("source"),
+            "generated": False,
+            "warning": None,
+            "freshness": err.payload.get("freshness"),
+            "note": ("Current conditions are shown. The published infection models need "
+                     "more days of past weather than this weather plan provides, so no "
+                     "risk level is forecast and nothing has been estimated in its place."),
+            "note_mr": ("सध्याची परिस्थिती दाखवली आहे. संसर्ग मॉडेलसाठी लागणारी जुनी हवामान नोंद "
+                        "या योजनेत उपलब्ध नाही, त्यामुळे धोक्याची पातळी दिलेली नाही — आणि "
+                        "अंदाजाने काहीही भरलेले नाही."),
+            "days": (err.payload.get("days") or [])[-1:],
+        }
     if wx is None:
         # The provider's own words stay in the log. `err.reason` says things
         # like "Open-Meteo rate limited the request", which is a sentence for

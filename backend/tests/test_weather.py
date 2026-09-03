@@ -545,3 +545,136 @@ def test_the_status_object_labels_cached_weather_as_recent_not_broken(env):
     assert old["available"] is True and old["stale"] is True
     assert old["provider"] == "cache"
     assert "recent weather" in old["message"].lower()
+
+
+# ── a plan that covers one day of history ──────────────────────────────────
+# The production failure this exists to prevent: WEATHER_PROVIDER=weatherapi
+# with a free plan logged "the plan allows 1 day(s) of history and this window
+# needs 21" and served nothing, because naming a primary had quietly removed
+# the fallback behind it.
+
+def _free_plan(env, **over):
+    from app.config import Settings
+    return Settings(**{**env.model_dump(), "weather_api_key": "k",
+                       "weatherapi_history_days": 1, "weatherapi_forecast_days": 3,
+                       **over})
+
+
+def test_naming_weatherapi_still_keeps_open_meteo_behind_it(env, monkeypatch):
+    """The bug itself. `weatherapi` used to mean "weatherapi alone"."""
+    monkeypatch.setenv("WEATHER_PROVIDER", "weatherapi")
+    monkeypatch.setenv("WEATHER_API_KEY", "k")
+    from app.config import reload_settings
+    from app.db import Database
+    from app.weather import ChainProvider, OpenMeteoProvider, WeatherService
+    s = reload_settings()
+    db = Database(s)
+    db.migrate()
+    ws = WeatherService(db, s)
+    assert isinstance(ws.provider, ChainProvider)
+    assert any(isinstance(p, OpenMeteoProvider) for p in ws.provider.providers), \
+        "a primary must not remove the fallback behind it"
+
+
+def test_a_free_plan_falls_through_to_open_meteo_for_the_risk_window(env, monkeypatch):
+    """The 21-day window is served, by the provider that can serve it, and the
+    one-day plan costs no request on the way past."""
+    import httpx
+    from app.weather import ChainProvider, OpenMeteoProvider, WeatherApiProvider
+    s = _free_plan(env)
+    hits = []
+
+    def fake(url, params=None, **k):
+        hits.append(url)
+        return _Resp(payload=_good_payload())
+
+    monkeypatch.setattr(httpx, "get", fake)
+    out = ChainProvider([WeatherApiProvider(s), OpenMeteoProvider(s)]).series(
+        20.08, 74.11, dt.date(2026, 8, 25), 21, 6)
+    assert out["source"] == "open-meteo"
+    assert not out.get("insufficient_history")
+    assert not any("weatherapi" in h for h in hits), "the declining plan cost nothing"
+
+
+def test_a_short_window_is_served_only_when_nothing_else_can(env, monkeypatch):
+    """C · Open-Meteo down as well. Rather than nothing, the farmer gets the
+    real current conditions — labelled as too short to forecast on."""
+    import httpx
+    from app.weather import ChainProvider, OpenMeteoProvider, WeatherApiProvider
+    s = _free_plan(env)
+    today = dt.date(2026, 8, 27)
+
+    def fake(url, params=None, **k):
+        if "open-meteo" in url or "openmeteo" in url:
+            return _Resp(503)
+        if "history" in url:
+            return _Resp(payload={"forecast": {"forecastday": [_wapi_day(params["dt"])]}})
+        return _Resp(payload={"forecast": {"forecastday": [_wapi_day(today.isoformat())]}})
+
+    monkeypatch.setattr(httpx, "get", fake)
+    out = ChainProvider([WeatherApiProvider(s), OpenMeteoProvider(s)]).series(
+        20.08, 74.11, today, 21, 6)
+    assert out["source"] == "weatherapi"
+    assert out["insufficient_history"] is True
+    assert out["history_days"] == 1 and out["history_days_requested"] == 21
+    assert out["days"], "and it is a real reading, not an empty shell"
+
+
+def test_a_complete_series_always_beats_a_partial_one(env, monkeypatch):
+    """The regression that would matter most: a partial provider must never
+    shadow one that can cover the whole window."""
+    import httpx
+    from app.weather import ChainProvider, OpenMeteoProvider, WeatherApiProvider
+    s = _free_plan(env)
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _Resp(payload=_good_payload()))
+    out = ChainProvider([WeatherApiProvider(s), OpenMeteoProvider(s)]).series(
+        20.08, 74.11, dt.date(2026, 8, 25), 21, 6)
+    assert out["source"] == "open-meteo" and not out.get("insufficient_history")
+
+
+def test_a_short_series_is_never_cached_under_the_full_windows_key(env, monkeypatch):
+    """Caching it would answer the next ninety minutes of requests with a
+    series no model can run on, long after the full provider had recovered."""
+    from app.db import Database
+    from app.weather import WeatherService
+    db = Database(env)
+    db.migrate()
+    ws = WeatherService(db, env, demo_profile_fn=lambda: "monsoon")
+    monkeypatch.setattr(ws.provider, "series", lambda *a, **k: {
+        "source": "weatherapi", "source_kind": "live", "days": [{"date": "2026-08-27"}],
+        "insufficient_history": True, "history_days": 1, "history_days_requested": 21})
+    out = ws.series(20.08, 74.11, dt.date(2026, 8, 27))
+    assert out["insufficient_history"] is True
+    assert db.scalar("SELECT COUNT(*) FROM weather_cache") == 0
+
+
+def test_the_status_object_separates_a_plan_limit_from_an_outage(env):
+    """8 · insufficient_history is its own state. Weather IS available; what is
+    not available is a model verdict."""
+    from app.weather import status_of
+    st = status_of({"source": "weatherapi", "insufficient_history": True,
+                    "freshness": {"age_minutes": 2}})
+    assert st["available"] is True, "the farmer can see conditions"
+    assert st["models_available"] is False
+    assert st["code"] == "insufficient_history"
+    assert status_of(None)["code"] == "provider_unavailable"
+    for word in ("429", "rate limit", "http", "weatherapi.com"):
+        assert word not in str(st).lower()
+
+
+def test_a_plan_limit_and_an_outage_are_different_http_bodies(env):
+    """8 · so a deployment reading logs, and a screen reading `code`, can tell
+    "we could not reach anyone" from "we reached them and the plan is short"."""
+    from app.weather import WeatherUnavailable, to_http_error
+    short = to_http_error(WeatherUnavailable(
+        "weatherapi", "this plan covers 1 day(s) of history",
+        code="insufficient_history"))
+    assert short.detail["error"] == "weather_insufficient_history"
+    assert short.detail["detail"]["code"] == "insufficient_history"
+    assert "estimated" in short.detail["message"]
+
+    down = to_http_error(WeatherUnavailable("open-meteo", "Open-Meteo rate limited"))
+    assert down.detail["error"] == "weather_unavailable"
+    for body in (str(short.detail).lower(), str(down.detail).lower()):
+        for leak in ("rate limited", "429", "open-meteo", "weatherapi\","):
+            assert leak not in body

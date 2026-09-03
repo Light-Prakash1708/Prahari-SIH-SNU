@@ -366,3 +366,79 @@ def test_the_management_screen_carries_a_structured_weather_status(client, farme
     assert st["provider"]
     assert st["stale"] is False
     assert st["message"]
+
+
+# ── a weather plan with one day of history ─────────────────────────────────
+
+def _short_wx(days=1):
+    return {"source": "weatherapi", "source_kind": "live", "days": [
+        {"date": "2026-08-27", "tmin": 22.0, "tmax": 31.0, "rain_mm": 0.0,
+         "rh90_hours": 2.0, "hours_21_30": 9.0, "future": False}],
+        "insufficient_history": True, "history_days": days,
+        "history_days_requested": 21,
+        "insufficient_reason": f"this plan covers {days} day(s) of history",
+        "freshness": {"age_minutes": 3, "fresh": True}}
+
+
+@pytest.fixture
+def one_day_plan(monkeypatch):
+    """Every weather call returns real readings — and only one day of them."""
+    from app import weather as wx_mod
+    monkeypatch.setattr(wx_mod.WeatherService, "series", lambda *a, **k: _short_wx())
+
+
+def test_a_one_day_plan_does_not_503_the_risk_endpoints(client, farmer, plot, one_day_plan):
+    """The production symptom. A plan limit is not an outage and must not be
+    reported as one."""
+    r = client.get(f"/api/risk/{plot['id']}", headers=farmer["headers"])
+    assert r.status_code != 500
+    body = r.json()
+    if r.status_code == 503:
+        # The risk board IS the forecast, so with no forecast there is nothing
+        # to render — but it now says WHICH state it is in. A plan limit and an
+        # outage need different answers from whoever reads the logs, and the
+        # screen shows a different sentence for each.
+        assert body["error"] == "weather_insufficient_history"
+        assert body["detail"]["code"] == "insufficient_history"
+        assert body["retryable"] is True
+    for leak in ("429", "rate limit", "weatherapi.com"):
+        assert leak not in str(body).lower()
+
+
+def test_management_renders_and_shows_the_conditions_it_does_have(client, farmer, plot,
+                                                                  one_day_plan):
+    """5 + 7 · the screen renders, the real readings are shown, and the model
+    verdict is withheld rather than computed on a short window."""
+    r = client.get(f"/api/management/{plot['id']}", headers=farmer["headers"])
+    assert r.status_code == 200, r.text
+    m = r.json()
+    ctx = m["weather_context"]
+    assert ctx["available"] is True, "current conditions ARE known"
+    assert ctx["models_available"] is False
+    assert ctx["code"] == "insufficient_history"
+    assert ctx["days"], "the real reading is shown"
+    # everything that does not need three weeks of weather is untouched
+    assert m["decision"] and m["targets"] and m["ipm_ladder"]
+    assert m["weather_available"] is False, "no model ran"
+
+
+def test_a_short_window_never_reaches_an_accumulating_model(client, farmer, plot,
+                                                            one_day_plan):
+    """The reason this is refused rather than truncated: TOMCAST and the
+    degree-day models accumulate, so a shorter window does not make them less
+    certain — it makes them compute a different number just as confidently."""
+    m = _mg(client, farmer["headers"], plot["id"])
+    for t in m["targets"]:
+        assert t.get("level") is None, f"{t['id']} carries a level from one day of weather"
+        assert t.get("fired") is None
+    assert m["prevention_window"] is None
+
+
+def test_the_field_board_still_lists_every_field_on_a_short_plan(client, farmer, plot,
+                                                                 one_day_plan):
+    """7 · the multi-field board must not lose its rows either."""
+    r = client.get("/api/plots/board", headers=farmer["headers"])
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert b["count"] >= 1
+    assert all("name" in c and "crop" in c for c in b["fields"])
