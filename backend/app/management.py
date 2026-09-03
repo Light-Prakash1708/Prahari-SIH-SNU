@@ -239,6 +239,8 @@ def _weather_context(wx: dict[str, Any] | None,
     return {
         **status_of(wx),
         "source": wx.get("source"),
+        "sources": wx.get("sources"),
+        "history_days": wx.get("history_days"),
         "generated": wx.get("generated", False),
         "warning": wx.get("warning"),
         # `stale` comes from status_of above and stays a real boolean —

@@ -566,14 +566,17 @@ def test_naming_weatherapi_still_keeps_open_meteo_behind_it(env, monkeypatch):
     monkeypatch.setenv("WEATHER_API_KEY", "k")
     from app.config import reload_settings
     from app.db import Database
-    from app.weather import ChainProvider, OpenMeteoProvider, WeatherService
+    from app.weather import (CompositeProvider, OpenMeteoProvider,
+                             WeatherApiProvider, WeatherService)
     s = reload_settings()
     db = Database(s)
     db.migrate()
     ws = WeatherService(db, s)
-    assert isinstance(ws.provider, ChainProvider)
-    assert any(isinstance(p, OpenMeteoProvider) for p in ws.provider.providers), \
-        "a primary must not remove the fallback behind it"
+    assert isinstance(ws.provider, CompositeProvider)
+    assert isinstance(ws.provider.primary, WeatherApiProvider), \
+        "WeatherAPI stays the configured primary"
+    assert isinstance(ws.provider.historical, OpenMeteoProvider), \
+        "a primary must not remove the history provider behind it"
 
 
 def test_a_free_plan_falls_through_to_open_meteo_for_the_risk_window(env, monkeypatch):
@@ -678,3 +681,299 @@ def test_a_plan_limit_and_an_outage_are_different_http_bodies(env):
     for body in (str(short.detail).lower(), str(down.detail).lower()):
         for leak in ("rate limited", "429", "open-meteo", "weatherapi\","):
             assert leak not in body
+
+
+# ── the two-source window ───────────────────────────────────────────────────
+# The free WeatherAPI plan holds one day of history; the infection models
+# accumulate over twenty-one. Choosing between the providers throws away
+# whichever half you did not choose, so the window is split at the primary's
+# own coverage boundary and each side supplies its part.
+
+def _composite(env, **over):
+    from app.config import Settings
+    from app.weather import CompositeProvider, OpenMeteoProvider, WeatherApiProvider
+    s = Settings(**{**env.model_dump(), "weather_api_key": "k",
+                    "weatherapi_history_days": 1, "weatherapi_forecast_days": 3, **over})
+    return CompositeProvider(WeatherApiProvider(s), OpenMeteoProvider(s)), s
+
+
+def _om_window(today, back=21, forward=6):
+    """An Open-Meteo hourly payload that really does cover the asked-for window,
+    so a coverage assertion is testing the code and not the fixture."""
+    start = dt.datetime.combine(today - dt.timedelta(days=back), dt.time())
+    n = 24 * (back + forward + 1)
+    times = [(start + dt.timedelta(hours=i)).isoformat() for i in range(n)]
+    return {"hourly": {"time": times,
+                       "temperature_2m": [26.0] * n,
+                       "relative_humidity_2m": [85.0] * n,
+                       "precipitation": [0.1] * n}}
+
+
+def _routed(today, om_status=200, wapi_status=200):
+    """One fake httpx.get that answers as whichever provider was called."""
+    import httpx
+
+    def fake(url, params=None, **k):
+        if "open-meteo" in url or "openmeteo" in url:
+            if om_status != 200:
+                return _Resp(om_status)
+            return _Resp(payload=_om_window(today))
+        if wapi_status != 200:
+            return _Resp(wapi_status)
+        if "history" in url:
+            return _Resp(payload={"forecast": {"forecastday": [_wapi_day(params["dt"])]}})
+        n = int((params or {}).get("days", 1))
+        return _Resp(payload={"forecast": {"forecastday": [
+            _wapi_day((today + dt.timedelta(days=i)).isoformat()) for i in range(n)]}})
+    return fake
+
+
+def test_B_a_one_day_plan_still_gets_the_models_their_full_window(env, monkeypatch):
+    """B · the scenario in production. WeatherAPI covers today and the
+    forecast; Open-Meteo supplies the older days the models accumulate over,
+    and the result is a complete twenty-one-day window."""
+    import httpx
+    today = dt.date(2026, 8, 25)
+    cp, _ = _composite(env)
+    monkeypatch.setattr(httpx, "get", _routed(today))
+    out = cp.series(20.08, 74.11, today, 21, 6)
+
+    assert not out.get("insufficient_history"), "the window is covered end to end"
+    assert out["history_days"] >= 21
+    assert out["sources"]["history"] == "open-meteo"
+    assert out["sources"]["recent"] == "weatherapi"
+    assert out["sources"]["forecast"] == "weatherapi"
+
+    # every day says who reported it, and the seam is where it should be
+    srcs = {d["src"] for d in out["days"]}
+    assert srcs == {"open-meteo", "weatherapi"}
+    boundary = today - dt.timedelta(days=1)
+    for d in out["days"]:
+        day = dt.date.fromisoformat(d["date"])
+        assert d["src"] == ("weatherapi" if day >= boundary else "open-meteo")
+    # dates are unique and ordered — no day counted twice across the seam
+    dates = [d["date"] for d in out["days"]]
+    assert dates == sorted(dates) and len(dates) == len(set(dates))
+
+
+def test_A_current_and_forecast_come_from_the_primary(env, monkeypatch):
+    """A · WeatherAPI is still the primary for what a farmer looks at."""
+    import httpx
+    today = dt.date(2026, 8, 25)
+    cp, _ = _composite(env)
+    monkeypatch.setattr(httpx, "get", _routed(today))
+    out = cp.series(20.08, 74.11, today, 21, 6)
+    future = [d for d in out["days"] if d.get("future")]
+    assert future and all(d["src"] == "weatherapi" for d in future)
+    today_row = next(d for d in out["days"] if d["date"] == today.isoformat())
+    assert today_row["src"] == "weatherapi"
+
+
+def test_C_the_primary_failing_leaves_a_complete_series(env, monkeypatch):
+    """C · Open-Meteo covers the whole window by itself, so a WeatherAPI outage
+    costs provenance, not the forecast."""
+    import httpx
+    today = dt.date(2026, 8, 25)
+    cp, _ = _composite(env)
+    monkeypatch.setattr(httpx, "get", _routed(today, wapi_status=503))
+    out = cp.series(20.08, 74.11, today, 21, 6)
+    assert out["source"] == "open-meteo"
+    assert not out.get("insufficient_history")
+
+
+def test_D_the_history_provider_failing_leaves_current_conditions(env, monkeypatch):
+    """D · WeatherAPI still answers for today; the window is short and says so,
+    and the models refuse it rather than accumulating over one day."""
+    import httpx
+    today = dt.date(2026, 8, 25)
+    cp, _ = _composite(env)
+    monkeypatch.setattr(httpx, "get", _routed(today, om_status=503))
+    out = cp.series(20.08, 74.11, today, 21, 6)
+    assert out["source"] == "weatherapi"
+    assert out["insufficient_history"] is True
+    assert out["days"], "current conditions are real and are kept"
+
+
+def test_E_both_failing_raises_and_names_both(env, monkeypatch):
+    """E · a graceful, typed failure — not a crash, and not a guess."""
+    import httpx
+    from app.weather import WeatherUnavailable
+    today = dt.date(2026, 8, 25)
+    cp, _ = _composite(env)
+    monkeypatch.setattr(httpx, "get", _routed(today, om_status=503, wapi_status=503))
+    with pytest.raises(WeatherUnavailable) as exc:
+        cp.series(20.08, 74.11, today, 21, 6)
+    assert "weatherapi" in exc.value.reason and "open-meteo" in exc.value.reason
+
+
+def test_F_a_covered_window_is_cached_and_not_re_fetched(env, monkeypatch):
+    """F · opening Home and Management repeatedly must not spend requests."""
+    import httpx
+    from app.db import Database
+    from app.config import Settings
+    from app.weather import (CompositeProvider, OpenMeteoProvider,
+                             WeatherApiProvider, WeatherService)
+    today = dt.date(2026, 8, 27)
+    s = Settings(**{**env.model_dump(), "weather_api_key": "k",
+                    "weatherapi_history_days": 1, "weatherapi_forecast_days": 3})
+    db = Database(s)
+    db.migrate()
+    calls = []
+    inner = _routed(today)
+
+    def counting(url, params=None, **k):
+        calls.append(url)
+        return inner(url, params=params, **k)
+
+    monkeypatch.setattr(httpx, "get", counting)
+    ws = WeatherService(db, s)
+    ws.provider = CompositeProvider(WeatherApiProvider(s), OpenMeteoProvider(s))
+    ws.series(20.08, 74.11, today)
+    first = len(calls)
+    assert first > 0
+    for _ in range(10):
+        ws.series(20.08, 74.11, today)
+    assert len(calls) == first, f"cache leaked {len(calls) - first} extra requests"
+    assert db.scalar("SELECT COUNT(*) FROM weather_cache") == 1
+
+
+def test_G_no_key_starts_and_uses_open_meteo(env, monkeypatch):
+    """G · a missing WEATHER_API_KEY is a configuration state, not a crash."""
+    monkeypatch.setenv("WEATHER_PROVIDER", "weatherapi")
+    monkeypatch.delenv("WEATHER_API_KEY", raising=False)
+    from app.config import reload_settings
+    from app.db import Database
+    from app.weather import OpenMeteoProvider, WeatherService
+    s = reload_settings()
+    db = Database(s)
+    db.migrate()
+    ws = WeatherService(db, s)
+    assert isinstance(ws.provider, OpenMeteoProvider)
+    assert ws.health()["configured"] is True
+
+
+def test_H_no_provider_at_all_still_starts(env, monkeypatch):
+    """H · WEATHER_PROVIDER=none is a supported deployment, not an error."""
+    monkeypatch.setenv("WEATHER_PROVIDER", "none")
+    from app.config import reload_settings
+    from app.db import Database
+    from app.weather import NullProvider, WeatherService, WeatherUnavailable
+    s = reload_settings()
+    db = Database(s)
+    db.migrate()
+    ws = WeatherService(db, s)
+    assert isinstance(ws.provider, NullProvider)
+    assert ws.health()["configured"] is False
+    with pytest.raises(WeatherUnavailable):
+        ws.series(20.08, 74.11, dt.date(2026, 8, 27))
+
+
+def test_the_composite_never_invents_a_day_across_the_seam(env, monkeypatch):
+    """Nothing is interpolated where the two sources meet. A day neither
+    provider reported is simply absent."""
+    import httpx
+    today = dt.date(2026, 8, 25)
+    cp, _ = _composite(env)
+
+    def gappy(url, params=None, **k):
+        if "open-meteo" in url or "openmeteo" in url:
+            # a series with a hole in the middle of the historical range
+            t0 = dt.datetime(2026, 8, 4)
+            times, temps, rhs, rains = [], [], [], []
+            for i in range(24 * 21):
+                stamp = t0 + dt.timedelta(hours=i)
+                if stamp.date() == dt.date(2026, 8, 10):
+                    continue
+                times.append(stamp.isoformat()); temps.append(26.0)
+                rhs.append(85.0); rains.append(0.0)
+            return _Resp(payload={"hourly": {"time": times, "temperature_2m": temps,
+                                             "relative_humidity_2m": rhs,
+                                             "precipitation": rains}})
+        if "history" in url:
+            return _Resp(payload={"forecast": {"forecastday": [_wapi_day(params["dt"])]}})
+        return _Resp(payload={"forecast": {"forecastday": [_wapi_day(today.isoformat())]}})
+
+    monkeypatch.setattr(httpx, "get", gappy)
+    out = cp.series(20.08, 74.11, today, 21, 6)
+    assert "2026-08-10" not in [d["date"] for d in out["days"]], \
+        "a day nobody reported must not appear"
+
+
+def test_the_response_says_which_provider_supplied_which_part(client, farmer, plot,
+                                                              monkeypatch):
+    """15 + 16 · live, forecast and historical are distinguishable in the
+    payload, not just in the log."""
+    import httpx
+    from app.config import Settings
+    from app.runtime import get_runtime
+    from app.weather import CompositeProvider, OpenMeteoProvider, WeatherApiProvider
+    today = dt.date(2026, 8, 27)
+    s = Settings(**{**client.settings.model_dump(), "weather_api_key": "k",
+                    "weatherapi_history_days": 1, "weatherapi_forecast_days": 3})
+    rt = get_runtime()
+    rt.weather.provider = CompositeProvider(WeatherApiProvider(s), OpenMeteoProvider(s))
+    rt.db.execute("DELETE FROM weather_cache")
+    monkeypatch.setattr(httpx, "get", _routed(today))
+
+    body = client.get(f"/api/risk/{plot['id']}", headers=farmer["headers"]).json()
+    w = body["weather"]
+    assert w["sources"]["history"] == "open-meteo"
+    assert w["sources"]["recent"] == "weatherapi"
+    assert w["sources"]["forecast"] == "weatherapi"
+    assert w["history_days"] >= 21 and w["history_days_requested"] == 21
+    assert {d["src"] for d in w["days"]} == {"open-meteo", "weatherapi"}
+    # and no credential rides along with the provenance
+    assert "k" not in str(w.get("sources")) and "key" not in str(w).lower()[:2000]
+
+
+def test_every_day_carries_its_source_in_every_branch(env, monkeypatch):
+    """15 · `src` is never absent, so a missing tag can never be mistaken for
+    'unknown provider'."""
+    import httpx
+    from app.weather import clear_cooldowns
+    today = dt.date(2026, 8, 25)
+    for om, wa in ((200, 200), (200, 503), (503, 200)):
+        # Each case is its own outage. Without this the 503 in one iteration
+        # leaves a cooldown that makes the next one fail for the wrong reason —
+        # which is the cooldown working, not the composite failing.
+        clear_cooldowns()
+        cp, _ = _composite(env)
+        monkeypatch.setattr(httpx, "get", _routed(today, om_status=om, wapi_status=wa))
+        out = cp.series(20.08, 74.11, today, 21, 6)
+        assert out["days"], f"om={om} wa={wa}"
+        assert all(d.get("src") for d in out["days"]), f"untagged day with om={om} wa={wa}"
+        assert out["sources"], f"no sources breakdown with om={om} wa={wa}"
+
+
+def test_the_weather_api_key_is_never_written_to_a_log(env, monkeypatch, caplog):
+    """WeatherAPI authenticates with `?key=` — its documented method — and
+    httpx logs every outgoing URL at INFO. At LOG_LEVEL=INFO, which is the
+    default and what the deployment runs, that wrote the live key into the
+    application log on every weather fetch.
+
+    A credential in a URL has to be silenced at the logger, not redacted after
+    the fact: by the time it is a formatted string it has already been handed
+    to every handler attached to the root.
+    """
+    import logging
+
+    import httpx
+
+    # 1 · nothing PRAHARI itself logs carries the credential, and the
+    #     provenance line that replaced it names providers only.
+    today = dt.date(2026, 8, 25)
+    cp, _ = _composite(env)
+    monkeypatch.setattr(httpx, "get", _routed(today))
+    with caplog.at_level(logging.DEBUG):
+        cp.series(20.08, 74.11, today, 21, 6)
+    blob = "\n".join(r.getMessage() for r in caplog.records)
+    assert "key=" not in blob and "stub-key" not in blob
+    assert any("weather assembled" in r.getMessage() for r in caplog.records)
+
+    # 2 · and the client library that WOULD print it is held below INFO.
+    #     Checked after the capture because configure_logging replaces the
+    #     root handlers, which is what detaches caplog.
+    from app.obs import configure_logging
+    configure_logging()
+    for noisy in ("httpx", "httpcore", "urllib3"):
+        assert logging.getLogger(noisy).level >= logging.WARNING, noisy

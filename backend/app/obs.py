@@ -61,6 +61,16 @@ def configure_logging() -> None:
     root.handlers = [handler]
     root.setLevel(getattr(logging, s.log_level.upper(), logging.INFO))
     logging.getLogger("uvicorn.access").handlers = [handler]
+
+    # httpx logs every outgoing request at INFO, as the full URL. WeatherAPI
+    # authenticates with `?key=`, which is its documented method, so at
+    # LOG_LEVEL=INFO — the default, and what Render runs — the weather API key
+    # was being written into the application log on every fetch. Nothing reads
+    # those lines that the request_id and our own log lines do not already
+    # cover, so the client loggers are held at WARNING. Anything that puts a
+    # credential in a URL must be silenced here, not logged and redacted later.
+    for noisy in ("httpx", "httpcore", "urllib3"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     logging.getLogger("uvicorn.access").propagate = False
 
 

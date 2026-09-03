@@ -599,6 +599,164 @@ class ChainProvider(WeatherProvider):
                 "chain": [p.health() for p in self.providers]}
 
 
+class CompositeProvider(WeatherProvider):
+    """One series, assembled from two providers, each covering the part it can.
+
+    The problem this solves: the free WeatherAPI plan holds ONE day of history,
+    and the infection models accumulate over twenty-one. Choosing between the
+    providers throws away whichever half you did not choose — pick WeatherAPI
+    and the models cannot run; pick Open-Meteo and the configured primary is
+    never used. So the window is split at the primary's own coverage boundary:
+
+        today-21 ................ today-1 | today ......... today+6
+        └── historical provider ─────────┘ └── primary ────────────┘
+
+    Open-Meteo is asked for the whole window in one request — it cannot be
+    asked for a slice — and only the days OLDER than the primary's coverage are
+    taken from it. On the free plan that is three requests in total (one
+    Open-Meteo, one WeatherAPI history day, one WeatherAPI forecast), and the
+    models get all twenty-one days.
+
+    Two honest caveats, both recorded on the payload rather than hidden:
+
+    · Two sources means one seam. The reanalysis behind Open-Meteo and the
+      observations behind WeatherAPI will not agree to the decimal on the day
+      they meet, so a threshold sitting exactly on that boundary could tip
+      either way. Every day therefore carries `src`, and the payload carries
+      `sources`, so a number can always be traced to who reported it.
+    · Neither provider is ever asked to cover the other's part, and nothing is
+      interpolated across the seam. A day missing from both is missing.
+
+    If either side fails the other still answers — with less window, labelled.
+    """
+    name = "composite"
+    kind = "live"
+
+    def __init__(self, primary: WeatherProvider, historical: WeatherProvider):
+        self.primary = primary
+        self.historical = historical
+        self.name = f"{primary.name}+{historical.name}"
+
+    def can_serve(self, back, forward):
+        for p in (self.primary, self.historical):
+            if p.can_serve(back, forward)[0] or p.window_for(back, forward)[0] > 0:
+                return True, ""
+        return False, "no configured provider covers any of this window"
+
+    def window_for(self, back, forward):
+        return int(back), int(forward)
+
+    @staticmethod
+    def _tag(days: list[dict[str, Any]], src: str) -> list[dict[str, Any]]:
+        for d in days:
+            d["src"] = src
+        return days
+
+    def series(self, lat, lng, today, back, forward):
+        want_back, want_fwd = int(back), int(forward)
+        p_back, _p_fwd = self.primary.window_for(want_back, want_fwd)
+        # The first day the primary is responsible for. Everything strictly
+        # older than this comes from the historical provider.
+        boundary = today - dt.timedelta(days=max(0, p_back))
+
+        head = tail = None
+        reasons: list[str] = []
+        try:
+            head = self.primary.series(lat, lng, today, want_back, want_fwd)
+        except WeatherUnavailable as exc:
+            reasons.append(f"{self.primary.name}: {exc.reason}")
+            log.warning("composite: primary did not answer",
+                        extra={"provider": self.primary.name, "reason": exc.reason})
+
+        need_history = head is None or p_back < want_back
+        if need_history:
+            try:
+                tail = self.historical.series(lat, lng, today, want_back, want_fwd)
+            except WeatherUnavailable as exc:
+                reasons.append(f"{self.historical.name}: {exc.reason}")
+                log.warning("composite: historical provider did not answer",
+                            extra={"provider": self.historical.name, "reason": exc.reason})
+
+        if head is None and tail is None:
+            raise WeatherUnavailable(self.name, "; ".join(reasons) or "no provider answered")
+
+        # Only the historical provider answered: it covers the whole window on
+        # its own, so this is simply its series.
+        if head is None:
+            # One provider covering the whole window is still provenance worth
+            # recording: `src` is present on EVERY day in every branch, so a
+            # reader never has to work out whether a missing tag means
+            # "unknown" or "there was only one source".
+            out = dict(tail)
+            out["days"] = self._tag(list(tail.get("days") or []), self.historical.name)
+            out["sources"] = {"history": self.historical.name,
+                              "recent": self.historical.name,
+                              "forecast": self.historical.name}
+            log.info("weather assembled", extra={
+                "history": self.historical.name, "recent": self.historical.name,
+                "forecast": self.historical.name, "days": len(out["days"])})
+            return out
+
+        head_days = self._tag(list(head.get("days") or []), self.primary.name)
+        if tail is None:
+            # Primary only. Short of the model window unless the plan covers it.
+            out = dict(head)
+            out["days"] = head_days
+            out["sources"] = {"history": None, "recent": self.primary.name,
+                              "forecast": self.primary.name}
+            log.info("weather assembled", extra={
+                "history": None, "recent": self.primary.name,
+                "forecast": self.primary.name, "days": len(head_days)})
+            return out
+
+        older = [d for d in (tail.get("days") or [])
+                 if dt.date.fromisoformat(d["date"]) < boundary]
+        older = self._tag(older, self.historical.name)
+        merged = older + [d for d in head_days
+                          if dt.date.fromisoformat(d["date"]) >= boundary]
+        merged.sort(key=lambda d: d["date"])
+
+        covered = 0
+        if merged:
+            first = dt.date.fromisoformat(merged[0]["date"])
+            covered = max(0, (today - first).days)
+        out = {
+            "source": self.name,
+            "source_kind": "live",
+            "source_url": "https://www.weatherapi.com/",
+            "profile": None,
+            "days": merged,
+            "history_days": covered,
+            "history_days_requested": want_back,
+            "sources": {
+                "history": self.historical.name if older else None,
+                "recent": self.primary.name,
+                "forecast": self.primary.name,
+            },
+            "note": (f"Hourly readings for this field's coordinates. The last "
+                     f"{len(head_days)} day(s) and the forecast come from "
+                     f"{self.primary.name}; the {len(older)} older day(s) the infection "
+                     f"models accumulate over come from {self.historical.name}. Hours at "
+                     f"RH \u2265 90% are counted from the hourly series, never estimated "
+                     f"from a daily mean. Every day carries the source that reported it."),
+        }
+        if covered < want_back:
+            out["insufficient_history"] = True
+            out["insufficient_reason"] = (
+                f"{covered} day(s) of history available; the infection models "
+                f"accumulate over {want_back}")
+        log.info("weather assembled", extra={
+            "history": out["sources"]["history"], "recent": self.primary.name,
+            "forecast": self.primary.name, "history_days": len(older),
+            "primary_days": len(head_days), "covered": covered})
+        return out
+
+    def health(self):
+        return {"provider": self.name, "configured": True,
+                "primary": self.primary.health(),
+                "historical": self.historical.health()}
+
+
 class DemoWeatherProvider(WeatherProvider):
     """A deterministic generated series, so a demo produces identical numbers on
     every laptop and cannot fail because a venue firewall blocked an API call.
@@ -643,22 +801,17 @@ class WeatherService:
             # With no key the chain is Open-Meteo alone, which is exactly what
             # this deployment ran before — so "auto" is safe to set everywhere
             # and the key is the only thing that changes behaviour.
-            chain: list[WeatherProvider] = []
-            if self.s.weather_api_key:
-                chain.append(WeatherApiProvider(self.s))
-            # Open-Meteo goes in for BOTH settings, not just "auto". Naming
-            # WeatherAPI used to mean "WeatherAPI alone", and on the free plan
-            # that provider declines the 21-day risk window — so the whole
-            # service failed with "the plan allows 1 day(s) of history and this
-            # window needs 21" and there was nothing behind it to ask. A
-            # deployment asking for a primary is asking for a primary, not for
-            # the removal of its fallback.
-            chain.append(OpenMeteoProvider(self.s))
-            if not chain:
-                log.warning("WEATHER_PROVIDER=weatherapi needs WEATHER_API_KEY; "
-                            "no weather provider is configured")
-                return NullProvider()
-            return chain[0] if len(chain) == 1 else ChainProvider(chain)
+            # WeatherAPI stays the primary — current conditions and the
+            # forecast come from it. Open-Meteo covers the older history its
+            # plan does not reach, so the models get the whole window instead
+            # of the app having to choose which half to lose. With no key
+            # configured this is Open-Meteo alone, which is what this
+            # deployment ran before a key existed.
+            if not self.s.weather_api_key:
+                log.info("no WEATHER_API_KEY; weather is Open-Meteo alone")
+                return OpenMeteoProvider(self.s)
+            return CompositeProvider(WeatherApiProvider(self.s),
+                                     OpenMeteoProvider(self.s))
         if p == "openmeteo":
             return OpenMeteoProvider(self.s)
         if p == "demo":

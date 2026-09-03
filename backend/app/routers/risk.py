@@ -147,6 +147,14 @@ def _weather_view(wx: dict[str, Any]) -> dict[str, Any]:
         # deciding for itself what "stale plus fresh false" means.
         "status": status_of(wx),
         "source": wx.get("source"),
+        # Which provider supplied which part of the window. The series can be
+        # assembled from two of them — the primary for current conditions and
+        # the forecast, the historical provider for the older days the
+        # infection models accumulate over — so a number is always traceable
+        # to whoever reported it. Every day row also carries its own `src`.
+        "sources": wx.get("sources"),
+        "history_days": wx.get("history_days"),
+        "history_days_requested": wx.get("history_days_requested"),
         "kind": wx.get("source_kind"),
         "source_url": wx.get("source_url"),
         "generated": wx.get("source_kind") == "generated",
