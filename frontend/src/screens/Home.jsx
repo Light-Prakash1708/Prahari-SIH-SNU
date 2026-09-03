@@ -259,7 +259,8 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
                   {lang === 'mr' ? 'इतिहास' : 'History'} ›
                 </button>
               </div>
-              <Passport pass={pass} lang={lang} />
+              <Passport pass={pass} data={data} todo={todo} plot={plot}
+                        stage={stage} lang={lang} go={go} />
               <p className="tiny faint" style={{ marginTop: 10, lineHeight: 1.5 }}>
                 {lang === 'mr'
                   ? 'या पिकाच्या हंगामातील प्रत्येक तपासणी, मोजणी, निर्णय आणि फवारणीची नोंद — काढणीच्या वेळी हाच पुरावा असतो.'
@@ -308,12 +309,79 @@ function act(item, go) {
   return go(a.do || 'home')
 }
 
-/* ── the passport strip: six counts, from the field's own record ────────── */
-function Passport({ pass, lang }) {
-  // Counted from the field's own event log and records — never estimated. The
-  // kinds here are exactly the ones the routers write (see field_events).
+/* ── the passport ──────────────────────────────────────────────────────────
+   It was six counters. Six counters are a record, and a record is not the same
+   thing as an answer: a farmer opening this on a phone wants to know what is
+   growing, how it is doing, which way it moved, what is threatening it, when
+   it was last looked at and what to do next — and the app already had all six
+   of those in hand on this very screen.
+
+   So nothing new is fetched. Every value below comes from a response Home has
+   already loaded: `data` is /api/fields/{id}/health, `todo` is the agenda,
+   `pass` is the field history, `stage` is the crop stage. The six counters stay
+   at the bottom, because the record is the part that matters at harvest.
+
+   Where a value is genuinely unavailable — weather down, no scan yet, one
+   snapshot so no trend — the cell says so. It never shows a zero or a dash
+   standing in for a number nobody measured. */
+const DASH = { en: 'Not recorded yet', mr: 'अजून नोंद नाही' }
+
+function daysAgo(iso) {
+  if (!iso) return null
+  const then = new Date(String(iso).slice(0, 10))
+  if (Number.isNaN(then.getTime())) return null
+  const d = Math.round((Date.now() - then.getTime()) / 86400000)
+  return d < 0 ? 0 : d
+}
+
+function ago(iso, lang) {
+  const d = daysAgo(iso)
+  if (d === null) return null
+  if (d === 0) return lang === 'mr' ? 'आज' : 'today'
+  if (d === 1) return lang === 'mr' ? 'काल' : 'yesterday'
+  return lang === 'mr' ? `${d} दिवसांपूर्वी` : `${d}d ago`
+}
+
+/* Which way the score moved, from the snapshots the health endpoint already
+   returns. Two snapshots are the minimum: one is a reading, not a trend, and
+   drawing a flat arrow for it would be inventing a comparison. */
+function trendOf(history) {
+  const h = (history || []).filter(r => r && r.score != null)
+  if (h.length < 2) return null
+  const now = h[h.length - 1].score
+  const prev = h[h.length - 2].score
+  const delta = Math.round(now - prev)
+  return { delta, dir: delta > 1 ? 'up' : delta < -1 ? 'down' : 'flat' }
+}
+
+function Passport({ pass, data, todo, plot, stage, lang, go }) {
   const ev = pass?.timeline || []
   const n = (kind) => ev.filter(e => e.kind === kind).length
+
+  const health = data?.health
+  const trend = trendOf(data?.history)
+
+  /* Three states, and the third is the one that matters: a board that ran and
+     found nothing is NOT the same as a board that never ran. Saying "nothing
+     firing" requires positive evidence — weather present AND a board returned.
+     Without both, this cell says the forecast is missing. An earlier version
+     of this component fell through to the green "nothing firing" whenever the
+     health request had failed, which turns an outage into an all-clear on the
+     screen a farmer opens first. */
+  const boardKnown = !!(data && data.weather?.source && Array.isArray(data.board))
+
+  /* The top threat is the first board row the server already sorted to the
+     front. A row with no level is a problem PRAHARI could not forecast — it is
+     never promoted into "low". */
+  const threat = boardKnown
+    ? data.board.find(b => b.level === 'high' || b.level === 'rising' || b.level === 'watch')
+    : null
+  const lastSeen = ev.length
+    ? ev.reduce((a, b) => (String(a.on || a.at || '') > String(b.on || b.at || '') ? a : b))
+    : null
+  const lastOn = lastSeen?.on || lastSeen?.at || null
+  const next = todo?.items?.[0] || null
+
   const cells = [
     ['📷', n('scan'), lang === 'mr' ? 'तपासण्या' : 'Scans'],
     ['🪤', n('count'), lang === 'mr' ? 'मोजण्या' : 'Counts'],
@@ -322,15 +390,107 @@ function Passport({ pass, lang }) {
     ['🔁', n('followup'), lang === 'mr' ? 'पुनर्तपासणी' : 'Follow-ups'],
     ['✅', n('expert'), lang === 'mr' ? 'तज्ज्ञ' : 'Expert'],
   ]
+
   return (
-    <div className="passport">
-      {cells.map(([ic, count, label], i) => (
-        <div className={`p ${count > 0 ? 'has' : ''}`} key={i}>
-          <div className="ic">{ic}</div>
-          <div className="n">{count}</div>
-          <div className="l">{label}</div>
+    <div className="pp">
+      {/* WHAT IS GROWING, AND HOW FAR IN */}
+      <div className="pp-id">
+        <span className="pp-id__em">{CROP_EM[plot?.crop] || '🌱'}</span>
+        <span className="pp-id__txt">
+          <b>{plot?.crop_label || plot?.crop || bi(lang, 'No crop', 'पीक नाही')}</b>
+          <span className="small muted">
+            {stage?.label
+              ? bi(lang, stage.label, stage.label_mr)
+              : bi(lang, 'Stage not known — no sowing date on record',
+                         'अवस्था माहीत नाही — पेरणीची तारीख नोंदलेली नाही')}
+            {stage?.days != null &&
+              (lang === 'mr' ? ` · दिवस ${stage.days}` : ` · day ${stage.days}`)}
+          </span>
+        </span>
+      </div>
+
+      {/* THREE THINGS, THE ONES A FARMER ASKS FIRST */}
+      <div className="pp-grid">
+        <div className="pp-cell">
+          <span className="pp-cell__k">{lang === 'mr' ? 'आरोग्य' : 'Health'}</span>
+          {health ? (
+            <>
+              <b className="pp-cell__v">{Math.round(health.score)}<em>/100</em></b>
+              <span className={`pp-trend ${trend ? trend.dir : 'none'}`}>
+                {trend
+                  ? `${trend.dir === 'up' ? '▲' : trend.dir === 'down' ? '▼' : '▬'} ${Math.abs(trend.delta)}`
+                  : bi(lang, 'first reading', 'पहिली नोंद')}
+              </span>
+            </>
+          ) : (
+            <b className="pp-cell__v pp-cell__none">
+              {bi(lang, 'Not scored', 'गुण नाही')}
+            </b>
+          )}
         </div>
-      ))}
+
+        <div className="pp-cell">
+          <span className="pp-cell__k">{lang === 'mr' ? 'मुख्य धोका' : 'Top threat'}</span>
+          {threat ? (
+            <>
+              <b className="pp-cell__v pp-cell__sm">{threat.em} {bi(lang, threat.name, threat.name_mr)}</b>
+              <span className={`pp-lvl ${threat.level}`}>{levelLabel(threat.level, lang)}</span>
+            </>
+          ) : boardKnown ? (
+            <b className="pp-cell__v pp-cell__sm" style={{ color: 'var(--ok)' }}>
+              {bi(lang, 'Nothing firing', 'काहीही सक्रिय नाही')}
+            </b>
+          ) : (
+            <b className="pp-cell__v pp-cell__none pp-cell__sm">
+              {bi(lang, 'Not forecast — no weather', 'अंदाज नाही — हवामान नाही')}
+            </b>
+          )}
+        </div>
+
+        <div className="pp-cell">
+          <span className="pp-cell__k">{lang === 'mr' ? 'शेवटची पाहणी' : 'Last checked'}</span>
+          {lastOn ? (
+            <>
+              <b className="pp-cell__v pp-cell__sm">{ago(lastOn, lang)}</b>
+              <span className="pp-cell__sub">{fmtDate(lastOn, lang)}</span>
+            </>
+          ) : (
+            <b className="pp-cell__v pp-cell__none pp-cell__sm">{DASH[lang] || DASH.en}</b>
+          )}
+        </div>
+      </div>
+
+      {/* WHAT TO DO NEXT — the agenda's own top item, not a new judgement */}
+      {next ? (
+        <button className="pp-next" onClick={() => act(next, go)}>
+          <span className={`pp-next__tone ${next.tone}`}>{next.icon}</span>
+          <span className="pp-next__txt">
+            <em>{lang === 'mr' ? 'पुढे काय' : 'Do next'}</em>
+            <b>{bi(lang, next.title, next.title_mr)}</b>
+          </span>
+          <span className="pp-next__go">›</span>
+        </button>
+      ) : todo?.all_clear ? (
+        <div className="pp-next is-clear">
+          <span className="pp-next__tone calm">✓</span>
+          <span className="pp-next__txt">
+            <em>{lang === 'mr' ? 'पुढे काय' : 'Do next'}</em>
+            <b>{bi(lang, 'Nothing needs doing today. Keep walking the field.',
+                        'आज विशेष काही नाही. नेहमीप्रमाणे शेतात फेरी मारा.')}</b>
+          </span>
+        </div>
+      ) : null}
+
+      {/* THE RECORD — unchanged, and the reason this is called a passport */}
+      <div className="passport">
+        {cells.map(([ic, count, label], i) => (
+          <div className={`p ${count > 0 ? 'has' : ''}`} key={i}>
+            <div className="ic">{ic}</div>
+            <div className="n">{count}</div>
+            <div className="l">{label}</div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

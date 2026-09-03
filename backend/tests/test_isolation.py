@@ -102,6 +102,16 @@ def test_expert_case_detail_does_not_carry_farmer_contact(client, farmer, plot, 
 
 
 def test_nearby_map_is_aggregated_and_names_nobody(client, farmer, plot):
+    """A whitelist, deliberately, so a field-level leak fails here rather than
+    being noticed in a demo.
+
+    The list grew when the hotspot map was added: it now carries each taluka's
+    own CENTROID and its incidence per 1,000 farms. Both are properties of a
+    taluka — the centroid is reference data that ships in talukas.json and is
+    the same for every farmer in it — so neither says anything about a person
+    or a field. The assertions below are what keeps that true: the whitelist
+    itself, and a check that this field's actual coordinates never appear.
+    """
     import json
     r = client.get(f"/api/fields/{plot['id']}/nearby", headers=farmer["headers"])
     assert r.status_code == 200
@@ -110,4 +120,21 @@ def test_nearby_map_is_aggregated_and_names_nobody(client, farmer, plot):
     text = json.dumps(body)
     assert "9812345678" not in text
     for entry in body["nearby_talukas"]:
-        assert set(entry) <= {"taluka", "name", "z", "class", "cases"}
+        assert set(entry) <= {"taluka", "name", "name_mr", "lat", "lng",
+                              "z", "class", "cases", "incidence_per_1000"}
+    # The map plots taluka centroids and nothing finer. Checked structurally
+    # rather than by searching the text for the field's coordinates: a taluka
+    # centroid legitimately shares leading digits with a field inside it, so a
+    # substring search reports a leak that is not one. Every coordinate that
+    # leaves must be one of the published centroids, and none of them is this
+    # field's — which is the actual property being protected.
+    centroids = {(t["lat"], t["lng"]) for t in _talukas()}
+    assert (plot["lat"], plot["lng"]) not in centroids, "fixture invalidates this test"
+    for entry in body["nearby_talukas"]:
+        assert (entry["lat"], entry["lng"]) in centroids, \
+            "a coordinate that is not a published taluka centroid reached the map"
+
+
+def _talukas():
+    from app import reference
+    return reference.TALUKAS

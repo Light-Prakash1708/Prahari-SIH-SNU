@@ -85,7 +85,7 @@ export function Scan({ plot, lang, onDiagnosed, go }) {
               <div className="sub small mt">Two or three photos give a better answer than one.</div>
             </>}
       </button>
-      <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden
+      <input ref={fileRef} type="file" accept="image/*" hidden
              onChange={e => e.target.files[0] && send(e.target.files[0])} />
 
       {!res && !busy && (

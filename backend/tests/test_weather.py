@@ -294,3 +294,49 @@ def test_a_cache_older_than_the_stale_window_is_withheld_not_served(env, monkeyp
                             WeatherUnavailable("demo", "simulated outage")))
     with pytest.raises(WeatherUnavailable):
         ws.series(20.08, 74.11, dt.date(2026, 8, 27))
+
+
+def test_a_dropped_connection_is_retried_once_and_no_more(env, monkeypatch):
+    """The failure that actually clears by asking again — and the one that does
+    not. A transport error gets a second attempt; a 429 gets none, because
+    asking a provider that just said stop is what held the limit open."""
+    import httpx
+    from app import weather as wx
+    calls = []
+
+    def flaky(*a, **k):
+        calls.append(1)
+        if len(calls) == 1:
+            raise httpx.ConnectError("connection reset")
+        return _Resp(payload=_good_payload())
+
+    monkeypatch.setattr(httpx, "get", flaky)
+    out = wx.OpenMeteoProvider(env).series(20.08, 74.11, dt.date(2026, 8, 25), 21, 6)
+    assert out["source"] == "open-meteo"
+    assert len(calls) == 2, "one retry, taken"
+
+    calls.clear()
+
+    def always_down(*a, **k):
+        calls.append(1)
+        raise httpx.ConnectError("down")
+
+    monkeypatch.setattr(httpx, "get", always_down)
+    with pytest.raises(wx.WeatherUnavailable):
+        wx.OpenMeteoProvider(env).series(20.08, 74.11, dt.date(2026, 8, 25), 21, 6)
+    assert len(calls) == 2, "two attempts total, never more"
+
+
+def test_a_rate_limit_is_never_retried(env, monkeypatch):
+    import httpx
+    from app import weather as wx
+    calls = []
+
+    def limited(*a, **k):
+        calls.append(1)
+        return _Resp(429)
+
+    monkeypatch.setattr(httpx, "get", limited)
+    with pytest.raises(wx.WeatherUnavailable):
+        wx.OpenMeteoProvider(env).series(20.08, 74.11, dt.date(2026, 8, 25), 21, 6)
+    assert len(calls) == 1

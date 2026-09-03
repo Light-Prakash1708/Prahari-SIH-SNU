@@ -324,7 +324,14 @@ export function Sheet({ open, onClose, title, children }) {
 /* ── camera ────────────────────────────────────────────────────────────── */
 export function Camera({ onCapture, onClose, title = 'Scan Crop', tips, lang = 'en' }) {
   const videoRef = useRef(null)
-  const fileRef = useRef(null)
+  /* TWO inputs, deliberately. `capture="environment"` is not a hint — it tells
+     the phone to skip the picker and open the camera, so a single shared input
+     meant the Gallery button opened the camera and the photo library was
+     unreachable. The gallery input therefore carries no `capture` attribute at
+     all; the camera one keeps it, and is only used when getUserMedia failed
+     and the shutter has no live frame to grab. */
+  const galleryRef = useRef(null)
+  const cameraRef = useRef(null)
   const streamRef = useRef(null)
   const [err, setErr] = useState(null)
   const [preview, setPreview] = useState(null)
@@ -347,7 +354,8 @@ export function Camera({ onCapture, onClose, title = 'Scan Crop', tips, lang = '
 
   const shoot = () => {
     const v = videoRef.current
-    if (!v || !v.videoWidth) { fileRef.current?.click(); return }
+    // No live frame — fall back to the phone's own camera app.
+    if (!v || !v.videoWidth) { cameraRef.current?.click(); return }
     const side = Math.min(v.videoWidth, v.videoHeight)
     const canvas = document.createElement('canvas')
     canvas.width = canvas.height = Math.min(1400, side)
@@ -364,6 +372,11 @@ export function Camera({ onCapture, onClose, title = 'Scan Crop', tips, lang = '
 
   const pick = (e) => {
     const f = e.target.files?.[0]
+    // Cancelling the picker fires change with an empty list on some browsers
+    // and not at all on others. Either way the screen stays as it was.
+    // Clearing the value matters too: without it, choosing the SAME photo
+    // twice in a row fires no second change event and the button looks dead.
+    e.target.value = ''
     if (f) { setPreview(URL.createObjectURL(f)); stop(); onCapture(f) }
   }
 
@@ -414,7 +427,7 @@ export function Camera({ onCapture, onClose, title = 'Scan Crop', tips, lang = '
         )}
       </div>
       <div className="cam-bar">
-        <button className="cam-side" onClick={() => fileRef.current?.click()}>
+        <button className="cam-side" onClick={() => galleryRef.current?.click()}>
           <span className="ic">🖼</span><span>{lang === 'mr' ? 'गॅलरी' : 'Gallery'}</span>
         </button>
         <button className="shutter" onClick={shoot} aria-label={lang === 'mr' ? 'फोटो काढा' : 'Take photo'} />
@@ -422,7 +435,11 @@ export function Camera({ onCapture, onClose, title = 'Scan Crop', tips, lang = '
           <span className="ic">💡</span><span>{lang === 'mr' ? 'उजेड' : 'Light'}</span>
         </div>
       </div>
-      <input ref={fileRef} type="file" accept="image/*" capture="environment"
+      {/* No `capture` — this is the photo library. */}
+      <input ref={galleryRef} type="file" accept="image/*"
+             onChange={pick} style={{ display: 'none' }} />
+      {/* `capture` — this is the camera, for the no-getUserMedia fallback. */}
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment"
              onChange={pick} style={{ display: 'none' }} />
     </div>
   )

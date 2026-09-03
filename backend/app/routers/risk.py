@@ -117,12 +117,26 @@ def nearby(plot_id: str, problem: str = Query("late_blight"),
     return {
         "taluka": plot["taluka"], "taluka_name": reference.taluka_name(plot["taluka"]),
         "gi_z": z, "assessment": assessment,
+        # The taluka CENTROID and the Getis-Ord statistic, which is what the
+        # hotspot map draws. Both were already computed here; only the centroid
+        # and the rate were being dropped on the way out, which is why the map
+        # needed no new endpoint and no new query.
         "nearby_talukas": [
-            {"taluka": h["taluka"], "name": h.get("name"), "z": h["z"], "class": h["class"],
-             "cases": h.get("cases")}
+            {"taluka": h["taluka"], "name": h.get("name"), "name_mr": h.get("name_mr"),
+             "lat": h.get("lat"), "lng": h.get("lng"),
+             "z": h["z"], "class": h["class"], "cases": h.get("cases"),
+             "incidence_per_1000": h.get("incidence_per_1000")}
             for h in hotspots],
-        "privacy": ("Counts are aggregated to taluka level. PRAHARI never shows another farmer's "
-                    "field, name or coordinates on this screen."),
+        "problem": problem,
+        "problem_name": reference.problem_name(problem),
+        "problem_name_mr": reference.problem_name(problem, "mr"),
+        "window_days": days,
+        "total_cases": sum(int(h.get("cases") or 0) for h in hotspots),
+        "privacy": ("Counts are aggregated to taluka level and positioned on the taluka's own "
+                    "centroid. PRAHARI never shows another farmer's field, name or "
+                    "coordinates on this screen."),
+        "privacy_mr": ("संख्या तालुका पातळीवर एकत्रित केली आहे. दुसऱ्या शेतकऱ्याचे शेत, नाव किंवा "
+                       "ठिकाण प्रहरी कधीही दाखवत नाही."),
     }
 
 

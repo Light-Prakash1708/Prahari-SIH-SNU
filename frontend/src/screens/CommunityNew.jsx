@@ -124,7 +124,7 @@ export default function CommunityNew({ lang, plot, plots, go, onDone }) {
           <div className="card-title" style={{ marginBottom: 10 }}>
             {lang === 'mr' ? '४ · फोटो (ऐच्छिक)' : '4 · A photograph (optional)'}
           </div>
-          <input ref={fileRef} type="file" accept="image/*" capture="environment"
+          <input ref={fileRef} type="file" accept="image/*"
                  style={{ display: 'none' }} multiple
                  onChange={e => setFiles(Array.from(e.target.files || []).slice(0, 4))} />
           <button className="btn block ghost" onClick={() => fileRef.current?.click()}>

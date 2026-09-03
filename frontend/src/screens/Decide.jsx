@@ -11,7 +11,7 @@
    name of an unverified product is half of recommending it. */
 import React, { useEffect, useState } from 'react'
 import { api, newRef, queue } from '../api'
-import { Card, ErrorNote, Loading, Prov, Seg, Sheet, Why, bi, fmtDate, fmtMoney } from '../ui'
+import { Card, ErrorNote, Loading, Prov, Seg, Sheet, Why, bi, fmtDate, fmtMoney, levelLabel } from '../ui'
 
 const T = {
   title:      ['What should I do?', 'काय करावे?'],
@@ -36,6 +36,14 @@ const T = {
   conditions: ['Field conditions', 'शेतातील परिस्थिती'],
   rising:     ['Rising', 'वाढतोय'], falling: ['Falling', 'घटतोय'], flat: ['No change', 'बदल नाही'],
   noWx:       ['No weather for this field right now', 'सध्या या शेताचे हवामान उपलब्ध नाही'],
+  detected:   ['What was found', 'काय आढळले'],
+  riskNow:    ['Risk now', 'सध्याचा धोका'],
+  doNow:      ['Start here', 'इथून सुरू करा'],
+  watchNext:  ['Then check again', 'नंतर पुन्हा तपासा'],
+  notKnown:   ['Not known', 'माहीत नाही'],
+  notForecast:['Not forecast — no weather', 'अंदाज नाही — हवामान नाही'],
+  measured:   ['measured', 'मोजलेले'],
+  estimated:  ['from a photograph', 'फोटोवरून'],
 }
 const t = (lang, k) => bi(lang, T[k][0], T[k][1])
 
@@ -76,6 +84,9 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
   const kind = m?.target_kind
   const state = STATE[d?.tone] || STATE.grey
   const measured = kind === 'pest' ? m?.threshold : m?.assessment
+  /* The chosen target's own row on the risk board, so the glance strip states
+     the level the server computed rather than deriving one here. */
+  const targetRow = (m?.targets || []).find(x => x.id === m?.target)
   const recordAction = kind === 'pest' ? () => setCountOpen(true) : () => setAssessOpen(true)
 
   return (
@@ -307,7 +318,13 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
                 <div className="card-title">🎯 {t(lang, 'today')}</div>
                 <div style={{ marginTop: 8 }}>
                   {m.mission.items.slice(0, 4).map((it, i) => {
-                    const key = it.key || `it${i}`
+                    /* `it.key` is the agenda item's KIND, not its identity —
+                       two infection models firing on one field both arrive as
+                       "model". Keying on it gave React duplicate keys and, far
+                       worse, made the tick boxes share state: checking one
+                       model row checked every other one. The index makes each
+                       row its own. */
+                    const key = `${it.key || 'it'}-${i}`
                     const on = plan.includes(key)
                     return (
                       <button key={key} className={'mg-check' + (on ? ' is-on' : '')}
@@ -369,6 +386,78 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
 
             {/* ── 7 · THE LADDER ───────────────────────────────────────── */}
             <h2 className="sect-title">{t(lang, 'ladder')}</h2>
+
+            {/* Four questions, in the order a farmer asks them, answered from
+                values the server already returned. Nothing here is a new
+                judgement — the level is the risk board's, the measurement is
+                the threshold check or the field assessment, the starting rung
+                is the ladder's own first step and the re-check date is the
+                decision's. It exists because those four answers were spread
+                across four cards and a collapsed fold, and the one question
+                the screen is for is which rung to stand on today. */}
+            <Card className="mg-glance">
+              <div className="gl">
+                <div className="gl-i">
+                  <span className="gl-k">{t(lang, 'detected')}</span>
+                  <b className="gl-v">
+                    {kind === 'pest'
+                      ? (m.threshold
+                          ? `${m.threshold.count} ${m.threshold.unit}`
+                          : t(lang, 'notKnown'))
+                      : (m.assessment
+                          ? `${m.assessment.incidence_pct}% ${bi(lang, 'of plants', 'झाडांवर')}`
+                          : t(lang, 'notKnown'))}
+                  </b>
+                  <span className="gl-s">
+                    {(kind === 'pest' ? m.threshold : m.assessment)
+                      ? t(lang, 'measured')
+                      : (m.evidence?.diagnosis ? t(lang, 'estimated') : '—')}
+                  </span>
+                </div>
+
+                <div className="gl-i">
+                  <span className="gl-k">{t(lang, 'riskNow')}</span>
+                  {m.weather_available === false ? (
+                    <b className="gl-v gl-v--none">{t(lang, 'notForecast')}</b>
+                  ) : (
+                    <>
+                      <b className="gl-v">
+                        {targetRow?.level ? levelLabel(targetRow.level, lang) : t(lang, 'notKnown')}
+                      </b>
+                      <span className="gl-s">
+                        {targetRow?.fired
+                          ? bi(lang, 'infection model fired', 'संसर्ग मॉडेल सक्रिय')
+                          : bi(lang, 'published model on this field', 'या शेताच्या हवामानावर')}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                <div className="gl-i">
+                  <span className="gl-k">{t(lang, 'doNow')}</span>
+                  <b className="gl-v gl-v--sm">
+                    {m.ipm_ladder?.[0]
+                      ? bi(lang, m.ipm_ladder[0].title, m.ipm_ladder[0].title_mr)
+                      : t(lang, 'notKnown')}
+                  </b>
+                  <span className="gl-s">
+                    {bi(lang, 'cheapest rung that applies', 'सर्वात स्वस्त पायरी')}
+                  </span>
+                </div>
+
+                <div className="gl-i">
+                  <span className="gl-k">{t(lang, 'watchNext')}</span>
+                  <b className="gl-v gl-v--sm">
+                    {d.recheck_on ? fmtDate(d.recheck_on, lang) : t(lang, 'notKnown')}
+                  </b>
+                  <span className="gl-s">
+                    {kind === 'pest'
+                      ? bi(lang, 'count the trap again', 'सापळा पुन्हा मोजा')
+                      : bi(lang, 'walk the field again', 'पुन्हा पाहणी करा')}
+                  </span>
+                </div>
+              </div>
+            </Card>
             {m.ipm_ladder[0] && (
               <Card className="mg-first">
                 <div className="tiny muted">{t(lang, 'startWith')}</div>

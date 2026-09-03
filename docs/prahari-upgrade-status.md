@@ -463,3 +463,103 @@ zero, none or safe. The number and product guards are untouched.
 - **`field_facts` still wraps `crop_stage` in `contextlib.suppress(Exception)`.**
   Narrower than it was — the board no longer hides behind it — but the same
   class of thing that hid the board bug for as long as it existed.
+
+---
+
+# Farmer intelligence pass: gallery, passport, IPM glance, consoles, hotspots
+
+TESTS: 327 (322 before). No migration, no new runtime dependency, no new
+weather provider. Frontend 136.71 kB gzipped JS against the 200 kB gate.
+
+## Gallery opened the camera
+
+`capture="environment"` is not a hint — it tells the phone to skip the picker
+and open the camera. The scan screen had ONE hidden input carrying it, shared
+between the shutter's fallback and the Gallery button, so Gallery opened the
+camera and a photo already on the phone could not be used at all. The Camera
+component now has two inputs: a gallery one with no `capture`, and a camera one
+that keeps it and is reached only when `getUserMedia` failed. The input value is
+cleared on change, so choosing the same photo twice in a row still fires.
+
+The same attribute was on six other "take or choose a photo" inputs — the weed
+check, the trap photo, the follow-up rescan, the community post, and the two
+older views — each of them denying the photo library behind a control that
+offered it. Removed there too; the native picker offers both.
+
+## Crop Health Passport
+
+It was six counters. The counters stay, as the footer, because the record is
+what matters at harvest — above them now sit crop identity and stage, the
+health score with its direction of travel, the top threat with its level, when
+the field was last actually looked at, and the agenda's own next action.
+
+Nothing new is fetched: every value comes from a response the home screen had
+already loaded. Two snapshots are required before a direction is drawn, because
+one reading is not a trend.
+
+**The bug worth recording** was found by mounting the screen against a backend
+with `WEATHER_PROVIDER=none`. The threat cell fell through to a green "Nothing
+firing" whenever the health request had failed — turning an outage into an
+all-clear on the screen a farmer opens first. Saying nothing is firing now
+requires positive evidence: weather present AND a board returned. Otherwise it
+says the forecast is missing.
+
+## IPM at a glance
+
+The ladder already escalated correctly — monitor, cultural, biological, then
+chemical behind the threshold gate — and there is deliberately no mechanical
+rung, because `ipm.json` has no mechanical entries for any target and inventing
+one would be the app making up agronomy. What was missing was legibility: the
+four things the ladder turns on were spread over four cards and a collapsed
+fold. They are now one strip above it — what was found and whether it was
+measured or read off a photograph, the risk level now, which rung to start on,
+and when to look again. Every value is the server's; none is a new judgement.
+
+Also fixed there: the day's-work checklist keyed its rows on the agenda item's
+KIND, so two infection models firing on one field both arrived as `model` —
+duplicate React keys, and ticking one row ticked the other.
+
+## Expert and officer consoles
+
+The role has always come from `/api/auth/me` and App.jsx hands each role a
+different product; a farmer could not see the other consoles because a farmer
+may not open them. That is correct and is unchanged. What was missing was any
+way to know they exist. `Modes` lists all four, states the account's own role,
+and opens one only when the signed-in account already has it — no client-side
+role, no mode switch, no demo bypass. Seeded demo credentials appear only when
+the server reports `demo_mode`.
+
+## Nearby hotspots
+
+`/api/fields/{id}/nearby` already ran a Getis-Ord Gi* over confirmed diagnoses
+per taluka and already knew every taluka's centroid, case count, incidence per
+1,000 farms and z score. It was dropping the centroid on the way out. Adding it
+back is the whole backend change — no new endpoint, no new table, no second
+statistic.
+
+The map is hand-drawn SVG, like every other chart here: an equirectangular
+projection of ten centroids with longitude scaled by cos(latitude). No tile
+layer — a mapping library would break both the 200 kB bundle gate and the
+no-CDN rule, to draw roads nobody needs at district scale.
+
+`test_isolation` guards this with a whitelist. It was widened deliberately,
+not loosened: the added keys are taluka properties, every coordinate that
+leaves must be one of the published centroids, and the substring check for the
+field's own coordinates was replaced with a structural one — a centroid
+legitimately shares leading digits with a field inside it, so the old form
+reported a leak that was not one.
+
+## Known limitations
+
+- **The frontend has no test runner in the repository.** The screens above were
+  verified by mounting them in jsdom against a live backend, with weather on
+  and with `WEATHER_PROVIDER=none`, but that harness lives outside the repo
+  rather than adding a test framework and its dependencies to it. The Home
+  all-clear bug is exactly the class of thing it catches and `pytest` cannot.
+- **The hotspot map is district-scale and unprojected.** Correct for ten
+  talukas in one district; it would need a real projection before it covered a
+  state.
+- **Only confirmed diagnoses count towards a hotspot.** A taluka where nobody
+  has scanned looks identical to one where nothing is wrong. The screen says
+  what it counted, but it cannot distinguish absence of disease from absence of
+  farmers using PRAHARI.

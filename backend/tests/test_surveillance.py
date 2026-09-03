@@ -170,3 +170,43 @@ def test_a_narrow_officer_scope_still_gets_a_hotspot_statistic(client, admin):
     assert {h["taluka"] for h in out["hotspots"]} == {"niphad", "pimpalgaon"}
     assert any(h["z"] != 0 for h in out["hotspots"])
     assert "filtered to the" in out["statistic"]
+
+
+# ── the hotspot map draws from this endpoint and adds no data of its own ────
+
+def test_nearby_carries_the_taluka_centroid_so_a_map_can_be_drawn(client, farmer, plot):
+    """The Gi* already ran over every taluka and already knew each centroid;
+    the response was dropping the coordinates on the way out, which is the only
+    reason the hotspot map needed anything at all. It needs no new query, no
+    new table and no second statistic."""
+    r = client.get(f"/api/fields/{plot['id']}/nearby", headers=farmer["headers"])
+    assert r.status_code == 200, r.text
+    body = r.json()
+    rows = body["nearby_talukas"]
+    assert rows, "the district's talukas are reference data and are always present"
+    for row in rows:
+        assert row["lat"] is not None and row["lng"] is not None
+        assert "incidence_per_1000" in row
+        assert row["class"] in ("hot", "warm", "cold", "none")
+        # taluka resolution only — no farmer, no field, no fine coordinate
+        assert "farmer" not in row and "plot_id" not in row
+    assert body["problem_name"]
+    assert body["window_days"] > 0
+    assert body["total_cases"] == sum(int(x["cases"] or 0) for x in rows)
+    assert "never shows another farmer" in body["privacy"]
+
+
+def test_nearby_with_no_confirmed_cases_reports_zero_rather_than_omitting(client, farmer, plot):
+    """A district with nothing confirmed is a real reading. Every taluka is
+    still returned, at zero, so the map can say 'nothing here' instead of
+    rendering an empty frame that looks like a loading failure."""
+    body = client.get(f"/api/fields/{plot['id']}/nearby?problem=late_blight",
+                      headers=farmer["headers"]).json()
+    assert body["total_cases"] == 0
+    assert len(body["nearby_talukas"]) >= 3
+    assert all(x["cases"] == 0 for x in body["nearby_talukas"])
+
+
+def test_nearby_is_still_refused_for_someone_elses_field(client, farmer_b, plot):
+    r = client.get(f"/api/fields/{plot['id']}/nearby", headers=farmer_b["headers"])
+    assert r.status_code == 403, r.text

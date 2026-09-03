@@ -129,7 +129,7 @@ export default function Water({ lang, plot, go }) {
               ? 'दोन ओळींमधील जमिनीचा फोटो कमरेच्या उंचीवरून घ्या. दर आठवड्याला त्याच पद्धतीने घेतल्यास तुलना करता येते.'
               : 'Photograph the ground between two rows, from about waist height. Taken the same way each week, the series is what makes it useful.'}
           </p>
-          <input ref={fileRef} type="file" accept="image/*" capture="environment"
+          <input ref={fileRef} type="file" accept="image/*"
                  style={{ display: 'none' }}
                  onChange={e => e.target.files?.[0] && checkWeeds(e.target.files[0])} />
           <button className="btn block ghost" onClick={() => fileRef.current?.click()}>

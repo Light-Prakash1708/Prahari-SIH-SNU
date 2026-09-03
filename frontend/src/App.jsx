@@ -35,6 +35,8 @@ import Soil from './screens/Soil'
 import Water from './screens/Water'
 import Officer from './screens/Officer'
 import Expert from './screens/Expert'
+import Hotspots from './screens/Hotspots'
+import Modes from './screens/Modes'
 import { AccountSheet, BottomNav, Drawer, Header } from './shell/Chrome'
 
 /* Five destinations, and the middle one is a camera because that is the verb
@@ -148,6 +150,7 @@ export default function App() {
     'fertilizer', 'privacy', 'howItWorks', 'alerts', 'profile', 'history', 'cropJourney',
     'decide',
     'forecast', 'traps', 'addField', 'officer', 'expert',
+    'hotspots', 'modes',
   ]), [])
   useEffect(() => {
     const fromHash = () => {
@@ -249,6 +252,20 @@ export default function App() {
       case 'forecast':
         if (!plot) return <NoField lang={lang} go={go} />
         return <Forecast lang={lang} plot={plot} go={go} />
+      case 'hotspots':
+        /* Handles its own no-field state: the map is drawn around the taluka
+           the field is in, so it explains that rather than bouncing. */
+        return <Hotspots lang={lang} plot={plot} go={go} />
+      case 'modes':
+        return <Modes lang={lang} me={me} health={health} go={go} />
+      case 'officer':
+        /* The route exists so a signed-in officer arriving from a link or the
+           consoles screen lands on the console. The ROLE gate above is what
+           authorises it — a farmer never reaches this line, because App hands
+           an officer the officer product before the farmer switch is read. */
+        return <Officer me={me} health={health} />
+      case 'expert':
+        return <Expert me={me} />
       case 'traps':
         if (!plot) return <NoField lang={lang} go={go} />
         return <Traps lang={lang} plot={plot} go={go} online={online} />

@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import random
 import threading
 import time
 from abc import ABC, abstractmethod
@@ -218,12 +219,26 @@ class OpenMeteoProvider(WeatherProvider):
                 f"{_cooldown_reason(self.name) or 'provider unavailable'}; "
                 f"not retried for another {int(left) + 1}s")
 
-        try:
-            r = httpx.get(self.s.weather_api_url, params=params,
-                          timeout=self.s.weather_timeout_seconds)
-        except Exception as exc:
+        # ONE retry, and only for a transport failure — a dropped connection or
+        # a timeout on a village network, which is the failure that actually
+        # clears by asking again. A 429 or a 5xx is handled below and is never
+        # retried: asking a provider that just said "stop" to try again is how
+        # a rate limit was being held open in the first place. The pause is
+        # jittered so several fields failing together do not come back in step.
+        last: Exception | None = None
+        r = None
+        for attempt in range(2):
+            try:
+                r = httpx.get(self.s.weather_api_url, params=params,
+                              timeout=self.s.weather_timeout_seconds)
+                break
+            except Exception as exc:
+                last = exc
+                if attempt == 0:
+                    time.sleep(0.25 + random.random() * 0.35)
+        if r is None:
             raise WeatherUnavailable(
-                self.name, f"{type(exc).__name__}: {str(exc)[:160]}") from exc
+                self.name, f"{type(last).__name__}: {str(last)[:160]}") from last
 
         if r.status_code == 429 or r.status_code >= 500:
             # The two shapes of "stop asking". Honour Retry-After when it is

@@ -274,7 +274,7 @@ function FollowUpDue({ due, plot, onDone }) {
         the only ground truth this system gets for free.
       </p>
       {err && <p className="small mt" style={{ color: 'var(--high)' }}>{err}</p>}
-      <input ref={file} type="file" accept="image/*" capture="environment" hidden
+      <input ref={file} type="file" accept="image/*" hidden
              onChange={e => e.target.files[0] && send(e.target.files[0])} />
       <button className="btn block mt" disabled={busy} onClick={() => file.current.click()}>
         {busy ? <><span className="spin" /> Comparing…</> : '📷 Photograph it again'}

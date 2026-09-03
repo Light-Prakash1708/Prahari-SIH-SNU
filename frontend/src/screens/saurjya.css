@@ -719,3 +719,159 @@
 .rung[open] > summary::after { transform: rotate(180deg); display: inline-block; }
 
 @media (max-width: 360px) { .mg-two { grid-template-columns: 1fr; } }
+
+/* ── nearby hotspots ─────────────────────────────────────────────────────
+   Hand-drawn SVG, like every other chart in this app. No tile layer: the
+   bundle is gated at 200 kB gzipped and nothing may be fetched from a CDN. */
+.hs-map { margin: 10px -4px 4px; }
+.hs-map svg { width: 100%; height: auto; display: block; }
+.hs-map__lbl {
+  font-family: var(--sans); font-size: 8px; font-weight: 700;
+  fill: var(--ink-2);
+}
+.hs-map__n {
+  font-family: var(--display); font-size: 9px; font-weight: 800; fill: var(--card);
+}
+
+.hs-legend {
+  display: flex; flex-wrap: wrap; gap: 10px 14px;
+  padding-top: 10px; margin-top: 6px; border-top: 1px solid var(--rule-soft);
+}
+.hs-legend__i {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--muted); font-weight: 600;
+}
+.hs-legend__i i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.hs-legend__i i.hs-me {
+  background: var(--card); border: 2.5px solid var(--g-900);
+}
+
+.hs-list { list-style: none; display: grid; gap: 2px; }
+.hs-list li {
+  display: grid; grid-template-columns: 10px 1fr auto auto;
+  align-items: center; gap: 9px;
+  padding: 9px 6px; border-radius: var(--r-sm);
+}
+.hs-list li.is-me { background: var(--g-050); }
+.hs-list__dot { width: 9px; height: 9px; border-radius: 50%; }
+.hs-list__name { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.hs-list__me { color: var(--g-600); font-size: 11px; font-weight: 800; }
+.hs-list__n, .hs-list__rate {
+  display: grid; justify-items: end; line-height: 1.15;
+  font-family: var(--display); font-weight: 800; font-size: 14px; color: var(--ink);
+}
+.hs-list__rate { min-width: 62px; }
+.hs-list__n em, .hs-list__rate em {
+  font-family: var(--sans); font-style: normal;
+  font-size: 9.5px; font-weight: 600; color: var(--muted);
+}
+
+/* ── consoles / mode switch ──────────────────────────────────────────────── */
+.md-card.is-mine { border-color: var(--g-100); background: var(--g-050); }
+.md-head { display: flex; align-items: center; gap: 10px; }
+.md-ic {
+  width: 32px; height: 32px; flex: none; display: grid; place-items: center;
+  border-radius: 10px; background: var(--card);
+  border: 1px solid var(--rule); color: var(--g-700);
+}
+.md-demo { list-style: none; display: grid; gap: 4px; margin-top: 10px; }
+.md-demo li {
+  display: flex; justify-content: space-between; gap: 10px;
+  font-size: 12px; padding: 7px 9px;
+  background: var(--sunk); border-radius: var(--r-sm);
+}
+.md-demo li b { color: var(--ink); text-transform: capitalize; }
+.md-demo li span { color: var(--muted); font-family: ui-monospace, monospace; }
+
+/* ── crop health passport, made dynamic ──────────────────────────────────
+   Same card, same type scale, same spacing tokens. What changed is that the
+   six counters are now the FOOTER of the section rather than the whole of it:
+   identity, health with its trend, the top threat and the last look sit above
+   them, and every one of those values comes from a response the home screen
+   had already loaded. */
+.pp { display: grid; gap: 12px; }
+
+.pp-id { display: flex; align-items: center; gap: 10px; }
+.pp-id__em { font-size: 26px; line-height: 1; }
+.pp-id__txt { display: grid; gap: 2px; min-width: 0; }
+.pp-id__txt b { font-size: 15px; color: var(--ink); }
+.pp-id__txt .small { font-size: 12px; }
+
+.pp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.pp-cell {
+  display: grid; gap: 3px; align-content: start;
+  padding: 10px 9px; border-radius: var(--r-sm);
+  background: var(--sunk); border: 1px solid var(--rule-soft);
+  min-height: 74px;
+}
+.pp-cell__k {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .02em;
+  text-transform: uppercase; color: var(--muted);
+}
+.pp-cell__v {
+  font-family: var(--display); font-weight: 800; font-size: 19px;
+  line-height: 1.1; color: var(--ink);
+}
+.pp-cell__v em { font-style: normal; font-size: 11px; color: var(--muted); font-weight: 700; }
+.pp-cell__sm { font-size: 12.5px; line-height: 1.25; }
+.pp-cell__none { color: var(--muted); font-weight: 700; }
+.pp-cell__sub { font-size: 10px; color: var(--faint); }
+
+.pp-trend { font-size: 10.5px; font-weight: 800; color: var(--muted); }
+.pp-trend.up { color: var(--ok); }
+.pp-trend.down { color: var(--bad); }
+
+.pp-lvl {
+  justify-self: start; font-size: 9.5px; font-weight: 800;
+  padding: 2px 7px; border-radius: var(--r-pill);
+  background: var(--sunk); border: 1px solid var(--rule); color: var(--muted);
+}
+.pp-lvl.high   { background: var(--bad-bg);  border-color: var(--bad-line);  color: var(--bad); }
+.pp-lvl.rising { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn); }
+.pp-lvl.watch  { background: var(--info-bg); border-color: var(--info-line); color: var(--info); }
+
+.pp-next {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  text-align: left; padding: 11px 12px;
+  border-radius: var(--r-sm); border: 1px solid var(--g-100);
+  background: var(--g-050); color: inherit; font: inherit; cursor: pointer;
+}
+.pp-next.is-clear { cursor: default; }
+.pp-next__tone {
+  width: 30px; height: 30px; flex: none; display: grid; place-items: center;
+  border-radius: 9px; background: var(--card); border: 1px solid var(--rule);
+  font-size: 15px;
+}
+.pp-next__tone.urgent { border-color: var(--bad-line);  background: var(--bad-bg); }
+.pp-next__tone.act    { border-color: var(--warn-line); background: var(--warn-bg); }
+.pp-next__tone.calm   { border-color: var(--ok-line);   background: var(--ok-bg); color: var(--ok); }
+.pp-next__txt { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.pp-next__txt em {
+  font-style: normal; font-size: 9.5px; font-weight: 700;
+  letter-spacing: .02em; text-transform: uppercase; color: var(--muted);
+}
+.pp-next__txt b { font-size: 13px; line-height: 1.35; color: var(--ink); }
+.pp-next__go { color: var(--muted); font-size: 18px; flex: none; }
+
+/* ── IPM at a glance ─────────────────────────────────────────────────────
+   The four answers the ladder turns on, above the ladder. Same tokens as the
+   passport cells, because they are the same kind of object: a value, its unit
+   and where it came from. */
+.mg-glance { padding: 12px; }
+.gl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+.gl-i {
+  display: grid; gap: 3px; align-content: start;
+  padding: 10px 9px; border-radius: var(--r-sm);
+  background: var(--sunk); border: 1px solid var(--rule-soft);
+}
+.gl-k {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .02em;
+  text-transform: uppercase; color: var(--muted);
+}
+.gl-v {
+  font-family: var(--display); font-weight: 800; font-size: 15px;
+  line-height: 1.2; color: var(--ink);
+}
+.gl-v--sm { font-size: 12.5px; line-height: 1.3; }
+.gl-v--none { color: var(--muted); font-size: 12px; }
+.gl-s { font-size: 10px; color: var(--faint); line-height: 1.3; }

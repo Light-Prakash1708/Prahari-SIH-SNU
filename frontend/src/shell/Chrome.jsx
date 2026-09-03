@@ -28,6 +28,7 @@ const T = {
     cropRecord: 'पीक नोंद', tools: 'जलद साधने', expenses: 'शेती खर्च', fert: 'खत मार्गदर्शक',
     fieldGroup: 'माझे शेत', accountGroup: 'खाते', privacy: 'तुमची माहिती',
     howItWorks: 'प्रहरी कसे काम करते',
+    hotspots: 'आजूबाजूचा प्रादुर्भाव', modes: 'प्रहरीचे कक्ष',
   },
   en: {
     home: 'Home', crop: 'Crop', scan: 'Scan', community: 'Community', agridoc: 'AgriDoc',
@@ -39,6 +40,7 @@ const T = {
     cropRecord: 'Crop record', tools: 'Quick tools', expenses: 'Farm expenses', fert: 'Fertilizer guide',
     fieldGroup: 'My field', accountGroup: 'Account', privacy: 'Your data',
     howItWorks: 'How PRAHARI works',
+    hotspots: 'Nearby hotspots', modes: 'PRAHARI consoles',
   },
 }
 const t = (lang, k) => (T[lang] || T.en)[k] ?? T.en[k]
@@ -113,6 +115,9 @@ export function Drawer({ open, onClose, lang, route, go, role }) {
              being removed. */
           ['cropRecord', 'clipboard', t(lang, 'cropRecord')],
           ['forecast', 'radar', t(lang, 'forecast')],
+          /* Where it is showing up around this field. Taluka resolution, from
+             the Gi* the field screen already computes. */
+          ['hotspots', 'map', t(lang, 'hotspots')],
           ['traps', 'bug', t(lang, 'traps')],
           ['history', 'history', t(lang, 'history')],
         ]],
@@ -127,6 +132,9 @@ export function Drawer({ open, onClose, lang, route, go, role }) {
           ['alerts', 'bell', t(lang, 'alerts')],
           ['profile', 'gear', t(lang, 'profile')],
           ['privacy', 'shield', t(lang, 'privacy')],
+          /* The expert and officer consoles exist and a farmer had no way to
+             learn that. This is the door; the ROLE still decides what opens. */
+          ['modes', 'users', t(lang, 'modes')],
           ['howItWorks', 'info', t(lang, 'howItWorks')],
         ]],
       ]

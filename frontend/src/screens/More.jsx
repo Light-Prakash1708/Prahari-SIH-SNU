@@ -395,7 +395,7 @@ function TrapCountSheet({ open, onClose, lang, trap, onSaved }) {
 
       <label className="field">
         <span className="lbl">{lang === 'mr' ? 'सापळ्याचा फोटो (ऐच्छिक)' : 'Photograph of the trap (optional)'}</span>
-        <input className="input" type="file" accept="image/*" capture="environment"
+        <input className="input" type="file" accept="image/*"
                onChange={e => setPhoto(e.target.files?.[0] || null)} />
       </label>
 
@@ -508,7 +508,7 @@ export function Rescan({ lang, followup, go }) {
                   : 'Photograph an affected leaf in the same field. PRAHARI compares it with the first scan and reports the DIRECTION of change — never a percentage, because two hand-held photographs of different leaves cannot support one.'}
               </p>
               <label className="field" style={{ marginTop: 14 }}>
-                <input className="input" type="file" accept="image/*" capture="environment"
+                <input className="input" type="file" accept="image/*"
                        onChange={e => setFile(e.target.files?.[0] || null)} />
               </label>
               {err && <ErrorNote error={err} lang={lang} />}
