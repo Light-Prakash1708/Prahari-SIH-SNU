@@ -16,6 +16,8 @@ way nobody notices until a farmer measures out the wrong dose.
 """
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from app import llm
@@ -421,3 +423,143 @@ def test_an_empty_completion_leaves_the_retrieved_answer_standing(client, farmer
     assert out["llm"]["used"] is False
     assert "MAX_TOKENS" in out["llm"]["reason"]
     assert out["answer"]
+
+
+# ── structured output: flashcards and scan explanations ─────────────────────
+# Same seam, same guards, different shape. Everything below is about what the
+# assistant may NOT say, because what it may say is only ever a rewording of
+# rows PRAHARI already holds.
+
+def _cards(client, headers, problem="late_blight", plot_id=None, expect=200):
+    q = f"?problem={problem}" + (f"&plot_id={plot_id}" if plot_id else "") + "&lang=en"
+    r = client.get(f"/api/saathi/flashcards{q}", headers=headers)
+    assert r.status_code == expect, r.text
+    return r.json()
+
+
+def test_flashcards_work_with_no_assistant_key_at_all(client, farmer, plot):
+    """G · the cards are reference text first and a rewording second. No key,
+    no provider, no network — and a farmer still gets every card the tables
+    support."""
+    body = _cards(client, farmer["headers"], plot_id=plot["id"])
+    assert body["ai"]["available"] is False and body["ai"]["used"] is False
+    assert body["source"] == "reference"
+    assert body["cards"], "the reference text stands on its own"
+    keys = {c["key"] for c in body["cards"]}
+    assert {"what_is_it", "symptoms"} <= keys
+    assert all(c["body"] for c in body["cards"]), "an empty card is dropped, not blank"
+
+
+def test_a_card_never_carries_a_chemical_or_a_dose(client, farmer, plot):
+    """The rule the whole system turns on: a chemical reaches a farmer through
+    the recommendation screen, behind the threshold gate, or not at all."""
+    import re
+    from app import reference
+    for pid in list(reference.DISEASES)[:6] + list(reference.PESTS)[:6]:
+        body = _cards(client, farmer["headers"], problem=pid, plot_id=plot["id"])
+        blob = " ".join(c["body"] for c in body["cards"])
+        assert not re.search(r"\d+\s*(g/L|ml/L|kg/|g per|ml per)", blob, re.I), pid
+        assert not re.search(r"\b\d+\s*%\s*(WP|SC|EC|WG|SL)\b", blob, re.I), pid
+
+
+def test_an_unknown_problem_is_refused_rather_than_improvised(client, farmer):
+    r = client.get("/api/saathi/flashcards?problem=not_a_real_disease",
+                   headers=farmer["headers"])
+    assert r.status_code == 400
+    assert r.json()["error"] == "unknown_problem"
+
+
+def test_a_faithful_model_words_the_cards_and_the_guards_let_it(client, farmer, plot,
+                                                                monkeypatch):
+    _install_key(farmer["user_id"])
+    monkeypatch.setitem(llm._CALL, "gemini", lambda *a, **k: json.dumps({
+        "what_is_it": "Late blight, a fungus-like disease of tomato.",
+        "symptoms": "Water-soaked grey-green patches on the leaves.",
+        "causes": "", "what_to_look_for": "Look under the lower leaves in the morning.",
+        "how_it_spreads": "It doubles quickly in humid weather.",
+        "prevention": "Destroy cull piles and volunteer plants.",
+        "field_tip": "", "when_to_seek_help": "",
+    }))
+    body = _cards(client, farmer["headers"], plot_id=plot["id"])
+    assert body["source"] == "assistant" and body["ai"]["used"] is True
+    keys = {c["key"] for c in body["cards"]}
+    assert "what_is_it" in keys
+    assert "causes" not in keys, "an empty field is dropped, not rendered blank"
+
+
+def test_an_invented_dose_never_reaches_a_card(client, farmer, plot, monkeypatch):
+    """10 · the number guard, on the structured path."""
+    _install_key(farmer["user_id"])
+    monkeypatch.setitem(llm._CALL, "gemini", lambda *a, **k: json.dumps({
+        "what_is_it": "Late blight.", "symptoms": "Grey-green patches.",
+        "causes": "", "what_to_look_for": "", "how_it_spreads": "",
+        "prevention": "Spray mancozeb at 2.5 g/L every 7 days.",
+        "field_tip": "", "when_to_seek_help": "",
+    }))
+    body = _cards(client, farmer["headers"], plot_id=plot["id"])
+    assert body["ai"]["used"] is False, "the rewrite was discarded"
+    assert body["source"] == "reference", "and the retrieved text was served instead"
+    assert "mancozeb" not in json.dumps(body).lower()
+
+
+def test_invalid_json_from_the_model_falls_back_instead_of_crashing(client, farmer, plot,
+                                                                    monkeypatch):
+    """10 · a provider that answers with prose, or half a brace."""
+    _install_key(farmer["user_id"])
+    for junk in ("I'm sorry, I can't help with that.", "{not json at all", ""):
+        monkeypatch.setitem(llm._CALL, "gemini", lambda *a, _j=junk, **k: _j)
+        body = _cards(client, farmer["headers"], plot_id=plot["id"])
+        assert body["source"] == "reference"
+        assert body["ai"]["used"] is False and body["ai"]["reason"]
+        assert body["cards"], "the farmer still gets the cards"
+
+
+def test_a_provider_outage_never_breaks_the_cards(client, farmer, plot, monkeypatch):
+    """6 · Gemini failing is not Prahari failing."""
+    _install_key(farmer["user_id"])
+
+    def boom(*a, **k):
+        raise RuntimeError("provider exploded")
+
+    monkeypatch.setitem(llm._CALL, "gemini", boom)
+    body = _cards(client, farmer["headers"], plot_id=plot["id"])
+    assert body["ai"]["used"] is False and body["cards"]
+
+
+def test_the_explanation_reports_an_abstention_as_an_abstention(client, farmer, plot,
+                                                                monkeypatch):
+    """2 · the engine declined to name anything. The facts say so in those
+    words, so the reply cannot describe a disease as found."""
+    from app import explain as explain_mod
+    facts = explain_mod.explain_facts(
+        None, None, {"abstain": True, "reason": "low-margin", "explain": "too close to call"},
+        {"crop": "tomato"})
+    assert facts["diagnosis"]["identified_a_problem"] is False
+    assert "did NOT identify" in facts["diagnosis"]["what_this_means"]
+    assert "problem" not in facts, "no disease reference is offered when none was found"
+
+
+def test_the_facts_never_carry_a_weather_value_prahari_does_not_have(client, farmer, plot):
+    """5 · Gemini may read weather; it may never be handed one that does not
+    exist, which is the only reason it cannot report one."""
+    from app import explain as explain_mod
+    facts = explain_mod.flashcard_facts("late_blight", {"crop": "tomato"}, weather=None)
+    assert "todays_weather" not in facts
+
+    wx = {"source": "deterministic-demo", "source_kind": "generated",
+          "days": [{"date": "2026-08-27", "tmin": 22.0, "tmax": 31.0, "rh_mean": 80.0,
+                    "rh90_hours": 6.0, "rain_mm": 2.0, "future": False}]}
+    facts = explain_mod.flashcard_facts("late_blight", {"crop": "tomato"}, weather=wx)
+    assert facts["todays_weather"]["is_generated_not_observed"] is True, \
+        "generated weather is labelled as such where the model can see it"
+
+
+def test_the_facts_never_name_a_chemical_for_the_model_to_repeat(client, farmer, plot):
+    """A product the model never sees is a product it cannot name. The IPM
+    ladder's biological rung carries formulated fungicides; they are filtered
+    out of the facts, not just out of the rendered card."""
+    from app import explain as explain_mod, reference
+    for pid in list(reference.DISEASES)[:6]:
+        blob = json.dumps(explain_mod.flashcard_facts(pid, {"crop": "tomato"})).lower()
+        for marker in (" wp", " sc\"", " ec\"", "oxychloride", "bordeaux"):
+            assert marker not in blob, f"{pid} facts still expose {marker!r}"

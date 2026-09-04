@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
+from .. import explain as explain_mod
 from .. import llm as llm_mod
 from .. import saathi as saathi_mod
 from ..clock import now_iso
@@ -123,6 +124,167 @@ def _rephrased(db: Database, rt, plot, answer, data: AskIn,
     return llm_mod.rephrase(
         provider=cfg["provider"], key=cfg["key"], model=cfg.get("model"),
         question=data.question, facts=facts, lang=data.lang)
+
+
+# ── explaining what the vision model found ──────────────────────────────────
+# These live in the saathi router because saathi IS the assistant: the key
+# lookup, the cooldown, the guards and the fallback are all here already, and a
+# second AI surface with its own copy of them is the duplicate system this
+# project keeps warning about.
+
+
+class ExplainIn(BaseModel):
+    observation_id: str = Field(min_length=1, max_length=64)
+    lang: str = "mr"
+
+
+def _wx_for(rt, plot):
+    """Today's weather if it is available, and nothing at all if it is not.
+
+    The assistant is allowed to say what conditions MEAN. It is never handed a
+    weather value PRAHARI does not have, which is the only reason it cannot
+    report one.
+    """
+    from ..weather import WeatherUnavailable
+    if not plot:
+        return None, None
+    try:
+        return rt.risk.weather_series(plot), rt.risk.crop_stage(plot)
+    except WeatherUnavailable as exc:
+        return (exc.payload if exc.code == "insufficient_history" else None), None
+    except Exception:
+        log.exception("weather lookup failed while building assistant facts")
+        return None, None
+
+
+@router.post("/explain", summary="Explain a scan result in a farmer's words",
+             description=(
+                 "Words the diagnosis PRAHARI already produced. It does not diagnose: the "
+                 "vision engine decides what was found and how sure it is, and this only "
+                 "puts that, the published reference text for the problem and today's "
+                 "conditions into plain sentences.\n\n"
+                 "When the engine ABSTAINED the facts say so in those words, so the reply "
+                 "reports that nothing was identified rather than describing a disease.\n\n"
+                 "Always 200. `ai.used` is false when no key is configured or the provider "
+                 "failed, and the retrieved text stands on its own."))
+def explain(data: ExplainIn, user: dict[str, Any] = Depends(current_user),
+            db: Database = Depends(db_dep)):
+    from .observations import _observation_view
+    obs = db.one("SELECT plot_id FROM observations WHERE id = :i",
+                 {"i": data.observation_id})
+    if not obs:
+        from ..errors import not_found
+        raise not_found("observation", data.observation_id)
+    plot = visible_plot(db, user, obs["plot_id"])
+    rt = get_runtime()
+    view = _observation_view(db, data.observation_id)
+    dx = view.get("diagnosis") or {}
+    top = (dx.get("top") or {})
+    problem_id = top.get("id") if not dx.get("abstain") else None
+
+    wx, stage = _wx_for(rt, plot)
+    facts = explain_mod.explain_facts(db, problem_id, dx, plot, wx, stage)
+    out: dict[str, Any] = {
+        "observation_id": data.observation_id,
+        "problem": problem_id,
+        "abstained": bool(dx.get("abstain")),
+        "grounding": ("DETECTED" if problem_id else "NOT IDENTIFIED"),
+        "facts_note": ("Assembled from this scan's own diagnosis, the published reference "
+                       "text for the problem, and this field's conditions."),
+        "ai": {"available": False, "used": False},
+        "sections": {},
+    }
+    cfg = _llm_for(db, user)
+    out["ai"]["available"] = bool(cfg)
+    if cfg:
+        try:
+            verdict = llm_mod.structured(
+                provider=cfg["provider"], key=cfg["key"], model=cfg.get("model"),
+                task=("Explain this scan result to the farmer who took the photograph. "
+                      "If nothing was identified, say that first and plainly."),
+                facts=facts, keys=explain_mod.EXPLAIN_KEYS, lang=data.lang)
+        except Exception as exc:                     # pragma: no cover - net
+            log.exception("assistant explanation failed; serving the retrieved text")
+            verdict = {"used": False, "reason": f"error: {type(exc).__name__}"}
+        if verdict.get("used"):
+            out["sections"] = {k: v for k, v in verdict["data"].items() if v}
+            out["ai"] = {"available": True, "used": True, "provider": verdict["provider"],
+                         "model": verdict["model"],
+                         "note": ("Worded by a language model from PRAHARI's own records and "
+                                  "references. Every number in it was checked against them "
+                                  "first.")}
+        else:
+            out["ai"] = {"available": True, "used": False,
+                         "reason": verdict.get("reason", "")}
+    audit("saathi.explain", entity="observation", entity_id=data.observation_id,
+          user_id=user["id"], detail={"problem": problem_id, "ai": out["ai"].get("used")})
+    return out
+
+
+@router.get("/flashcards", summary="Farmer-friendly cards about one problem",
+            description=(
+                "Eight short cards built from the reference text PRAHARI already holds for "
+                "this problem, worded by the assistant when a key is configured and served "
+                "as the retrieved text when it is not — so the cards never depend on a "
+                "provider being up.\n\n"
+                "A section the reference tables do not support comes back absent rather "
+                "than filled in. No chemical product or dose appears: those reach a farmer "
+                "through the recommendation screen, behind the threshold gate."))
+def flashcards(problem: str = Query(..., min_length=1, max_length=64),
+               plot_id: str | None = Query(None), lang: str = Query("mr"),
+               user: dict[str, Any] = Depends(current_user),
+               db: Database = Depends(db_dep)):
+    from .. import reference
+    if not reference.problem(problem):
+        from ..errors import bad_request
+        raise bad_request("unknown_problem",
+                          f"'{problem}' is not a problem PRAHARI knows.")
+    plot = visible_plot(db, user, plot_id) if plot_id else None
+    rt = get_runtime()
+    wx, stage = _wx_for(rt, plot)
+    facts = explain_mod.flashcard_facts(problem, plot, wx, stage)
+
+    cards = explain_mod.fallback_cards(problem, lang)
+    source = "reference"
+    ai: dict[str, Any] = {"available": False, "used": False}
+    cfg = _llm_for(db, user)
+    ai["available"] = bool(cfg)
+    if cfg:
+        try:
+            verdict = llm_mod.structured(
+                provider=cfg["provider"], key=cfg["key"], model=cfg.get("model"),
+                task=("Write eight short flashcards for a farmer about this problem in "
+                      "this field. Leave a card empty if the facts do not support it."),
+                facts=facts, keys=explain_mod.FLASHCARD_KEYS, lang=lang)
+        except Exception as exc:                     # pragma: no cover - net
+            log.exception("assistant flashcards failed; serving the reference text")
+            verdict = {"used": False, "reason": f"error: {type(exc).__name__}"}
+        if verdict.get("used"):
+            cards, source = verdict["data"], "assistant"
+            ai = {"available": True, "used": True, "provider": verdict["provider"],
+                  "model": verdict["model"]}
+        else:
+            ai = {"available": True, "used": False, "reason": verdict.get("reason", "")}
+
+    ordered = [{"key": k,
+                "label": explain_mod.FLASHCARD_LABELS[k][0],
+                "label_mr": explain_mod.FLASHCARD_LABELS[k][1],
+                "body": (cards.get(k) or "").strip()}
+               for k in explain_mod.FLASHCARD_KEYS]
+    return {
+        "problem": problem,
+        "problem_name": reference.problem_name(problem),
+        "problem_name_mr": reference.problem_name(problem, "mr"),
+        "crop": (plot or {}).get("crop"),
+        "source": source,
+        "ai": ai,
+        # Empty cards are dropped here rather than in the browser, so "we have
+        # nothing on this" is a decision the backend made and can be audited.
+        "cards": [c for c in ordered if c["body"]],
+        "policy": ("Built from published references and this field's own records. No "
+                   "chemical product or dose appears on a card — those come from the "
+                   "recommendation screen, which cites a verified label."),
+    }
 
 
 # ── the farmer's own key ────────────────────────────────────────────────────

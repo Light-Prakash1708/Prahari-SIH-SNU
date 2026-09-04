@@ -258,6 +258,16 @@ export const api = {
   saathiAsk: (question, plot_id, lang) =>
     send('/api/saathi/ask', { question, plot_id: plot_id || undefined, lang: lang || 'mr' }),
   saathiSuggestions: (lang) => get(`/api/saathi/suggestions?lang=${lang || 'mr'}`),
+  /* Wording for a scan result and for one problem's cards. Both answer 200
+     with the retrieved reference text when no assistant key is configured, so
+     neither needs a special "AI is off" path in the browser. */
+  scanExplain: (observation_id, lang) =>
+    send('/api/saathi/explain', { observation_id, lang: lang || 'mr' }),
+  flashcards: (problem, plot_id, lang) => {
+    const q = new URLSearchParams({ problem, lang: lang || 'mr' })
+    if (plot_id) q.set('plot_id', plot_id)
+    return get(`/api/saathi/flashcards?${q}`, { cache: true })
+  },
   /* The key never travels back. `saathiKey` returns a status and a masked hint;
      the value itself is written once and is only ever decrypted server-side. */
   saathiKey: () => get('/api/saathi/key', { cache: false }),

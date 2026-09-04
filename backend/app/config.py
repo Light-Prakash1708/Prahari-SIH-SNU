@@ -140,6 +140,13 @@ class Settings(BaseSettings):
     # fallback — a farmer's own key, stored per account, takes precedence.
     llm_provider: str = "none"                 # none | gemini | openai
     llm_api_key: str | None = None
+    # An ALIAS for llm_api_key, not a second key. The assistant has been
+    # provider-agnostic since it was built — LLM_PROVIDER picks gemini or
+    # openai and LLM_API_KEY carries whichever key that is — and a deployment
+    # that sets GEMINI_API_KEY plainly means the same thing. Accepting the
+    # obvious name is cheaper than making someone learn ours; keeping ONE
+    # setting behind it is what stops two half-configured paths existing.
+    gemini_api_key: str | None = None
     llm_model: str | None = None
     llm_timeout_seconds: float = 20.0
     # Sized so a reasoning pass cannot consume the whole budget before any
@@ -209,6 +216,21 @@ class Settings(BaseSettings):
         return str(v).strip().lower() if v is not None else v
 
     @model_validator(mode="after")
+    def _gemini_alias(self):
+        """GEMINI_API_KEY fills in the generic settings when they are unset.
+
+        Explicit settings always win: a deployment that has configured
+        LLM_PROVIDER/LLM_API_KEY keeps exactly what it configured, and this
+        only fills a gap. It never reads back the other way, so the key still
+        lives in one place.
+        """
+        if self.gemini_api_key and not self.llm_api_key:
+            self.llm_api_key = self.gemini_api_key
+            if self.llm_provider == "none":
+                self.llm_provider = "gemini"
+        return self
+
+    @model_validator(mode="after")
     def _production_guards(self):
         if self.app_env == "production":
             if not self.jwt_secret or len(self.jwt_secret) < 32:
@@ -244,6 +266,9 @@ class Settings(BaseSettings):
             "version": self.app_version,
             "database": "postgresql" if "postgres" in self.database_url else "sqlite",
             "weather_provider": self.weather_provider,
+            # Whether an assistant key is configured — never the key itself.
+            "assistant": ("configured" if (self.llm_provider in ("gemini", "openai")
+                                           and self.llm_api_key) else "off"),
             "vision_provider": self.vision_provider,
             "vision_model_version": self.vision_model_version,
             "storage_provider": self.storage_provider,

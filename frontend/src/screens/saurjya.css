@@ -975,3 +975,35 @@
   background: var(--sunk); border: 1px dashed var(--rule);
   font-size: 12px; line-height: 1.5; color: var(--muted);
 }
+
+/* ── scan explanation and disease flashcards ─────────────────────────────
+   Same Card, same tokens. The cards are a question-and-answer grid rather
+   than a carousel: a farmer looking for one of eight answers should be able
+   to see which ones exist without swiping through the others. */
+.dc-tag {
+  font-size: 9.5px; font-weight: 800; padding: 3px 8px;
+  border-radius: var(--r-pill); white-space: nowrap;
+}
+.dc-tag.found   { background: var(--ok-bg);   color: var(--ok);    border: 1px solid var(--ok-line); }
+.dc-tag.unknown { background: var(--sunk);    color: var(--muted); border: 1px solid var(--rule); }
+
+.dc-sections { display: grid; gap: 10px; }
+.dc-sec { display: grid; gap: 2px; }
+.dc-sec__k {
+  font-size: 9.5px; font-weight: 800; letter-spacing: .02em;
+  text-transform: uppercase; color: var(--muted);
+}
+.dc-sec__b { font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+
+.dc-grid { display: grid; gap: 7px; }
+.dc-card {
+  padding: 10px 12px; border-radius: var(--r-sm);
+  background: var(--sunk); border: 1px solid var(--rule-soft);
+}
+.dc-card__q { font-size: 12px; font-weight: 800; color: var(--g-700); margin-bottom: 3px; }
+.dc-card__a { font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }
+.dc-foot { margin-top: 10px; line-height: 1.5; }
+
+@media (min-width: 560px) {
+  .dc-grid { grid-template-columns: 1fr 1fr; }
+}

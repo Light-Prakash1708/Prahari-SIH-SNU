@@ -13,6 +13,7 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api'
 import { Camera, Card, ErrorNote, Loading, Prov, Why, bi } from '../ui'
+import DiseaseCards from './DiseaseCards'
 
 export default function Scan({ lang, plot, go, onDone }) {
   const [stage, setStage] = useState('camera')   // camera | working | result
@@ -273,6 +274,14 @@ function Result({ lang, plot, data, go, onRetake, onUpdated }) {
           </Why>
         </Card>
       )}
+
+      {/* ── what it means, and the cards ─────────────────────────────────
+          Wording only. The engine above decided what was found and how sure it
+          is; this puts that and the published reference text into sentences.
+          It renders whether or not an assistant key is configured, because the
+          backend serves the retrieved text when none is. */}
+      <DiseaseCards lang={lang} observationId={data.observation.id}
+                    problem={top?.id} plotId={plot?.id} />
 
       {/* ── another photograph ──────────────────────────────────────────
           Offered only when the engine is uncertain. When it is confident,
