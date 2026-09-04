@@ -30,6 +30,10 @@ class AskIn(BaseModel):
     # A farmer with a key can turn the rewriting off for one question — useful
     # when they want to see the retrieved wording exactly as PRAHARI holds it.
     enhance: bool = True
+    # Ask for the answer broken into named sections as well as prose. Off by
+    # default because it costs a second call to the provider, and because the
+    # prose answer is the one every existing client renders.
+    sections: bool = False
 
 
 class KeyIn(BaseModel):
@@ -95,10 +99,63 @@ def ask(data: AskIn, user: dict[str, Any] = Depends(current_user),
                 # rendered as an answer.
                 out["llm"]["discarded_draft"] = verdict["rejected"]
 
+    # ── the optional sectioned pass ────────────────────────────────────────
+    # Same facts, same guards, a different shape. It is additive: `answer` is
+    # untouched, so a client that does not ask for sections sees exactly what
+    # it saw before, and a client that does can render the reasoning without
+    # PRAHARI having to guess at headings inside a prose blob.
+    if cfg and data.sections and answer.grounded:
+        try:
+            out["sections"] = _sectioned(db, rt, plot, answer, data, cfg)
+        except Exception:                            # pragma: no cover - net
+            log.exception("saathi sections failed; serving the prose answer")
+
     audit("saathi.ask", entity="plot", entity_id=data.plot_id or "", user_id=user["id"],
           detail={"intent": answer.intent, "grounded": answer.grounded,
                   "llm_used": out["llm"].get("used")})
     return out
+
+
+SECTION_KEYS = ("answer", "why", "what_to_check", "what_to_do_now",
+                "when_to_escalate", "sources")
+
+SECTION_TASK = (
+    "Answer the farmer's question in six short named parts. Each part is one or two plain "
+    "sentences a farmer can read on a phone in a field.\n"
+    "  answer            — what the farmer asked, answered directly\n"
+    "  why               — the reasoning, naming the field records, weather or scans in the "
+    "FACTS that lead to it\n"
+    "  what_to_check     — what to walk out and look at, and where on the plant\n"
+    "  what_to_do_now    — practical steps. Only a step the FACTS support. Never a chemical "
+    "unless the FACTS record a count against a threshold\n"
+    "  when_to_escalate  — the condition under which this should go to an expert\n"
+    "  sources           — which records or references in the FACTS this rests on\n"
+    "A part the FACTS cannot support must be left empty. An empty part is shown as absent, "
+    "which is honest; a filled-in one that the FACTS do not support is not.\n\n"
+    "FARMER'S QUESTION: ")
+
+
+def _sectioned(db: Database, rt, plot, answer, data: AskIn,
+               cfg: dict[str, Any]) -> dict[str, Any]:
+    """The same answer, in named parts. Never raises past the caller's net."""
+    facts = {
+        "prahari_answer": answer.text,
+        "sources": [s_.dict() if hasattr(s_, "dict") else s_ for s_ in (answer.sources or [])],
+        "field": saathi_mod.field_facts(db, rt, plot),
+    }
+    verdict = llm_mod.structured(
+        provider=cfg["provider"], key=cfg["key"], model=cfg.get("model"),
+        task=SECTION_TASK + data.question, facts=facts,
+        keys=SECTION_KEYS, lang=data.lang)
+    if not verdict.get("used"):
+        return {"available": False, "reason": verdict.get("reason", "")}
+    fields = {k: v for k, v in (verdict.get("data") or {}).items() if v}
+    if not fields:
+        return {"available": False, "reason": "the model returned every part empty"}
+    return {"available": True, "fields": fields,
+            "model": verdict.get("model"),
+            "note": ("Written by a language model from the records above. Every number in it "
+                     "was checked against those records before it was shown.")}
 
 
 def _rephrased(db: Database, rt, plot, answer, data: AskIn,

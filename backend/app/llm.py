@@ -197,6 +197,24 @@ _COMMON = {
     # product's own names.
     "agridoc", "saathi", "krishi", "sahayak", "maharashtra", "nashik",
     "marathi", "india", "indian",
+    # Ordinary imperatives and instruction words. These became worth listing
+    # when the assistant started answering in named sections: prose puts one
+    # capital at the start of a paragraph, six short sections put six, and a
+    # sentence beginning "Remove the affected leaves" was being read as a
+    # product called Remove and costing the whole answer. None of these is a
+    # trade name, and the shape test is unchanged — a real trade name in the
+    # middle of a sentence is caught exactly as before.
+    "remove", "inspect", "collect", "destroy", "consult", "contact", "repeat",
+    "continue", "monitor", "maintain", "improve", "reduce", "increase", "ensure",
+    "clean", "clear", "cover", "record", "report", "review", "rogue", "prune",
+    "irrigate", "drain", "space", "rotate", "burn", "bury", "count", "compare",
+    "confirm", "photograph", "sample", "measure", "mulch", "weed", "harvest",
+    "sowing", "sown", "stage", "score", "risk", "weather", "humidity", "rainfall",
+    "expert", "advice", "records", "history", "symptoms",
+    "prevention", "threshold", "thresholds", "observation", "observations",
+    "diagnosis", "disease", "healthy", "affected", "severe", "severity",
+    "lower", "upper", "under", "underside", "around", "within", "during",
+    "unknown", "available", "unavailable", "nothing", "several", "another",
 }
 
 
@@ -227,7 +245,9 @@ def assistant_health(settings: Settings | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {
         "configured": configured,
         "provider": s.llm_provider if configured else "none",
-        "model": (s.llm_model or _DEFAULT_MODEL.get(s.llm_provider)) if configured else None,
+        "model_configured": s.llm_model or None,
+        "model": (resolve_model(s.llm_provider, s.llm_model)[0] if configured else None),
+        "model_note": (resolve_model(s.llm_provider, s.llm_model)[1] if configured else None),
         "vision_provider": s.vision_provider,
         "vision_model": s.gemini_vision_model if s.vision_provider == "gemini" else None,
         "key_source": ("GEMINI_API_KEY" if s.gemini_api_key else
@@ -238,11 +258,121 @@ def assistant_health(settings: Settings | None = None) -> dict[str, Any]:
     if configured:
         left = cooldown_remaining(s.llm_provider, key)
         out["cooling_down"] = round(left) if left > 0 else 0
+        # Model ids this process has seen the provider 404 on. A non-empty list
+        # here IS the answer to "why did AgriDoc say the model was discarded".
+        out["models_not_served"] = sorted(m for p, m in _DEAD_MODELS if p == s.llm_provider)
     if not configured:
         out["reason"] = ("Set GEMINI_API_KEY (or LLM_PROVIDER=gemini with LLM_API_KEY). "
                          "Without it the assistant answers from retrieved text only, which is "
                          "always available.")
     return out
+
+
+# ── which model id actually gets called ─────────────────────────────────────
+#
+# The AgriDoc 404. The scan path calls a model id from GEMINI_VISION_MODEL,
+# which defaults to something current. The assistant calls whatever is stored
+# against the account's key or set in LLM_MODEL — a value that was typed once
+# and then outlived the model it names. Same key, same host, same API version,
+# and one of them 404s: HTTP 404 from generateContent means "no such model",
+# never "bad key". So the id is the only thing worth fixing, and there are
+# exactly three ways it goes wrong.
+#
+# 1 · it names a model Google has retired
+# 2 · it carries the "models/" prefix, which the URL template already adds,
+#     producing .../models/models/gemini-2.5-flash:generateContent
+# 3 · it is a typo, and nothing can be done except stop using it
+#
+# The first two are repaired before the call. The third is caught after it, by
+# retrying once on the default — which is known to work, because it is the id
+# the vision path has been using successfully all along.
+_RETIRED_MODELS = {
+    "gemini-pro": "gemini-2.5-flash",
+    "gemini-1.0-pro": "gemini-2.5-flash",
+    "gemini-1.5-flash": "gemini-2.5-flash",
+    "gemini-1.5-flash-latest": "gemini-2.5-flash",
+    "gemini-1.5-flash-8b": "gemini-2.5-flash-lite",
+    "gemini-1.5-pro": "gemini-2.5-pro",
+    "gemini-1.5-pro-latest": "gemini-2.5-pro",
+    "gemini-2.0-flash": "gemini-2.5-flash",
+    "gemini-2.0-flash-exp": "gemini-2.5-flash",
+    "gemini-2.0-flash-lite": "gemini-2.5-flash-lite",
+    "gemini-2.0-pro": "gemini-2.5-pro",
+}
+
+# (provider, model) pairs the provider has answered 404 for in this process.
+# No key material — a dead model id is dead for everyone, so this is shared and
+# saves every later question the wasted round trip. Cleared with the cooldowns.
+_DEAD_MODELS: set[tuple[str, str]] = set()
+
+
+def resolve_model(provider: str, model: str | None) -> tuple[str, str | None]:
+    """The id to call, and a note when it is not the id that was configured."""
+    default = _DEFAULT_MODEL[provider]
+    raw = (model or "").strip()
+    if not raw:
+        return default, None
+
+    cleaned = raw[7:].strip() if raw.startswith("models/") else raw
+    prefix_note = (f"the configured model was written as '{raw}'; the 'models/' prefix is added "
+                   f"by the request path, so it was stripped" if cleaned != raw else None)
+
+    if provider == "gemini" and cleaned in _RETIRED_MODELS:
+        replacement = _RETIRED_MODELS[cleaned]
+        return replacement, (f"'{cleaned}' has been retired by the provider; answered with "
+                             f"'{replacement}' instead")
+    if (provider, cleaned) in _DEAD_MODELS:
+        return default, (f"'{cleaned}' is not served by the provider; answered with "
+                         f"'{default}' instead")
+    return cleaned, prefix_note
+
+
+def clear_dead_models() -> None:
+    _DEAD_MODELS.clear()
+
+
+def _call_model(provider: str, key: str, model: str | None, system: str, prompt: str,
+                timeout: float, max_tokens: int) -> tuple[str, dict[str, Any]]:
+    """Call the provider, surviving a model id that has gone stale.
+
+    Returns (text, meta). Meta carries the id actually used and, when it is not
+    the one configured, a sentence saying why — which is the difference between
+    a farmer seeing "provider returned HTTP 404" and an operator seeing which
+    setting to change.
+    """
+    chosen, note = resolve_model(provider, model)
+    default = _DEFAULT_MODEL[provider]
+    try:
+        return (_CALL[provider](key, chosen, system, prompt, timeout, max_tokens),
+                {"model": chosen, "model_note": note})
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code != 404 or chosen == default:
+            raise
+    # 404 is the provider saying this id does not exist. The key is fine — a bad
+    # key is 401 or 403 — so the question is still answerable on the default.
+    _DEAD_MODELS.add((provider, chosen))
+    log.warning("configured model is not served by the provider; falling back",
+                extra={"provider": provider, "configured": chosen, "using": default})
+    out = _CALL[provider](key, default, system, prompt, timeout, max_tokens)
+    return out, {"model": default,
+                 "model_note": (f"'{chosen}' is not available from the provider, so PRAHARI "
+                                f"answered with '{default}'. Change LLM_MODEL, or the model "
+                                f"stored against this account's key, to stop the extra call.")}
+
+
+def _http_reason(code: int, provider: str, model: str | None) -> str:
+    """A status code is not a reason. 404 in particular has one meaning here and
+    it is not the one an operator assumes: the key is fine, the model id is not
+    real. Saying so is the difference between a five-minute fix and an
+    afternoon spent regenerating keys."""
+    if code == 404:
+        chosen, _ = resolve_model(provider, model)
+        return (f"the model '{chosen}' is not available from {provider}; "
+                f"set LLM_MODEL to a current model, or clear it to use "
+                f"'{_DEFAULT_MODEL[provider]}'")
+    if code in (401, 403):
+        return f"{provider} rejected the key"
+    return f"provider returned HTTP {code}"
 
 
 def _key_id(provider: str, key: str) -> str:
@@ -270,6 +400,7 @@ def clear_cooldowns() -> None:
     """Test seam. Nothing in the application calls this."""
     with _LLM_COOLDOWN_LOCK:
         _LLM_COOLDOWN.clear()
+    _DEAD_MODELS.clear()
 
 
 # ── the providers ───────────────────────────────────────────────────────────
@@ -469,9 +600,9 @@ def verify_key(provider: str, key: str, model: str | None = None,
     if provider not in PROVIDERS:
         return False, f"Unknown provider: {provider}"
     try:
-        out = _CALL[provider](key, model or _DEFAULT_MODEL[provider],
-                              "Reply with the single word: ok", "ok",
-                              s.llm_timeout_seconds, 16)
+        out, _meta = _call_model(provider, key, model,
+                                 "Reply with the single word: ok", "ok",
+                                 s.llm_timeout_seconds, 16)
         return bool(out), "" if out else "The provider returned an empty response."
     except EmptyCompletion as exc:
         return False, str(exc)
@@ -481,7 +612,7 @@ def verify_key(provider: str, key: str, model: str | None = None,
             return False, "The provider rejected this key."
         if code == 429:
             return False, "This key is over its rate limit or quota."
-        return False, f"The provider returned HTTP {code}."
+        return False, _http_reason(code, provider, model).capitalize() + "."
     except Exception as exc:
         return False, f"Could not reach the provider: {type(exc).__name__}"
 
@@ -566,8 +697,8 @@ def structured(*, provider: str, key: str, model: str | None, task: str,
               f"FACTS PRAHARI RETRIEVED (this is everything you may use):\n{blob}")
 
     try:
-        out = _CALL[provider](key, model or _DEFAULT_MODEL[provider], system, prompt,
-                              s.llm_timeout_seconds, s.llm_max_output_tokens)
+        out, meta = _call_model(provider, key, model, system, prompt,
+                                s.llm_timeout_seconds, s.llm_max_output_tokens)
     except EmptyCompletion as exc:
         return {"used": False, "reason": str(exc)}
     except httpx.HTTPStatusError as exc:
@@ -578,7 +709,7 @@ def structured(*, provider: str, key: str, model: str | None, task: str,
                         extra={"provider": provider, "status": code})
             return {"used": False, "quota": code == 429,
                     "reason": f"the provider returned HTTP {code}"}
-        return {"used": False, "reason": f"provider returned HTTP {code}"}
+        return {"used": False, "reason": _http_reason(code, provider, model)}
     except Exception as exc:
         return {"used": False, "reason": f"provider error: {type(exc).__name__}"}
 
@@ -615,7 +746,8 @@ def structured(*, provider: str, key: str, model: str | None, task: str,
         return {"used": False, "reason": why, "rejected": joined[:400]}
 
     return {"used": True, "data": clean, "provider": provider,
-            "model": model or _DEFAULT_MODEL[provider]}
+            "model": meta.get("model") or _DEFAULT_MODEL[provider],
+            "model_note": meta.get("model_note")}
 
 
 # ── the one entry point ─────────────────────────────────────────────────────
@@ -647,9 +779,8 @@ def rephrase(*, provider: str, key: str, model: str | None, question: str,
               f"FACTS PRAHARI RETRIEVED (this is everything you may use):\n{blob}")
 
     try:
-        out = _CALL[provider](key, model or _DEFAULT_MODEL[provider],
-                              SYSTEM.format(language=language), prompt,
-                              s.llm_timeout_seconds, s.llm_max_output_tokens)
+        out, meta = _call_model(provider, key, model, SYSTEM.format(language=language),
+                                prompt, s.llm_timeout_seconds, s.llm_max_output_tokens)
     except httpx.HTTPStatusError as exc:
         code = exc.response.status_code
         if code == 429 or code >= 500:
@@ -662,7 +793,7 @@ def rephrase(*, provider: str, key: str, model: str | None, question: str,
                     "reason": (f"the provider returned HTTP {code}; not retried for "
                                f"{s.llm_cooldown_seconds}s"),
                     "quota": code == 429}
-        return {"used": False, "reason": f"provider returned HTTP {code}"}
+        return {"used": False, "reason": _http_reason(code, provider, model)}
     except EmptyCompletion as exc:
         return {"used": False, "reason": str(exc)}
     except Exception as exc:
@@ -682,4 +813,5 @@ def rephrase(*, provider: str, key: str, model: str | None, question: str,
         return {"used": False, "reason": why, "rejected": out[:400]}
 
     return {"used": True, "text": out, "provider": provider,
-            "model": model or _DEFAULT_MODEL[provider]}
+            "model": meta.get("model") or _DEFAULT_MODEL[provider],
+            "model_note": meta.get("model_note")}

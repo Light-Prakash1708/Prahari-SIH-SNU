@@ -255,8 +255,9 @@ export const api = {
     get(`/api/advisory?plot_id=${plot_id}&target=${target}&lang=${lang || 'mr'}`, { cache: false }),
 
   // saathi — the grounded assistant
-  saathiAsk: (question, plot_id, lang) =>
-    send('/api/saathi/ask', { question, plot_id: plot_id || undefined, lang: lang || 'mr' }),
+  saathiAsk: (question, plot_id, lang, sections) =>
+    send('/api/saathi/ask', { question, plot_id: plot_id || undefined, lang: lang || 'mr',
+                              ...(sections ? { sections: true } : {}) }),
   saathiSuggestions: (lang) => get(`/api/saathi/suggestions?lang=${lang || 'mr'}`),
   /* Wording for a scan result and for one problem's cards. Both answer 200
      with the retrieved reference text when no assistant key is configured, so

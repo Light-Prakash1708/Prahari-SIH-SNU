@@ -49,6 +49,18 @@ const T = {
 }
 const t = (lang, k) => (T[lang] || T.en)[k] ?? T.en[k]
 
+/* The order is the order a farmer reads in: what, why, then what to do about
+   it. `answer` is deliberately not listed — it is already the prose above, and
+   printing it twice under a heading makes the bubble look padded. */
+const SECTION_ORDER = ['why', 'what_to_check', 'what_to_do_now', 'when_to_escalate', 'sources']
+const SECTION_LABEL = {
+  why: ['Why', 'का'],
+  what_to_check: ['What to check', 'काय तपासावे'],
+  what_to_do_now: ['What to do now', 'आता काय करावे'],
+  when_to_escalate: ['When to ask an expert', 'तज्ज्ञांना कधी विचारावे'],
+  sources: ['Based on', 'आधार'],
+}
+
 export default function Saathi({ lang, plot, go }) {
   const [turns, setTurns] = useState([])
   const [keyOpen, setKeyOpen] = useState(false)
@@ -77,7 +89,7 @@ export default function Saathi({ lang, plot, go }) {
     setQ(''); setErr(null); setBusy(true)
     setTurns(prev => [...prev, { role: 'me', text: question }])
     try {
-      const out = await api.saathiAsk(question, plot?.id, lang)
+      const out = await api.saathiAsk(question, plot?.id, lang, true)
       setTurns(prev => [...prev, { role: 'saathi', ...out }])
     } catch (e) { setErr(e) } finally { setBusy(false) }
   }
@@ -145,6 +157,23 @@ export default function Saathi({ lang, plot, go }) {
 
             <div style={{ whiteSpace: 'pre-line' }}>{turn.answer}</div>
 
+            {/* The same answer in named parts, when the model could produce
+                them from the same records. Absent parts stay absent — a heading
+                with nothing under it would read as "nothing to check here",
+                which is a different claim from "PRAHARI does not know". */}
+            {turn.sections?.available && (
+              <div className="ad-sections">
+                {SECTION_ORDER.filter(k => turn.sections.fields[k]).map(k => (
+                  <div key={k} className="ad-section">
+                    <div className="ad-section__h">
+                      {SECTION_LABEL[k] ? bi(lang, SECTION_LABEL[k][0], SECTION_LABEL[k][1]) : k}
+                    </div>
+                    <div className="ad-section__b">{turn.sections.fields[k]}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Says which words the farmer is reading. A reworded answer is
                 marked, and so is a rewording that was thrown away — an answer
                 that quietly fell back would hide the one event worth seeing. */}
@@ -157,11 +186,19 @@ export default function Saathi({ lang, plot, go }) {
             )}
             {turn.llm?.available && !turn.llm.used && turn.llm.reason
               && !turn.llm.reason.startsWith('no provider') && (
-              <div className="ad-bubble__llm" style={{ color: 'var(--warn)',
-                                                       background: 'var(--warn-bg)',
-                                                       borderColor: 'var(--warn-line)' }}>
-                {bi(lang, `Model version discarded — ${turn.llm.reason}`,
-                          'भाषा-मॉडेलची आवृत्ती नाकारली — खालील उत्तर नोंदींवरून आहे')}
+              /* What the farmer is told and what an operator needs are two
+                 different sentences. "provider returned HTTP 404" is the second
+                 one and it was reaching the first: it reads like the answer
+                 above is broken, when the answer above is the retrieved one and
+                 is exactly as good as it always was. The status stays in the
+                 tooltip for whoever is debugging. */
+              <div className="ad-bubble__llm" title={turn.llm.reason}
+                   style={{ color: 'var(--warn)',
+                            background: 'var(--warn-bg)',
+                            borderColor: 'var(--warn-line)' }}>
+                {bi(lang, 'AI wording is temporarily unavailable — this answer comes '
+                          + 'straight from your field records.',
+                          'सध्या एआय भाषांतर उपलब्ध नाही — हे उत्तर थेट तुमच्या नोंदींवरून आहे.')}
               </div>
             )}
 

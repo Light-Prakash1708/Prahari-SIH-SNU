@@ -1007,3 +1007,16 @@
 @media (min-width: 560px) {
   .dc-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* AgriDoc · the sectioned answer.
+   Same bubble, same type scale — the parts are separated by a rule and a small
+   uppercase label rather than by cards, so a six-part answer still reads as one
+   reply and not as a dashboard. */
+.ad-sections { margin-top: 11px; border-top: 1px solid var(--line); }
+.ad-section { padding: 9px 0 0; }
+.ad-section + .ad-section { border-top: 1px dashed var(--line); margin-top: 9px; }
+.ad-section__h {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 3px;
+}
+.ad-section__b { font-size: 14px; line-height: 1.45; white-space: pre-line; }
