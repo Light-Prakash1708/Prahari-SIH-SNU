@@ -386,11 +386,17 @@ def _observation_view(db: Database, observation_id: str,
 
     engine_note = None
     if dx:
+        neural = dx["engine"] in ("onnx", "api", "gemini")
+        if dx["engine"] == "gemini":
+            label = (f"Gemini vision ({dx['model_version']}) — general model, "
+                     "not trained on this crop")
+        elif neural:
+            label = "Prahari Vision " + str(dx["model_version"])
+        else:
+            label = "Symptom-feature classifier v1 (not a neural network)"
         engine_note = {
             "engine": dx["engine"], "model_version": dx["model_version"],
-            "is_neural_model": dx["engine"] in ("onnx", "api"),
-            "label": ("Prahari Vision " + str(dx["model_version"]) if dx["engine"] in ("onnx", "api")
-                      else "Symptom-feature classifier v1 (not a neural network)"),
+            "is_neural_model": neural, "label": label,
         }
 
     return {

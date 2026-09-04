@@ -257,6 +257,16 @@ def _soft(checks: dict[str, Any], s) -> list[str]:
                    "weather_unavailable.")
     if checks["weather"].get("kind") == "generated":
         out.append("WEATHER IS GENERATED (demo mode). Not real observations.")
+    a = checks.get("assistant") or {}
+    if not a.get("configured"):
+        out.append("No language-model key is configured — AgriDoc, scan explanations and disease "
+                   "cards fall back to the retrieved reference text, which is always available.")
+    elif a.get("cooling_down"):
+        out.append(f"The assistant key is cooling down for {a['cooling_down']}s after a provider "
+                   "429 or 5xx. Answers are served from reference text until it clears.")
+    if a.get("vision_provider") == "gemini" and not checks["vision"].get("ready"):
+        out.append("VISION_PROVIDER=gemini but no key resolved, so image diagnosis is NOT using "
+                   "the vision model.")
     if not checks["notifications"]["sms"]["configured"]:
         out.append("No SMS gateway is configured — SMS deliveries will be recorded as 'skipped'.")
     return out

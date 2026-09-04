@@ -125,7 +125,14 @@ class Settings(BaseSettings):
 
     # ── vision ─────────────────────────────────────────────────────────────
     # onnx | api | none
+    # none | onnx | api | gemini.  "gemini" hands the photograph to a general
+    # vision model. It is a real neural model, so it is allowed to be described
+    # as one — but it was never trained on this crop, so no accuracy claim is
+    # made for it and `evaluated` stays false. It is opt-in for exactly that
+    # reason: a deployment that sets GEMINI_API_KEY for the assistant does not
+    # silently acquire a new diagnosis engine.
     vision_provider: str = "none"
+    gemini_vision_model: str = "gemini-2.5-flash"
     vision_model_path: str | None = None
     vision_model_labels: str | None = None     # path to labels.json
     vision_model_version: str = "unset"
@@ -215,6 +222,20 @@ class Settings(BaseSettings):
     def _lower(cls, v):
         return str(v).strip().lower() if v is not None else v
 
+    @property
+    def gemini_key(self) -> str | None:
+        """The one Gemini key, wherever it was spelled.
+
+        GEMINI_API_KEY and LLM_API_KEY (with LLM_PROVIDER=gemini) are the same
+        key. Everything that talks to Google reads it through here, so there is
+        never a second place to configure and never a second place to leak.
+        """
+        if self.gemini_api_key:
+            return self.gemini_api_key
+        if self.llm_provider == "gemini" and self.llm_api_key:
+            return self.llm_api_key
+        return None
+
     @model_validator(mode="after")
     def _gemini_alias(self):
         """GEMINI_API_KEY fills in the generic settings when they are unset.
@@ -228,6 +249,10 @@ class Settings(BaseSettings):
             self.llm_api_key = self.gemini_api_key
             if self.llm_provider == "none":
                 self.llm_provider = "gemini"
+        # A model version is recorded against every diagnosis. When the vision
+        # engine IS the Gemini model, the model id is the honest version string.
+        if self.vision_provider == "gemini" and self.vision_model_version == "unset":
+            self.vision_model_version = self.gemini_vision_model
         return self
 
     @model_validator(mode="after")

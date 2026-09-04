@@ -210,6 +210,41 @@ _LLM_COOLDOWN: dict[str, float] = {}
 _LLM_COOLDOWN_LOCK = threading.Lock()
 
 
+def assistant_health(settings: Settings | None = None) -> dict[str, Any]:
+    """What the deployment can see about its own assistant, without a key ever
+    appearing. This exists so that "is Gemini actually wired up" is a question
+    the /api/ready page answers, rather than one answered by pasting a key into
+    a log line.
+
+    `configured` says a key is present and a provider is selected. It does NOT
+    claim the key works — only a real call can, and the first scan or question
+    makes one. `cooling_down` is the honest reason a configured assistant is
+    quiet: the provider returned 429 or 5xx and PRAHARI is not retrying yet.
+    """
+    s = settings or get_settings()
+    key = s.gemini_key if s.llm_provider == "gemini" else s.llm_api_key
+    configured = bool(s.llm_provider in PROVIDERS and key)
+    out: dict[str, Any] = {
+        "configured": configured,
+        "provider": s.llm_provider if configured else "none",
+        "model": (s.llm_model or _DEFAULT_MODEL.get(s.llm_provider)) if configured else None,
+        "vision_provider": s.vision_provider,
+        "vision_model": s.gemini_vision_model if s.vision_provider == "gemini" else None,
+        "key_source": ("GEMINI_API_KEY" if s.gemini_api_key else
+                       "LLM_API_KEY" if s.llm_api_key else None),
+        "timeout_seconds": s.llm_timeout_seconds,
+        "max_output_tokens": s.llm_max_output_tokens,
+    }
+    if configured:
+        left = cooldown_remaining(s.llm_provider, key)
+        out["cooling_down"] = round(left) if left > 0 else 0
+    if not configured:
+        out["reason"] = ("Set GEMINI_API_KEY (or LLM_PROVIDER=gemini with LLM_API_KEY). "
+                         "Without it the assistant answers from retrieved text only, which is "
+                         "always available.")
+    return out
+
+
 def _key_id(provider: str, key: str) -> str:
     return provider + ":" + hashlib.sha256(key.encode()).hexdigest()[:16]
 
@@ -272,6 +307,142 @@ def _call_gemini(key: str, model: str, system: str, user: str,
             + (". The token budget was spent before any text was produced — raise "
                "LLM_MAX_OUTPUT_TOKENS." if finish == "MAX_TOKENS" else ""))
     return text
+
+
+def _call_gemini_vision(key: str, model: str, system: str, user: str,
+                        image_bytes: bytes, mime: str, timeout: float,
+                        max_tokens: int) -> str:
+    """The same endpoint as `_call_gemini`, with the photograph attached.
+
+    Kept here rather than in vision_service.py so that every request PRAHARI
+    makes to Google leaves from one file: one place that holds a key, one place
+    that opens a cooldown, one place to audit. `responseMimeType` asks for JSON
+    directly, which removes the usual fenced-code-block cleanup.
+    """
+    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+           f"{model}:generateContent")
+    body = {
+        "systemInstruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [
+            {"text": user},
+            {"inline_data": {"mime_type": mime,
+                             "data": base64.b64encode(image_bytes).decode("ascii")}},
+        ]}],
+        "generationConfig": {"temperature": 0.0, "maxOutputTokens": max_tokens,
+                             "responseMimeType": "application/json"},
+    }
+    r = httpx.post(url, params={"key": key}, json=body, timeout=timeout)
+    r.raise_for_status()
+    data = r.json()
+    candidate = (data.get("candidates") or [{}])[0]
+    parts = (candidate.get("content") or {}).get("parts") or []
+    text = "".join(p.get("text", "") for p in parts).strip()
+    if not text:
+        finish = candidate.get("finishReason") or "no finishReason"
+        raise EmptyCompletion(f"the model returned no text (finishReason: {finish})")
+    return text
+
+
+VISION_SYSTEM = """You are helping an Indian agricultural advisory look at a photograph of a \
+{crop} plant.
+
+You are given a CLOSED LIST of the problems this advisory recognises for this crop, each with the \
+field description its agronomists use. Your only job is to say how well the photograph matches \
+each one.
+
+Rules:
+- Answer with JSON only: {{"scores": {{"<id>": <number 0-1>, ...}}, "quality": "<one short phrase>"}}
+- Use ONLY the ids given. Never invent an id, a disease name, or a category such as "other".
+- Score each id independently on how well the VISIBLE evidence matches its description. They do \
+not have to sum to 1.
+- If the photograph shows a healthy plant, score the "healthy" id high, if it is in the list.
+- If you cannot see the plant clearly enough to judge, return {{"scores": {{}}, "quality": "..."}} \
+rather than guessing. An empty answer is correct and useful; a guess is not.
+- Do not name any pesticide, fungicide, dose, price or product. Do not give advice. Scores only."""
+
+
+def vision_scores(*, key: str, model: str | None, crop: str,
+                  candidates: list[dict[str, Any]], image_bytes: bytes,
+                  mime: str = "image/jpeg",
+                  settings: Settings | None = None) -> dict[str, Any]:
+    """Score a photograph against a closed list of known problems.
+
+    This is the one place a general vision model is allowed into the diagnosis,
+    and the shape of the request is what keeps it honest. The model never names
+    a disease: it is handed PRAHARI's own ids and returns a number against each.
+    An id it invents anyway matches nothing and is dropped; a photograph it
+    cannot read comes back empty, which the caller reports as "no model result"
+    rather than turning into a low-confidence guess.
+
+    Returns a verdict — {"used": bool, ...} — and never raises. The caller's
+    fallback (the symptom-feature engine, or abstention) is always available
+    because it does not depend on this call having happened.
+    """
+    s = settings or get_settings()
+    if not key:
+        return {"used": False, "reason": "no Gemini key is configured"}
+    if not candidates:
+        return {"used": False, "reason": "no candidate problems for this crop"}
+
+    model = model or s.gemini_vision_model
+    left = cooldown_remaining("gemini", key)
+    if left > 0:
+        return {"used": False, "quota": True,
+                "reason": f"this key is over its quota; not retried for {int(left) + 1}s"}
+
+    listing = "\n".join(
+        f'- id "{c["id"]}" — {c.get("name", c["id"])}'
+        + (f' ({c["sci"]})' if c.get("sci") else "")
+        + (f': {c["scout"]}' if c.get("scout") else "")
+        for c in candidates)
+    prompt = (f"CROP: {crop}\n\nTHE CLOSED LIST OF IDS YOU MAY SCORE:\n{listing}\n\n"
+              "Look at the attached photograph and score every id above.")
+
+    try:
+        out = _call_gemini_vision(key, model, VISION_SYSTEM.format(crop=crop), prompt,
+                                  image_bytes, mime, s.vision_timeout_seconds,
+                                  s.llm_max_output_tokens)
+    except EmptyCompletion as exc:
+        return {"used": False, "reason": str(exc), "model": model}
+    except httpx.HTTPStatusError as exc:
+        code = exc.response.status_code
+        if code == 429 or code >= 500:
+            _open_cooldown("gemini", key, float(s.llm_cooldown_seconds))
+            log.warning("vision model cooling down", extra={"status": code})
+            return {"used": False, "quota": code == 429, "model": model,
+                    "reason": f"the provider returned HTTP {code}"}
+        return {"used": False, "reason": f"provider returned HTTP {code}", "model": model}
+    except httpx.TimeoutException:
+        return {"used": False, "model": model,
+                "reason": f"the model did not answer within {s.vision_timeout_seconds:g}s"}
+    except Exception as exc:
+        return {"used": False, "reason": f"provider error: {type(exc).__name__}", "model": model}
+
+    data = _extract_json(out)
+    if not isinstance(data, dict):
+        return {"used": False, "reason": "the model did not return usable JSON", "model": model}
+
+    raw = data.get("scores")
+    if not isinstance(raw, dict):
+        return {"used": False, "reason": "the model returned no scores", "model": model}
+
+    known = {c["id"] for c in candidates}
+    scores: dict[str, float] = {}
+    for k, v in raw.items():
+        if k not in known:
+            continue                       # an invented id scores nothing
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            continue
+        if f > 0:
+            scores[k] = min(f, 1.0)
+    if not scores:
+        return {"used": False, "model": model,
+                "reason": "the model found nothing it recognised in the photograph",
+                "quality": str(data.get("quality") or "")[:200]}
+    return {"used": True, "scores": scores, "model": model,
+            "quality": str(data.get("quality") or "")[:200]}
 
 
 def _call_openai(key: str, model: str, system: str, user: str,

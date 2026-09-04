@@ -65,11 +65,17 @@ class Runtime:
                         "migrations": applied, "claims": synced})
         return {"migrations": applied, "claims": synced}
 
+    @staticmethod
+    def _assistant_health() -> dict[str, Any]:
+        from . import llm as llm_mod
+        return llm_mod.assistant_health()
+
     def health(self) -> dict[str, Any]:
         return {
             "database": self.db.health(),
             "weather": self.weather.health(),
             "vision": self.vision.health(),
+            "assistant": self._assistant_health(),
             "storage": self.storage.health(),
             "notifications": self.notify.health(),
         }

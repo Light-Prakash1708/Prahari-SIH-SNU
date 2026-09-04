@@ -269,25 +269,138 @@ class ApiClassifier(Classifier):
                 "version": self.s.vision_model_version}
 
 
+class GeminiVisionClassifier(Classifier):
+    """A general vision model, used as the classifier.
+
+    What this is honest about, because the alternative is a lie a farmer acts
+    on: Gemini is a real neural model, so `is_neural` is true and the UI may say
+    so. But it was never trained on this crop, no evaluation has been run
+    against a field-image test set, and so `metrics` stays empty and the
+    existing caveat machinery prints "no accuracy claim is made".
+
+    The model is never asked "what is wrong with this plant". It is handed
+    PRAHARI's own closed list of problems for the crop and asked to score the
+    photograph against each. That is the whole difference between a classifier
+    and an oracle: the label space is ours, the ranking is its, and an id it
+    invents scores nothing. Everything downstream — the taluka prior, the
+    weather term, the margin, the abstention rule — runs exactly as it does for
+    a locally loaded ONNX model.
+
+    A failure returns no probabilities, never a guess. The service then falls
+    back to the symptom-feature engine or abstains, which is the behaviour this
+    instance had before a key existed.
+    """
+    engine = "gemini"
+
+    def __init__(self, settings: Settings):
+        self.s = settings
+
+    def ready(self) -> bool:
+        return bool(self.s.gemini_key)
+
+    def predict(self, image_bytes, crop, candidates):
+        import time
+        if not self.ready():
+            return ClassifierResult(
+                None, "unavailable", "gemini", "none", "AI model unavailable", False,
+                note=("VISION_PROVIDER=gemini but no GEMINI_API_KEY is set, so no vision "
+                      "model is configured on this instance."),
+                error="vision_model_unavailable")
+
+        from . import llm as llm_mod
+        from . import reference
+
+        known = reference.problems_for_crop(crop)
+        listing = [{"id": pid,
+                    "name": p.get("name", pid),
+                    "sci": p.get("sci"),
+                    "scout": p.get("scout")}
+                   for pid, p in known.items() if pid in candidates]
+
+        t0 = time.perf_counter()
+        verdict = llm_mod.vision_scores(key=self.s.gemini_key,
+                                        model=self.s.gemini_vision_model,
+                                        crop=crop, candidates=listing,
+                                        image_bytes=image_bytes, settings=self.s)
+        ms = round((time.perf_counter() - t0) * 1000)
+        version = str(verdict.get("model") or self.s.gemini_vision_model)
+
+        if not verdict.get("used"):
+            log.warning("gemini vision did not produce a result",
+                        extra={"reason": verdict.get("reason")})
+            return ClassifierResult(
+                None, "unavailable", "gemini-vision", version,
+                "AI model unavailable", True, ms,
+                note=str(verdict.get("reason") or "no result"),
+                error="vision_inference_failed")
+
+        return _restrict(
+            verdict["scores"], candidates, engine="gemini",
+            model_name="gemini-vision", version=version, ms=ms,
+            display=f"Gemini vision ({version}) — general model, not trained on this crop",
+            is_neural=True,
+            note=("A general vision model scored the photograph against the problems PRAHARI "
+                  "knows for this crop. These are match scores, not a trained classifier's "
+                  "probabilities, and no evaluation has been run for this model on this crop — "
+                  "so they rank the differential and no accuracy is claimed for them."
+                  + (f" The model's note on the photograph: {verdict['quality']}"
+                     if verdict.get("quality") else "")))
+
+    def info(self):
+        return {"engine": "gemini", "ready": self.ready(),
+                "model": self.s.gemini_vision_model,
+                "version": self.s.vision_model_version,
+                "reason": (None if self.ready() else
+                           "VISION_PROVIDER=gemini but GEMINI_API_KEY is not set")}
+
+
+# A candidate the model never mentioned is not a candidate the model ruled out.
+# The posterior downstream multiplies prior x image x weather, so a hard zero
+# here would delete a problem from the differential no matter what the taluka
+# history and the infection models say about it. It gets a floor instead — a
+# hundredth of the lowest score the model did give, which is low enough to
+# never win on its own and high enough that the other evidence can still speak.
+_UNSCORED_FLOOR = 0.01
+
+
 def _restrict(full: dict[str, float], candidates: list[str], *, engine: str,
               model_name: str, version: str, ms: int, display: str,
-              is_neural: bool) -> ClassifierResult:
-    kept = {k: v for k, v in full.items() if k in candidates}
-    total = sum(kept.values())
+              is_neural: bool, note: str | None = None) -> ClassifierResult:
+    """Map a model's output onto the problems PRAHARI knows for this crop.
+
+    Two invariants, and the second one used to be assumed rather than enforced:
+    a class the model emits that this crop cannot have is dropped, and EVERY
+    candidate comes back with a value. The consumer of this result indexes the
+    returned mapping by candidate id and multiplies — a missing key is a
+    TypeError halfway through a diagnosis, which is a 500 on a farmer's scan.
+    """
+    kept = {k: float(v) for k, v in full.items() if k in candidates}
+    scored = {k: v for k, v in kept.items() if v > 0}
+    total = sum(scored.values())
     if total <= 0:
         return ClassifierResult(
             None, "unavailable", model_name, version, display, is_neural, ms,
             note=("The model produced no probability mass on any problem known for this crop. "
                   "That is an out-of-distribution signal, not a diagnosis."),
             error="vision_out_of_distribution")
-    probs = {k: v / total for k, v in kept.items()}
-    dropped = round(1.0 - total, 4)
+
+    floor = min(scored.values()) * _UNSCORED_FLOOR
+    raw = {pid: scored.get(pid, floor) for pid in candidates}
+    denom = sum(raw.values())
+    probs = {pid: v / denom for pid, v in raw.items()}
+
+    missing = len(candidates) - len(scored)
+    if note is None:
+        dropped = round(1.0 - total, 4)
+        note = (f"{len(kept)} of {len(full)} model classes are possible for this crop; "
+                f"{dropped:.0%} of the model's probability mass fell outside them and was "
+                f"dropped before renormalising.")
+    if missing:
+        note += (f" {missing} of {len(candidates)} problems for this crop were not scored by "
+                 f"the model and were floored rather than eliminated.")
     return ClassifierResult(
         probs=probs, engine=engine, model_name=model_name, model_version=version,
-        display=display, is_neural=is_neural, latency_ms=ms,
-        note=(f"{len(kept)} of {len(full)} model classes are possible for this crop; "
-              f"{dropped:.0%} of the model's probability mass fell outside them and was "
-              f"dropped before renormalising."))
+        display=display, is_neural=is_neural, latency_ms=ms, note=note)
 
 
 # ── the service ─────────────────────────────────────────────────────────────
@@ -307,6 +420,8 @@ class VisionService:
             return OnnxClassifier(self.s)
         if p == "api":
             return ApiClassifier(self.s)
+        if p == "gemini":
+            return GeminiVisionClassifier(self.s)
         return NoModel(
             "No trained vision model is configured (VISION_PROVIDER=none). "
             + ("PRAHARI is using its symptom-feature classifier, which measures the leaf and "
