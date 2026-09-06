@@ -2,15 +2,17 @@
 from __future__ import annotations
 
 import logging
+import secrets
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 
-from .. import accounts
+from .. import accounts, reference
+from ..clock import now_iso
 from ..config import get_settings
 from ..db import Database
 from ..deps import current_user, db_dep
-from ..errors import bad_request
+from ..errors import bad_request, not_found
 from ..obs import audit
 from ..schemas import (
     LoginIn,
@@ -21,6 +23,7 @@ from ..schemas import (
     RegisterIn,
     TokenOut,
 )
+from ..security import hash_password
 
 log = logging.getLogger("prahari.auth")
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -53,6 +56,87 @@ def login(data: LoginIn, request: Request, db: Database = Depends(db_dep)):
                            ip=_ip(request))
     audit("auth.login", entity="user", entity_id=token["user_id"],
           user_id=token["user_id"], role=token["role"], ip=_ip(request))
+    return token
+
+
+DEMO_CONSOLE_ROLES = {
+    "farmer":  ("Demo Farmer", "farmer@prahari.demo"),
+    "expert":  ("Dr. A. Kulkarni (demo)", "expert@prahari.demo"),
+    "officer": ("Krishi Sahayak (demo)", "officer@prahari.demo"),
+}
+
+
+@router.post("/demo-console", response_model=TokenOut,
+             summary="Sign in to a demo console (only when DEMO_CONSOLE_ACCESS is on)",
+             description=(
+                 "Returns a normal session for one of three fixed demo accounts, so the officer "
+                 "and expert consoles can be shown without an administrator provisioning staff "
+                 "first.\n\n"
+                 "It grants nothing new. The account it signs in is a real account of that role, "
+                 "created server-side, and the token comes back from the SAME `accounts.login()` "
+                 "every other sign-in uses — same JWT, same session row, same revocation. What it "
+                 "removes is the need for a password to exist anywhere a client could read: one "
+                 "is generated per request, used once, and never returned.\n\n"
+                 "Disabled unless DEMO_CONSOLE_ACCESS=true, in which case this route does not "
+                 "exist. It never touches a real account: the three addresses are fixed and end "
+                 "in @prahari.demo.\n\n"
+                 "Errors: 404 not_found when the switch is off · 400 unknown_role"))
+def demo_console(role: str, request: Request, db: Database = Depends(db_dep)):
+    """The presenter's door. Narrow on purpose.
+
+    Three things make this safe to leave in a production build:
+
+    1. It is off unless a server-side switch says otherwise, and when off the
+       route answers 404 — the same as any path that does not exist, so its
+       presence is not advertised.
+    2. The role is not taken from the caller in any meaningful sense: it selects
+       one of three FIXED accounts by a table in this file. A caller cannot name
+       an account, cannot name a role outside the table, and cannot reach admin.
+    3. No credential exists to steal. The password is generated here, per
+       request, used immediately by the real login path, and never stored in a
+       form anyone can read or returned in any response.
+
+    What it does NOT do: it does not weaken `accounts.register`, which still
+    refuses privileged self-registration; it does not bypass JWT or session
+    validation; and it gives the frontend no authority whatsoever over roles.
+    """
+    s = get_settings()
+    if not s.demo_console_access:
+        raise not_found("route")
+    if role not in DEMO_CONSOLE_ROLES:
+        raise bad_request("unknown_role",
+                          f"Demo consoles: {', '.join(DEMO_CONSOLE_ROLES)}.")
+
+    full_name, email = DEMO_CONSOLE_ROLES[role]
+    # Fresh every time. Nothing downstream ever needs to know it again, so
+    # there is no place for it to sit and no value for a response to leak.
+    password = secrets.token_urlsafe(24)
+
+    user = db.one("SELECT id FROM users WHERE email = :e", {"e": email})
+    if user:
+        db.execute("UPDATE users SET password_hash = :h, is_active = 1, updated_at = :now"
+                   " WHERE id = :id",
+                   {"h": hash_password(password), "now": now_iso(), "id": user["id"]})
+    else:
+        created = accounts.register(db, RegisterIn(
+            full_name=full_name, password=password, role=role, email=email, lang="en",
+            taluka=reference.TALUKA_IDS[0],
+            **({"institution": "KVK Nashik", "specialism": "Plant pathology"}
+               if role == "expert" else {})), allow_privileged=True)
+        if role == "officer":
+            # Without a scope an officer console is correctly empty. Granting
+            # the demo officer the covered talukas is the same call the admin
+            # console makes; it is not a new permission model.
+            for taluka in reference.TALUKA_IDS:
+                accounts.grant_scope(db, created["profile"]["id"], taluka)
+
+    token = accounts.login(db, email, password,
+                           user_agent=request.headers.get("user-agent", ""),
+                           ip=_ip(request))
+    audit("auth.demo_console", entity="user", entity_id=token["user_id"],
+          user_id=token["user_id"], role=token["role"], ip=_ip(request),
+          detail={"console": role})
+    log.warning("demo console session issued", extra={"console": role})
     return token
 
 

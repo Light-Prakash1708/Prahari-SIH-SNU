@@ -14,8 +14,8 @@
    role, no demo bypass reaching production — the seeded credentials below are
    printed ONLY when the server reports demo_mode, because outside a demo they
    do not exist. */
-import React from 'react'
-import { auth } from '../api'
+import React, { useState } from 'react'
+import { api, auth } from '../api'
 import { Card, bi } from '../ui'
 import Icon from '../shell/Icon'
 
@@ -46,15 +46,38 @@ const CONSOLES = [
   },
 ]
 
-const DEMO_ACCOUNTS = [
-  ['officer', 'officer@prahari.demo'],
-  ['expert', 'expert@prahari.demo'],
-  ['admin', 'admin@prahari.demo'],
+/* The three consoles a presenter needs to show. `admin` is deliberately
+   absent: nothing in a demonstration needs it, and a door nobody needs should
+   not exist. */
+const DEMO_CONSOLES = [
+  ['farmer',  ['Farmer demo', 'शेतकरी डेमो']],
+  ['expert',  ['Expert demo', 'तज्ञ डेमो']],
+  ['officer', ['Officer demo', 'अधिकारी डेमो']],
 ]
 
 export default function Modes({ lang, me, health, go }) {
   const role = me?.user?.role
-  const isDemo = !!health?.config?.demo_mode
+  /* The server's own answer, not a build flag: the card appears only where
+     the deployment switched demo consoles on, and the button works only
+     there, because the route 404s everywhere else. */
+  const demoOpen = !!health?.config?.demo_console_access
+  const [busy, setBusy] = useState(null)
+  const [err, setErr] = useState(null)
+
+  const openDemo = async (which) => {
+    setBusy(which); setErr(null)
+    try {
+      const out = await api.demoConsole(which)
+      /* Exactly what a normal sign-in does with its token. App.jsx then
+         asks the SERVER for the role via /api/auth/me and hands over the
+         matching console — nothing on this page decides what opens. */
+      auth.set(out.access_token)
+      window.location.reload()
+    } catch (e) {
+      setErr(e)
+      setBusy(null)
+    }
+  }
 
   return (
     <>
@@ -107,19 +130,30 @@ export default function Modes({ lang, me, health, go }) {
           )
         })}
 
-        {isDemo && (
-          <Card>
-            <div className="card-title">{lang === 'mr' ? 'डेमो खाती' : 'Demo accounts'}</div>
+        {demoOpen && (
+          <Card className="md-demo-card">
+            <div className="card-title">{bi(lang, 'Demo access', 'डेमो प्रवेश')}</div>
             <p className="tiny muted" style={{ marginTop: 6, lineHeight: 1.5 }}>
               {bi(lang,
-                'Shown because this instance reports DEMO_MODE. These accounts are seeded only in a demo build and do not exist in a deployment. Password: prahari-demo-2026',
-                'ही माहिती फक्त डेमो बिल्डमध्ये दिसते. ही खाती प्रत्यक्ष तैनातीत नसतात. पासवर्ड: prahari-demo-2026')}
+                'This instance has demo consoles switched on. Each button signs you in to a real account of that role on the server and opens the same console that role always gets — nothing here is simulated. No password is used, shown or stored.',
+                'या आवृत्तीत डेमो कक्ष चालू आहेत. प्रत्येक बटण सर्व्हरवरील त्या भूमिकेच्या खऱ्या खात्याने साइन इन करते आणि नेहमीचाच कक्ष उघडते. काहीही बनावट नाही; पासवर्ड लागत नाही.')}
             </p>
-            <ul className="md-demo">
-              {DEMO_ACCOUNTS.map(([r, id]) => (
-                <li key={r}><b>{r}</b><span>{id}</span></li>
+            <div className="md-demo-btns">
+              {DEMO_CONSOLES.map(([which, label]) => (
+                <button key={which} className="btn sm" disabled={!!busy}
+                        onClick={() => openDemo(which)}>
+                  {busy === which
+                    ? bi(lang, 'Opening…', 'उघडत आहे…')
+                    : bi(lang, label[0], label[1])}
+                </button>
               ))}
-            </ul>
+            </div>
+            {err && (
+              <p className="tiny" style={{ color: 'var(--warn)', marginTop: 9 }}>
+                {bi(lang, 'Demo access is not available on this instance.',
+                          'या आवृत्तीत डेमो प्रवेश उपलब्ध नाही.')}
+              </p>
+            )}
           </Card>
         )}
 

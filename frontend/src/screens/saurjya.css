@@ -774,6 +774,11 @@
   border-radius: 10px; background: var(--card);
   border: 1px solid var(--rule); color: var(--g-700);
 }
+/* Demo access. Same card, same buttons, same green — it reads as one more
+   row on this screen rather than a developer panel bolted to the bottom. */
+.md-demo-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+.md-demo-btns .btn { flex: 1 1 auto; min-width: 96px; }
+
 .md-demo { list-style: none; display: grid; gap: 4px; margin-top: 10px; }
 .md-demo li {
   display: flex; justify-content: space-between; gap: 10px;

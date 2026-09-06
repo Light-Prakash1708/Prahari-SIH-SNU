@@ -133,6 +133,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if s.demo_mode and s.auto_seed_demo:
             from .seed_demo import seed
             info["seed"] = seed(rt)
+        # Independent of the demo seed, and allowed in production: the one step
+        # that had no other way to happen. Creates nothing when it is not
+        # configured, and nothing again once an administrator exists.
+        from .seed_demo import bootstrap_admin
+        info["admin_bootstrap"] = bootstrap_admin(rt)
         log.info("ready", extra=info)
         yield
         rt.db.dispose()

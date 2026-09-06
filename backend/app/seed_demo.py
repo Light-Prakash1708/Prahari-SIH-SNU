@@ -25,6 +25,7 @@ from .clock import now_iso
 from .clock import today as _today
 from .db import Database
 from .schemas import RegisterIn
+from .security import password_problems
 
 log = logging.getLogger("prahari.seed")
 
@@ -339,3 +340,63 @@ def _community_history(db: Database, rt, day: dt.date) -> None:
     SignalEngine(db).sweep()
     log.info("seeded community", extra={"posts": db.scalar(
         "SELECT COUNT(*) FROM community_posts")})
+
+
+def bootstrap_admin(rt) -> dict[str, Any]:
+    """Create the first administrator, once, from the environment.
+
+    Why this exists. Officer and expert accounts are deliberately not
+    self-serviceable: `accounts.register` refuses any role but farmer unless
+    the caller passes allow_privileged, and the only caller that does is
+    /api/admin/users, which requires an administrator. That rule is correct and
+    is not touched here. But the only thing that ever created the FIRST
+    administrator was the demo seed, and config.py refuses the demo seed in
+    production — so a deployed instance had a provisioning system with no way
+    in. This is that one missing step and nothing more.
+
+    What it is not: not a second authentication system, not a login path, not a
+    role a farmer can ask for. It writes one row through the same
+    `accounts.register` every other account goes through, and only when there
+    is no administrator at all. Once one exists this never acts again, so
+    leaving the variables set on a running deployment does nothing.
+
+    Nothing here can stop the application starting. An unusable password or a
+    taken address is logged and skipped: an instance that will not boot is a
+    worse failure than an instance an administrator has to be added to by hand.
+    """
+    s = rt.settings
+    email = (s.admin_bootstrap_email or "").strip().lower()
+    password = s.admin_bootstrap_password or ""
+    if not email or not password:
+        return {"skipped": "not configured"}
+
+    existing = rt.db.one("SELECT id FROM users WHERE role = 'admin' LIMIT 1")
+    if existing:
+        # The common case on every restart after the first.
+        return {"skipped": "an administrator already exists"}
+
+    problems = password_problems(password)
+    if problems:
+        # Named, because a silently ignored variable is the hardest kind of
+        # configuration to debug. The password itself is never logged.
+        log.warning("ADMIN_BOOTSTRAP_PASSWORD was rejected; no administrator was created",
+                    extra={"problems": problems})
+        return {"skipped": "the password does not meet the policy", "problems": problems}
+
+    try:
+        accounts.register(rt.db, RegisterIn(
+            full_name="District Administrator", password=password, role="admin",
+            email=email, lang="en", taluka=reference.TALUKA_IDS[0]),
+            allow_privileged=True)
+    except Exception as exc:
+        log.warning("could not create the bootstrap administrator",
+                    extra={"error": type(exc).__name__})
+        return {"skipped": f"{type(exc).__name__}"}
+
+    # The address, so an operator can see WHICH account was made. Never the
+    # password — it is in the environment and that is the only place it lives.
+    log.warning("BOOTSTRAP ADMINISTRATOR CREATED — sign in with this address and "
+                "create your officer and expert accounts from the admin console, "
+                "then remove ADMIN_BOOTSTRAP_PASSWORD from the environment",
+                extra={"email": email})
+    return {"created": email}

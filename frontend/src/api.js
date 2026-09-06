@@ -183,6 +183,11 @@ export const api = {
   // auth
   register: (body) => send('/api/auth/register', body),
   login: (identifier, password) => send('/api/auth/login', { identifier, password }),
+  /* The presenter's door. No credential travels in either direction: the
+     server owns the three demo accounts and hands back an ordinary session,
+     which is why there is nothing to keep out of this file. 404 when the
+     deployment has DEMO_CONSOLE_ACCESS off, which is the default. */
+  demoConsole: (role) => send(`/api/auth/demo-console?role=${encodeURIComponent(role)}`, {}),
   logout: () => send('/api/auth/logout'),
   me: () => get('/api/auth/me', { cache: true }),
   resetRequest: (identifier) => send('/api/auth/password/reset-request', { identifier }),

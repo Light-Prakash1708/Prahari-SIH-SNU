@@ -42,6 +42,35 @@ class Settings(BaseSettings):
     auto_migrate: bool = True          # runs the versioned migration runner
     auto_seed_demo: bool = False       # NEVER honoured when app_env=production
 
+    # ── the first administrator ────────────────────────────────────────────
+    # Officer and expert accounts are created BY an administrator, through
+    # /api/admin/users. That is the right rule — an officer account can see a
+    # whole taluka's farmers — but it leaves a deployed instance with no way to
+    # make the first administrator, because the demo seed that would have made
+    # one is refused in production. These two settings close that loop and
+    # nothing else: when BOTH are set and NO administrator exists yet, one is
+    # created at startup. It is not a login path, not a role selector, and not
+    # a way for a farmer to become anything. Leave them unset and the
+    # behaviour is exactly what it was.
+    admin_bootstrap_email: str | None = None
+    admin_bootstrap_password: str | None = None
+
+    # ── demo console access ────────────────────────────────────────────────
+    # One switch, off by default, that opens a presenter's door into the
+    # officer and expert consoles WITHOUT touching the rule that guards them.
+    # It is deliberately NOT DEMO_MODE: demo mode changes what the engines are
+    # fed (generated weather, scenario endpoints) and is refused in production
+    # for that reason. This changes nothing an engine sees. It only lets the
+    # server issue a session for an account it owns, through the same
+    # accounts.login() every other sign-in goes through.
+    #
+    # It is allowed in production because a presenter demonstrates from the
+    # deployed instance — and because it is safe there: the accounts it touches
+    # are three fixed @prahari.demo addresses whose passwords are generated per
+    # request and never leave the server, so there is no credential to leak and
+    # nothing a farmer can ask to become.
+    demo_console_access: bool = False
+
     # ── auth ───────────────────────────────────────────────────────────────
     jwt_secret: str | None = None
     jwt_algorithm: str = "HS256"
@@ -292,6 +321,9 @@ class Settings(BaseSettings):
             "database": "postgresql" if "postgres" in self.database_url else "sqlite",
             "weather_provider": self.weather_provider,
             # Whether an assistant key is configured — never the key itself.
+            "demo_console_access": self.demo_console_access,
+            "admin_bootstrap": ("armed" if (self.admin_bootstrap_email
+                                            and self.admin_bootstrap_password) else "off"),
             "assistant": ("configured" if (self.llm_provider in ("gemini", "openai")
                                            and self.llm_api_key) else "off"),
             "vision_provider": self.vision_provider,
