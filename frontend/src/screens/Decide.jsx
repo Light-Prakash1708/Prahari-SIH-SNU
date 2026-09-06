@@ -44,6 +44,17 @@ const T = {
   notForecast:['Not forecast — no weather', 'अंदाज नाही — हवामान नाही'],
   measured:   ['measured', 'मोजलेले'],
   estimated:  ['from a photograph', 'फोटोवरून'],
+  howBad:     ['How serious is it?', 'किती गंभीर आहे?'],
+  doNow2:     ['What to do now', 'आता काय करावे'],
+  markChecked:['Mark field checked', 'शेत तपासले म्हणून नोंदवा'],
+  moreDetail: ['More', 'अधिक'],
+  flow:       ['Assess, act, monitor', 'पाहणी, कृती, देखरेख'],
+  watchFor:   ['What to watch for', 'काय पहावे'],
+  nextCheck:  ['Next field check', 'पुढील पाहणी'],
+  needHelp:   ['Need help?', 'मदत हवी?'],
+  escalateBecause: ['An expert would help here because:', 'तज्ज्ञांची मदत उपयोगी ठरेल, कारण:'],
+  detail:     ['More detail', 'अधिक तपशील'],
+  needsConf:  ['Needs field confirmation', 'शेतात खात्री करावी लागेल'],
 }
 const t = (lang, k) => bi(lang, T[k][0], T[k][1])
 
@@ -88,6 +99,17 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
      the level the server computed rather than deriving one here. */
   const targetRow = (m?.targets || []).find(x => x.id === m?.target)
   const recordAction = kind === 'pest' ? () => setCountOpen(true) : () => setAssessOpen(true)
+
+  /* Everything below is DERIVED from what the server already returned. None of
+     it is a new judgement and none of it is a second opinion — it is the same
+     values, banded and ordered so the four questions a farmer actually has can
+     be answered in the first screenful instead of the fifth. */
+  const sev = severity(m, kind, measured, lang)
+  const doNow = actionsNow(m, lang)
+  const watchFor = (m?.ipm_ladder || []).find(r => r.key === 'monitor')?.items || []
+  const wxDay = m?.weather_available === false ? null : (m?.weather_context?.days || [])[0]
+  const steps = stepStates(m, d, measured)
+  const escalate = escalationReasons(m, d, targetRow)
 
   return (
     <>
@@ -139,379 +161,249 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
 
         {d && !busy && (
           <>
-            {/* ── 1 · THE DECISION ─────────────────────────────────────── */}
+            {/* ── 1 · WHOSE FIELD, AND WHAT ────────────────────────────────
+                The screen used to open on a verdict with no subject. A farmer
+                arriving from a scan already knows what they photographed; a
+                farmer arriving from the home screen does not, and the same
+                sentence serves both. Assembled only from values the server
+                returned — crop, target, stage — so a field with no stage
+                simply says less. */}
+            <div className="ipm-who">
+              <span className="ipm-who__crop">
+                {(m.targets || []).find(x => x.id === m.target)?.em || '🌱'}{' '}
+                {(m.crop || '').toUpperCase()}
+              </span>
+              <b className="ipm-who__what">{bi(lang, d.target_name, d.target_name_mr)}</b>
+              <span className="ipm-who__where">
+                {m.plot_name}
+                {m.crop_stage?.label && ` · ${bi(lang, m.crop_stage.label, m.crop_stage.label_mr)}`}
+              </span>
+            </div>
+
+            {/* ── 2 · THE DECISION ─────────────────────────────────────────
+                Unchanged in substance: the lamp, the answer and the reason are
+                the server's. What moved is everything that used to sit inside
+                it — three fact rows and a button — which pushed the one thing
+                the farmer came for below the fold. */}
             <div className={`mg-decision ${state.cls}`}>
               <div className="mg-decision__lamp">{state.lamp}</div>
               <div className="mg-decision__ans">{bi(lang, d.answer, d.answer_mr)}</div>
-              <div className="mg-decision__for">
-                {bi(lang, d.target_name, d.target_name_mr)}
-              </div>
               <p className="mg-decision__why">{bi(lang, d.reason, d.reason_mr)}</p>
+            </div>
 
-              <div className="mg-decision__facts">
-                <div>
-                  <span className="k">{t(lang, 'fieldMeas')}</span>
-                  <b>{kind === 'pest'
-                    ? (m.threshold ? `${m.threshold.count} ${m.threshold.unit}` : t(lang, 'notMeasured'))
-                    : (m.assessment ? `${m.assessment.incidence_pct}% ${bi(lang, 'of plants', 'झाडांवर')}`
-                                    : t(lang, 'notMeasured'))}</b>
-                </div>
-                {kind === 'pest' && m.threshold && (
-                  <div>
-                    <span className="k">{bi(lang, 'Action threshold', 'कृती मर्यादा')}</span>
-                    <b>{m.threshold.etl_effective} {m.threshold.unit}</b>
-                  </div>
-                )}
-                {d.recheck_on && (
-                  <div>
-                    <span className="k">{t(lang, 'nextReview')}</span>
-                    <b>{fmtDate(d.recheck_on, lang)}</b>
-                  </div>
-                )}
+            {/* ── 3 · HOW SERIOUS IS IT? ───────────────────────────────────
+                Banded from a number the farmer produced, never from the photo.
+                A diagnosis confidence says WHAT this is; it is not evidence of
+                HOW MUCH, and the two must never be blended into one score. So
+                with nothing counted this reads "needs field confirmation" and
+                offers the count — which is the honest answer and also the
+                useful one, because the count is the next thing to do. */}
+            <Card className={`ipm-sev ${sev.band}`}>
+              <div className="ipm-sev__top">
+                <span className="k">{t(lang, 'howBad')}</span>
+                <span className={`ipm-sev__chip ${sev.band}`}>
+                  {sev.lamp} {bi(lang, sev.label[0], sev.label[1])}
+                </span>
               </div>
-
+              <p className="ipm-sev__why">{bi(lang, sev.why[0], sev.why[1])}</p>
+              {sev.basis && <div className="ipm-sev__basis">{sev.basis}</div>}
               {!measured && (
-                <button className="btn block" style={{ marginTop: 14 }} onClick={recordAction}>
+                <button className="btn block" style={{ marginTop: 11 }} onClick={recordAction}>
                   {kind === 'pest' ? t(lang, 'addCount') : t(lang, 'addAssess')}
                 </button>
               )}
-            </div>
-
-            {/* ── 2 · WHY ──────────────────────────────────────────────── */}
-            {d.evidence?.length > 0 && (
-              <details className="method-fold mg-fold">
-                <summary>{t(lang, 'why')}</summary>
-                <div style={{ marginTop: 8 }}>
-                  {d.evidence.map((e, i) => (
-                    <div className="evid" key={i}>
-                      <span className="tick">{EV_ICON[e.kind] || '•'}</span>
-                      <span>
-                        <b>{bi(lang, EV_LABEL[e.kind]?.[0] || e.kind.replace(/_/g, ' '),
-                                    EV_LABEL[e.kind]?.[1] || e.kind.replace(/_/g, ' '))}</b>
-                        {' — '}{e.detail || e.explain}
-                        {e.source && <Prov label="Source" value={e.source} />}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            )}
-
-            {/* ── 3 · FIELD EVIDENCE ───────────────────────────────────── */}
-            <Card className="mg-ev">
-              <div className="card-title">{t(lang, 'evidence')}</div>
-
-              {/* The two numbers that must never be confused. A diagnosis
-                  confidence is about WHAT this is; a count or an incidence is
-                  about HOW MUCH is there. They are printed under separate
-                  headings, with the meaning of each spelled out, because
-                  reading one as the other is how a cautious system becomes a
-                  reckless one. */}
-              <div className="mg-two">
-                <div className="mg-two__cell">
-                  <span className="k">{t(lang, 'aiConf')}</span>
-                  {m.evidence.diagnosis ? (
-                    <>
-                      <b className={`mg-band ${m.evidence.diagnosis.confidence_band}`}>
-                        {bi(lang,
-                          m.evidence.diagnosis.confidence_band,
-                          { low: 'कमी', moderate: 'मध्यम', high: 'जास्त' }[m.evidence.diagnosis.confidence_band])}
-                      </b>
-                      <span className="tiny muted">{m.evidence.diagnosis.problem_name}</span>
-                    </>
-                  ) : (
-                    <>
-                      <b className="mg-band low">{bi(lang, 'No scan', 'स्कॅन नाही')}</b>
-                      <span className="tiny muted">
-                        {bi(lang, 'Scan your crop first.', 'आधी पीक स्कॅन करा.')}
-                      </span>
-                    </>
-                  )}
-                  <span className="tiny faint">
-                    {bi(lang, 'What it is — not how much.', 'हे काय आहे — किती नाही.')}
-                  </span>
-                </div>
-
-                <div className="mg-two__cell">
-                  <span className="k">{t(lang, 'fieldMeas')}</span>
-                  {measured ? (
-                    <>
-                      <b>{kind === 'pest'
-                        ? `${m.threshold.count} ${m.threshold.unit}`
-                        : `${m.assessment.incidence_pct}%`}</b>
-                      <span className="tiny muted">
-                        {kind === 'pest'
-                          ? `${bi(lang, 'counted', 'मोजले')} ${fmtDate(m.threshold.counted_on, lang)}`
-                          : m.assessment.arithmetic}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <b className="mg-band low">{t(lang, 'notMeasured')}</b>
-                      <span className="tiny muted">
-                        {kind === 'pest'
-                          ? bi(lang, 'A count decides whether to act.', 'कृती करावी का हे मोजणी ठरवते.')
-                          : bi(lang, 'An inspection decides whether to act.', 'कृती करावी का हे पाहणी ठरवते.')}
-                      </span>
-                    </>
-                  )}
-                  <span className="tiny faint">
-                    {bi(lang, 'How much is out there.', 'शेतात किती आहे.')}
-                  </span>
-                </div>
-              </div>
-
-              <button className="btn ghost block" style={{ marginTop: 12 }} onClick={recordAction}>
-                ＋ {kind === 'pest' ? t(lang, 'addCount') : t(lang, 'addAssess')}
-              </button>
-
               {kind === 'pest' && m.threshold && (
-                <>
-                  <div style={{ marginTop: 16 }}><EtlBar pct={m.threshold.percent_of_threshold} /></div>
-                  <details className="method-fold" style={{ marginTop: 12 }}>
-                    <summary>{bi(lang, 'Where this threshold comes from', 'ही मर्यादा कुठून आली')}</summary>
-                    <Prov label="Source" value={m.threshold.etl_provenance?.source}
-                          extra={m.threshold.etl_provenance?.status === 'draft'
-                            ? 'transcribed, pending verification' : undefined} />
-                    {m.threshold.economics && (
-                      <div style={{ marginTop: 8 }}>
-                        <div className="row between small"><span>Crop gross value</span>
-                          <b>{fmtMoney(m.threshold.economics.crop_gross_value)}</b></div>
-                        <div className="row between small"><span>One spray costs</span>
-                          <b>{fmtMoney(m.threshold.economics.spray_cost)}</b></div>
-                        <Prov label="Caveat" value={m.threshold.economics.note} />
-                      </div>
-                    )}
-                  </details>
-                </>
+                <div style={{ marginTop: 13 }}>
+                  <EtlBar pct={m.threshold.percent_of_threshold} />
+                </div>
               )}
             </Card>
 
-            {/* ── 4 · PREVENTION WINDOW ────────────────────────────────── */}
-            {m.prevention_window?.level && m.prevention_window.level !== 'none' && (
-              <Card className={`mg-prev ${m.prevention_window.level}`}>
-                <div className="card-title">
-                  🟠 {bi(lang, 'Prevention window', 'प्रतिबंधाची वेळ')}
-                </div>
-                <p className="small" style={{ marginTop: 6 }}>
-                  {bi(lang, m.prevention_window.title, m.prevention_window.title_mr)}
-                </p>
-                {m.prevention_window.factors?.length > 0 && (
-                  <div style={{ marginTop: 10 }}>
-                    {m.prevention_window.factors.map((f, i) => (
-                      <div className="evid" key={i}>
-                        <span className="tick">•</span>
-                        <span>{bi(lang, f.text || f.label, f.text_mr || f.label_mr)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <p className="tiny faint" style={{ marginTop: 10 }}>
-                  {bi(lang,
-                    'A prevention window is not a spray recommendation. It means act early, by looking.',
-                    'ही फवारणीची शिफारस नाही. याचा अर्थ — लवकर पाहणी करा.')}
-                </p>
-                <button className="btn block" style={{ marginTop: 12 }} onClick={recordAction}>
-                  {bi(lang, 'Start scouting', 'तपासणी सुरू करा')}
-                </button>
-              </Card>
-            )}
-
-            {/* ── 5 · TODAY'S ACTION ───────────────────────────────────── */}
-            {m.mission?.items?.length > 0 && (
-              <Card>
-                <div className="card-title">🎯 {t(lang, 'today')}</div>
-                <div style={{ marginTop: 8 }}>
-                  {m.mission.items.slice(0, 4).map((it, i) => {
-                    /* `it.key` is the agenda item's KIND, not its identity —
-                       two infection models firing on one field both arrive as
-                       "model". Keying on it gave React duplicate keys and, far
-                       worse, made the tick boxes share state: checking one
-                       model row checked every other one. The index makes each
-                       row its own. */
-                    const key = `${it.key || 'it'}-${i}`
-                    const on = plan.includes(key)
+            {/* ── 4 · WHAT TO DO NOW ───────────────────────────────────────
+                The section the page exists for, and it was the eighth thing on
+                it. Nothing here is newly invented: the rows are today's agenda
+                items and the first rung of the ladder the server already
+                chose, which is why they change with the crop and the target
+                rather than being a fixed list. Long guidance folds away — a
+                farmer standing in a field reads the line, not the paragraph. */}
+            {doNow.length > 0 && (
+              <Card className="ipm-now">
+                <div className="card-title">✅ {t(lang, 'doNow2')}</div>
+                <div className="ipm-now__list">
+                  {doNow.map(it => {
+                    const on = plan.includes(it.key)
                     return (
-                      <button key={key} className={'mg-check' + (on ? ' is-on' : '')}
-                              onClick={() => setPlan(p => on ? p.filter(x => x !== key) : [...p, key])}>
-                        <span className="box">{on ? '✓' : ''}</span>
-                        <span className="txt">
-                          <b>{bi(lang, it.title, it.title_mr)}</b>
-                          {it.detail && <span className="tiny muted">{bi(lang, it.detail, it.detail_mr)}</span>}
-                        </span>
-                      </button>
+                      <div className={'ipm-act' + (on ? ' is-on' : '')} key={it.key}>
+                        <button className="ipm-act__tick" aria-pressed={on}
+                                aria-label={it.title}
+                                onClick={() => setPlan(p => on ? p.filter(x => x !== it.key)
+                                                               : [...p, it.key])}>
+                          {on ? '✓' : ''}
+                        </button>
+                        <div className="ipm-act__body">
+                          <div className="ipm-act__title">{it.title}</div>
+                          {it.detail && (
+                            <details className="ipm-act__more">
+                              <summary>{t(lang, 'moreDetail')}</summary>
+                              <p>{it.detail}</p>
+                            </details>
+                          )}
+                        </div>
+                      </div>
                     )
                   })}
                 </div>
-                <p className="tiny faint" style={{ marginTop: 10 }}>
-                  {bi(lang, 'Ticking is for you — it is not sent anywhere. Recording a count or an assessment is what moves the decision.',
-                            'खूण करणे फक्त तुमच्यासाठी. निर्णय बदलण्यासाठी मोजणी किंवा पाहणी नोंदवा.')}
+                <button className="btn block" style={{ marginTop: 12 }} onClick={recordAction}>
+                  {measured ? t(lang, 'markChecked')
+                            : (kind === 'pest' ? t(lang, 'addCount') : t(lang, 'addAssess'))}
+                </button>
+                <p className="tiny faint" style={{ marginTop: 9 }}>
+                  {bi(lang, 'Ticking is only for you. Recording a count or an inspection is what moves the decision.',
+                            'खूण फक्त तुमच्यासाठी. निर्णय बदलण्यासाठी मोजणी किंवा पाहणी नोंदवा.')}
                 </p>
               </Card>
             )}
 
-            {/* ── 6 · TREND ────────────────────────────────────────────── */}
-            <Card>
-              <div className="card-title">{t(lang, 'trend')}</div>
-              {m.trend.points.length > 0 ? (
-                <>
-                  <div className="mg-trend">
-                    {m.trend.points.map((p, i) => (
-                      <div className="mg-trend__pt" key={i}
-                           aria-current={i === m.trend.points.length - 1 ? 'true' : undefined}>
-                        <b>{p.value}</b>
-                        <span className="tiny faint">{fmtDate(p.on, lang)}</span>
-                      </div>
-                    ))}
+            {/* ── 5 · ASSESS → ACT → MONITOR ───────────────────────────────
+                Where this field actually stands, read off records rather than
+                off a checkbox. "Done" means a row exists; nothing here claims
+                the farmer did something PRAHARI cannot see. */}
+            <div className="ipm-steps" aria-label={t(lang, 'flow')}>
+              {steps.map((s, i) => (
+                <React.Fragment key={s.id}>
+                  {i > 0 && <span className="ipm-steps__arrow" aria-hidden="true">›</span>}
+                  <div className={`ipm-step is-${s.state}`}>
+                    <span className="ipm-step__n">{s.state === 'done' ? '✓' : i + 1}</span>
+                    <span className="ipm-step__l">{bi(lang, s.label[0], s.label[1])}</span>
+                    <span className="ipm-step__s">{bi(lang, s.sub[0], s.sub[1])}</span>
                   </div>
-                  {m.trend.direction && (
-                    <div className="row between" style={{ marginTop: 10 }}>
-                      <span className={`badge ${m.trend.direction === 'rising' ? 'bad'
-                        : m.trend.direction === 'falling' ? 'ok' : 'grey'}`}>
-                        {t(lang, m.trend.direction)}
-                      </span>
-                      <span className="tiny muted">{m.trend.unit}</span>
+                </React.Fragment>
+              ))}
+            </div>
+
+            {/* ── 6 · FIELD CONDITIONS ─────────────────────────────────────
+                Only when the existing weather service actually returned a day.
+                Generated weather says so on its face — a demo series that
+                looks like an observation is the one thing this card must never
+                become. */}
+            {wxDay && (
+              <Card className="ipm-wx">
+                <div className="row between">
+                  <div className="card-title">🌦 {t(lang, 'conditions')}</div>
+                  {m.weather_context?.generated && (
+                    <span className="badge grey">{bi(lang, 'Demo weather', 'प्रात्यक्षिक')}</span>
+                  )}
+                </div>
+                <div className="ipm-wx__row">
+                  {wxDay.condition && <span className="ipm-wx__c">{wxDay.condition}</span>}
+                  {wxDay.tmax != null && <span className="ipm-wx__c">🌡 {Math.round(wxDay.tmax)}°C</span>}
+                  {wxDay.rh_mean != null && <span className="ipm-wx__c">💧 {Math.round(wxDay.rh_mean)}%</span>}
+                  {wxDay.rain_chance_pct != null &&
+                    <span className="ipm-wx__c">🌧 {Math.round(wxDay.rain_chance_pct)}%</span>}
+                </div>
+                {/* The claim is the server's, not this screen's: it is made
+                    only when a published infection model actually fired. */}
+                {m.prevention_window?.level && m.prevention_window.level !== 'none' && (
+                  <p className="ipm-wx__note">
+                    {bi(lang, m.prevention_window.title, m.prevention_window.title_mr)}
+                    {' '}
+                    {bi(lang, 'Walk the field early rather than spraying early.',
+                              'लवकर फवारणी नको — लवकर पाहणी करा.')}
+                  </p>
+                )}
+              </Card>
+            )}
+
+            {/* ── 7 · WHAT TO WATCH FOR ────────────────────────────────────
+                The monitor rung, which the reference table already writes per
+                problem. Nothing generic and nothing invented: a crop with no
+                monitor rung shows no card. */}
+            {watchFor.length > 0 && (
+              <Card className="ipm-watch">
+                <div className="card-title">👁 {t(lang, 'watchFor')}</div>
+                <div style={{ marginTop: 7 }}>
+                  {watchFor.map((it, i) => (
+                    <div className="evid" key={i}>
+                      <span className="tick">•</span>
+                      <span>{bi(lang, it.text, it.text_mr)}</span>
                     </div>
-                  )}
-                  <p className="small muted" style={{ marginTop: 8 }}>
-                    {bi(lang, m.trend.note, m.trend.note_mr)}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="small muted" style={{ marginTop: 6 }}>
-                    {bi(lang, m.trend.note, m.trend.note_mr)}
-                  </p>
-                  <button className="btn ghost block" style={{ marginTop: 10 }} onClick={recordAction}>
-                    {kind === 'pest' ? t(lang, 'addCount') : t(lang, 'addAssess')}
-                  </button>
-                </>
-              )}
-            </Card>
-
-            {/* ── 7 · THE LADDER ───────────────────────────────────────── */}
-            <h2 className="sect-title">{t(lang, 'ladder')}</h2>
-
-            {/* Four questions, in the order a farmer asks them, answered from
-                values the server already returned. Nothing here is a new
-                judgement — the level is the risk board's, the measurement is
-                the threshold check or the field assessment, the starting rung
-                is the ladder's own first step and the re-check date is the
-                decision's. It exists because those four answers were spread
-                across four cards and a collapsed fold, and the one question
-                the screen is for is which rung to stand on today. */}
-            <Card className="mg-glance">
-              <div className="gl">
-                <div className="gl-i">
-                  <span className="gl-k">{t(lang, 'detected')}</span>
-                  <b className="gl-v">
-                    {kind === 'pest'
-                      ? (m.threshold
-                          ? `${m.threshold.count} ${m.threshold.unit}`
-                          : t(lang, 'notKnown'))
-                      : (m.assessment
-                          ? `${m.assessment.incidence_pct}% ${bi(lang, 'of plants', 'झाडांवर')}`
-                          : t(lang, 'notKnown'))}
-                  </b>
-                  <span className="gl-s">
-                    {(kind === 'pest' ? m.threshold : m.assessment)
-                      ? t(lang, 'measured')
-                      : (m.evidence?.diagnosis ? t(lang, 'estimated') : '—')}
-                  </span>
-                </div>
-
-                <div className="gl-i">
-                  <span className="gl-k">{t(lang, 'riskNow')}</span>
-                  {m.weather_available === false ? (
-                    <b className="gl-v gl-v--none">{t(lang, 'notForecast')}</b>
-                  ) : (
-                    <>
-                      <b className="gl-v">
-                        {targetRow?.level ? levelLabel(targetRow.level, lang) : t(lang, 'notKnown')}
-                      </b>
-                      <span className="gl-s">
-                        {targetRow?.fired
-                          ? bi(lang, 'infection model fired', 'संसर्ग मॉडेल सक्रिय')
-                          : bi(lang, 'published model on this field', 'या शेताच्या हवामानावर')}
-                      </span>
-                    </>
-                  )}
-                </div>
-
-                <div className="gl-i">
-                  <span className="gl-k">{t(lang, 'doNow')}</span>
-                  <b className="gl-v gl-v--sm">
-                    {m.ipm_ladder?.[0]
-                      ? bi(lang, m.ipm_ladder[0].title, m.ipm_ladder[0].title_mr)
-                      : t(lang, 'notKnown')}
-                  </b>
-                  <span className="gl-s">
-                    {bi(lang, 'cheapest rung that applies', 'सर्वात स्वस्त पायरी')}
-                  </span>
-                </div>
-
-                <div className="gl-i">
-                  <span className="gl-k">{t(lang, 'watchNext')}</span>
-                  <b className="gl-v gl-v--sm">
-                    {d.recheck_on ? fmtDate(d.recheck_on, lang) : t(lang, 'notKnown')}
-                  </b>
-                  <span className="gl-s">
-                    {kind === 'pest'
-                      ? bi(lang, 'count the trap again', 'सापळा पुन्हा मोजा')
-                      : bi(lang, 'walk the field again', 'पुन्हा पाहणी करा')}
-                  </span>
-                </div>
-              </div>
-            </Card>
-            {m.ipm_ladder[0] && (
-              <Card className="mg-first">
-                <div className="tiny muted">{t(lang, 'startWith')}</div>
-                <div className="mg-first__title">
-                  {bi(lang, m.ipm_ladder[0].title, m.ipm_ladder[0].title_mr)}
-                </div>
-                <div className="tiny">
-                  {m.ipm_ladder[0].cost === 0
-                    ? bi(lang, '₹0 — costs nothing but your time', '₹0 — फक्त तुमचा वेळ')
-                    : m.ipm_ladder[0].cost != null ? `≈ ${fmtMoney(m.ipm_ladder[0].cost)}/acre` : ''}
+                  ))}
                 </div>
               </Card>
             )}
-            <div className="stack">
-              {m.ipm_ladder.map(step => (
-                <details className={`rung ${step.withheld ? 'shut' : 'open'}`} key={step.key}
-                         open={step.key === 'monitor' || step.rung === 1}>
-                  <summary className="rung-head">
-                    <span className="rung-n">{step.rung}</span>
-                    <div className="grow">
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>
-                        {bi(lang, step.title, step.title_mr)}
-                      </div>
-                      {step.cost != null && (
-                        <div className="tiny faint">
-                          {step.cost === 0 ? '₹0' : `≈ ${fmtMoney(step.cost)}/acre`}
-                        </div>
-                      )}
-                    </div>
-                    {step.withheld && <span className="badge grey">{bi(lang, 'Withheld', 'बंद')}</span>}
-                  </summary>
-                  <div style={{ marginTop: 9 }}>
-                    {step.items.map((it, i) => (
+
+            {/* ── 8 · NEXT FIELD CHECK ─────────────────────────────────────
+                Informational plus two real actions. There is no reminder
+                infrastructure on this device, so none is promised. */}
+            {(m.followup?.due_on || d.recheck_on) && (
+              <Card className="ipm-next">
+                <div className="row between">
+                  <div>
+                    <div className="k">{t(lang, 'nextCheck')}</div>
+                    <b className="ipm-next__d">
+                      📅 {fmtDate(m.followup?.due_on || d.recheck_on, lang)}
+                    </b>
+                  </div>
+                  <button className="btn sm" onClick={() => go('scan')}>
+                    {bi(lang, 'Scan again', 'पुन्हा स्कॅन')}
+                  </button>
+                </div>
+                <p className="tiny faint" style={{ marginTop: 8 }}>
+                  {kind === 'pest'
+                    ? bi(lang, 'Count the same trap so the two numbers can be compared.',
+                               'तोच सापळा मोजा म्हणजे दोन आकड्यांची तुलना करता येईल.')
+                    : bi(lang, 'Photograph the same plant so the two pictures can be compared.',
+                               'तेच झाड पुन्हा फोटो काढा म्हणजे तुलना करता येईल.')}
+                </p>
+              </Card>
+            )}
+
+            {/* ── 9 · NEED HELP? ───────────────────────────────────────────
+                Escalation as an action, and honest about whether it is called
+                for. The reasons listed are the ones that actually hold right
+                now, read off the same records as everything else; when none
+                holds the card still offers the route, quietly, because a
+                farmer who wants a second opinion should not have to earn it. */}
+            <Card className={'mg-expert' + (escalate.length ? ' is-urgent' : '')}>
+              <div className="card-title">🔬 {t(lang, 'needHelp')}</div>
+              {escalate.length > 0 ? (
+                <>
+                  <p className="small" style={{ marginTop: 6 }}>{t(lang, 'escalateBecause')}</p>
+                  <div style={{ marginTop: 7 }}>
+                    {escalate.map((r, i) => (
                       <div className="evid" key={i}>
-                        <span className={step.withheld ? 'cross' : 'tick'}>{step.withheld ? '✗' : '✓'}</span>
-                        <span>{bi(lang, it.text, it.text_mr)}{it.cost ? ` — ${fmtMoney(it.cost)}` : ''}</span>
+                        <span className="tick">⚠</span>
+                        <span>{bi(lang, r[0], r[1])}</span>
                       </div>
                     ))}
                   </div>
-                </details>
-              ))}
-            </div>
-            <Prov label="Principle" value={m.ladder_principle} />
+                </>
+              ) : (
+                <p className="small" style={{ marginTop: 6 }}>
+                  {bi(lang, 'Nothing here needs an expert right now. You can still ask if the field looks worse than this screen says.',
+                            'सध्या तज्ज्ञांची गरज नाही. शेत यापेक्षा वाईट दिसत असेल तर विचारू शकता.')}
+                </p>
+              )}
+              <button className={'btn block' + (escalate.length ? '' : ' ghost')}
+                      style={{ marginTop: 12 }}
+                      onClick={() => go('community', { ask: m.target })}>
+                {bi(lang, 'Ask an expert', 'तज्ज्ञांना विचारा')}
+              </button>
+              <p className="tiny faint center" style={{ marginTop: 8 }}>
+                {bi(lang, 'Your scan and this field’s record go with the question.',
+                          'तुमचा स्कॅन आणि शेताची नोंद प्रश्नासोबत जाते.')}
+              </p>
+            </Card>
 
-            {/* ── 8 · CHEMICAL GATE ────────────────────────────────────── */}
+            {/* ── 10 · THE CHEMICAL GATE ───────────────────────────────────
+                Kept exactly as it was, only tighter. The rule it enforces is
+                the one thing on this screen that must not be relaxed for
+                brevity: nothing is named unless a person verified the label
+                claim against the CIB&RC list. */}
             {m.chemical_availability && !m.chemical_availability.verified_available && (
-              <Card style={{ borderColor: 'var(--warn-line)', background: 'var(--warn-bg)' }}>
-                <div className="card-title" style={{ color: 'var(--warn)' }}>
-                  {bi(lang, 'No verified chemical recommendation', 'तपासलेली रासायनिक शिफारस नाही')}
+              <Card className="ipm-nochem">
+                <div className="card-title">
+                  ⚗ {bi(lang, 'No verified chemical recommendation', 'तपासलेली रासायनिक शिफारस नाही')}
                 </div>
                 <p className="small" style={{ marginTop: 7 }}>
                   {bi(lang, m.chemical_availability.message, m.chemical_availability.message_mr)}
@@ -543,43 +435,113 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
               </div>
             )}
 
-            {/* ── 9 · EXPERT ───────────────────────────────────────────── */}
-            {(d.decision === 'expert_review' || d.reason_code === 'low_confidence') && (
-              <Card className="mg-expert">
-                <div className="card-title">🔬 {t(lang, 'expert')}</div>
-                <p className="small" style={{ marginTop: 6 }}>
-                  {bi(lang,
-                    "PRAHARI is not confident enough to recommend a management action here.",
-                    'इथे शिफारस करण्याइतकी प्रहरीला खात्री नाही.')}
-                </p>
-                <button className="btn block" style={{ marginTop: 12 }}
-                        onClick={() => go('community', { ask: m.target })}>
-                  {bi(lang, 'Ask an expert', 'तज्ज्ञांना विचारा')}
-                </button>
-                <p className="tiny faint center" style={{ marginTop: 8 }}>
-                  {bi(lang, 'Your scan and this field’s record go with the question.',
-                            'तुमचा स्कॅन आणि शेताची नोंद प्रश्नासोबत जाते.')}
-                </p>
-              </Card>
+            {/* ── 11 · EVERYTHING ELSE, FOLDED ─────────────────────────────
+                Not deleted — moved. Every one of these was on the page before
+                and is still one tap away. What changed is that none of them
+                stands between the farmer and the four answers above. */}
+            <h2 className="sect-title">{t(lang, 'detail')}</h2>
+
+            {d.evidence?.length > 0 && (
+              <details className="method-fold mg-fold">
+                <summary>{t(lang, 'why')}</summary>
+                <div style={{ marginTop: 8 }}>
+                  {d.evidence.map((e, i) => (
+                    <div className="evid" key={i}>
+                      <span className="tick">{EV_ICON[e.kind] || '•'}</span>
+                      <span>
+                        <b>{bi(lang, EV_LABEL[e.kind]?.[0] || e.kind.replace(/_/g, ' '),
+                                    EV_LABEL[e.kind]?.[1] || e.kind.replace(/_/g, ' '))}</b>
+                        {' — '}{e.detail || e.explain}
+                        {e.source && <Prov label="Source" value={e.source} />}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </details>
             )}
 
-            {/* ── 10 · FOLLOW-UP ───────────────────────────────────────── */}
-            {m.followup && (
-              <Card className="mg-follow">
-                <div className="card-title">🗓 {t(lang, 'followup')}</div>
-                <p className="small" style={{ marginTop: 6 }}>
-                  {bi(lang, `Due ${fmtDate(m.followup.due_on, lang)}.`,
-                            `${fmtDate(m.followup.due_on, lang)} रोजी.`)}{' '}
-                  {bi(lang, 'Re-scan the same plant so the two photographs can be compared.',
-                            'तेच झाड पुन्हा स्कॅन करा म्हणजे दोन्ही फोटोंची तुलना करता येईल.')}
+            <details className="method-fold mg-fold">
+              <summary>{t(lang, 'ladder')}</summary>
+              {m.ipm_ladder.map(step => (
+                <details className={`rung ${step.withheld ? 'shut' : 'open'}`} key={step.key}>
+                  <summary className="rung-head">
+                    <span className="rung-n">{step.rung}</span>
+                    <div className="grow">
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>
+                        {bi(lang, step.title, step.title_mr)}
+                      </div>
+                      {step.cost != null && (
+                        <div className="tiny faint">
+                          {step.cost === 0 ? '₹0' : `≈ ${fmtMoney(step.cost)}/acre`}
+                        </div>
+                      )}
+                    </div>
+                    {step.withheld && <span className="badge grey">{bi(lang, 'Withheld', 'बंद')}</span>}
+                  </summary>
+                  <div style={{ marginTop: 9 }}>
+                    {step.items.map((it, i) => (
+                      <div className="evid" key={i}>
+                        <span className={step.withheld ? 'cross' : 'tick'}>{step.withheld ? '✗' : '✓'}</span>
+                        <span>{bi(lang, it.text, it.text_mr)}{it.cost ? ` — ${fmtMoney(it.cost)}` : ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              ))}
+              <Prov label="Principle" value={m.ladder_principle} />
+            </details>
+
+            <details className="method-fold mg-fold">
+              <summary>{t(lang, 'trend')}</summary>
+              {m.trend.points.length > 0 ? (
+                <>
+                  <div className="mg-trend">
+                    {m.trend.points.map((p, i) => (
+                      <div className="mg-trend__pt" key={i}
+                           aria-current={i === m.trend.points.length - 1 ? 'true' : undefined}>
+                        <b>{p.value}</b>
+                        <span className="tiny faint">{fmtDate(p.on, lang)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {m.trend.direction && (
+                    <div className="row between" style={{ marginTop: 10 }}>
+                      <span className={`badge ${m.trend.direction === 'rising' ? 'bad'
+                        : m.trend.direction === 'falling' ? 'ok' : 'grey'}`}>
+                        {t(lang, m.trend.direction)}
+                      </span>
+                      <span className="tiny muted">{m.trend.unit}</span>
+                    </div>
+                  )}
+                  <p className="small muted" style={{ marginTop: 8 }}>
+                    {bi(lang, m.trend.note, m.trend.note_mr)}
+                  </p>
+                </>
+              ) : (
+                <p className="small muted" style={{ marginTop: 6 }}>
+                  {bi(lang, m.trend.note, m.trend.note_mr)}
                 </p>
-                <button className="btn block" style={{ marginTop: 12 }} onClick={() => go('scan')}>
-                  {bi(lang, 'Check the field again', 'पुन्हा तपासा')}
-                </button>
-              </Card>
+              )}
+            </details>
+
+            {kind === 'pest' && m.threshold && (
+              <details className="method-fold mg-fold">
+                <summary>{bi(lang, 'Where this threshold comes from', 'ही मर्यादा कुठून आली')}</summary>
+                <Prov label="Source" value={m.threshold.etl_provenance?.source}
+                      extra={m.threshold.etl_provenance?.status === 'draft'
+                        ? 'transcribed, pending verification' : undefined} />
+                {m.threshold.economics && (
+                  <div style={{ marginTop: 8 }}>
+                    <div className="row between small"><span>Crop gross value</span>
+                      <b>{fmtMoney(m.threshold.economics.crop_gross_value)}</b></div>
+                    <div className="row between small"><span>One spray costs</span>
+                      <b>{fmtMoney(m.threshold.economics.spray_cost)}</b></div>
+                    <Prov label="Caveat" value={m.threshold.economics.note} />
+                  </div>
+                )}
+              </details>
             )}
 
-            {/* ── 11 · HISTORY ─────────────────────────────────────────── */}
             {m.history?.length > 0 && (
               <details className="method-fold mg-fold">
                 <summary>{t(lang, 'history')}</summary>
@@ -598,10 +560,9 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
               </details>
             )}
 
-            {/* Field conditions, stated as context and never as a cause. */}
-            {m.weather_context?.days?.length > 0 && (
+            {m.weather_context?.note && (
               <details className="method-fold mg-fold">
-                <summary>🌦 {t(lang, 'conditions')}</summary>
+                <summary>🌦 {bi(lang, 'About this weather', 'या हवामानाबद्दल')}</summary>
                 <p className="small muted" style={{ marginTop: 8 }}>
                   {bi(lang, m.weather_context.note, m.weather_context.note_mr)}
                 </p>
@@ -628,6 +589,145 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
                    name_mr={m?.target_name_mr} onSaved={load} />
     </>
   )
+}
+
+/* ── derived, never invented ────────────────────────────────────────────────
+   Four small functions, and the discipline in all of them is the same: they
+   read values the server computed and re-express them. Not one of them
+   produces a number, a level or a claim that was not already in the payload,
+   because a screen that quietly upgrades "not measured" into "low" is exactly
+   the failure this whole application is built to avoid. */
+
+/* How serious, from what the FARMER measured — never from the photograph.
+   A diagnosis confidence is about WHAT this is; reading it as HOW MUCH is the
+   mistake that turns a cautious system into a reckless one. With nothing
+   counted the honest answer is that the field has not been looked at yet, and
+   saying so is also the most useful thing this card can do, because the count
+   is the next action anyway. */
+function severity(m, kind, measured, lang) {
+  const unknown = {
+    band: 'unknown', lamp: '⚪',
+    label: T.needsConf,
+    why: ['Something was detected, but how much of it is in the field is not known yet. Only a count or an inspection can say.',
+          'काहीतरी आढळले आहे, पण शेतात किती आहे हे अजून माहीत नाही. मोजणी किंवा पाहणीच ते सांगू शकते.'],
+    basis: null,
+  }
+  if (!m || !measured) return unknown
+
+  if (kind === 'pest') {
+    const pct = m.threshold?.percent_of_threshold
+    if (pct == null) return unknown
+    const band = pct >= 100 ? 'high' : pct >= 50 ? 'moderate' : 'low'
+    return {
+      band,
+      lamp: band === 'high' ? '🔴' : band === 'moderate' ? '🟡' : '🟢',
+      label: { high: ['At the action threshold', 'कृती मर्यादेवर'],
+               moderate: ['Approaching the threshold', 'मर्यादेजवळ'],
+               low: ['Below the threshold', 'मर्यादेखाली'] }[band],
+      why: { high: ['Your count has reached the published action threshold for this crop and stage.',
+                    'तुमची मोजणी या पिकासाठी व अवस्थेसाठी प्रकाशित कृती मर्यादेपर्यंत पोहोचली आहे.'],
+             moderate: ['Your count is over halfway to the published action threshold. Keep counting.',
+                        'तुमची मोजणी प्रकाशित मर्यादेच्या निम्म्याहून पुढे आहे. मोजणी चालू ठेवा.'],
+             low: ['Your count is well below the published action threshold.',
+                   'तुमची मोजणी प्रकाशित मर्यादेपेक्षा बरीच कमी आहे.'] }[band],
+      basis: `${m.threshold.count} ${m.threshold.unit} · ${bi(lang, 'threshold', 'मर्यादा')} ${m.threshold.etl_effective}`,
+    }
+  }
+
+  const pct = m.assessment?.incidence_pct
+  if (pct == null) return unknown
+  const band = pct >= 34 ? 'high' : pct >= 10 ? 'moderate' : 'low'
+  return {
+    band,
+    lamp: band === 'high' ? '🔴' : band === 'moderate' ? '🟡' : '🟢',
+    label: { high: ['Widespread in what you inspected', 'तपासलेल्यांपैकी बऱ्याच झाडांवर'],
+             moderate: ['Present in what you inspected', 'तपासलेल्यांपैकी काही झाडांवर'],
+             low: ['Few plants affected', 'थोड्याच झाडांवर'] }[band],
+    why: { high: ['More than a third of the plants you walked showed it. Widen the inspection to a part of the field you have not walked.',
+                  'तुम्ही पाहिलेल्या एक तृतीयांशाहून अधिक झाडांवर आढळले. न पाहिलेल्या भागातही पाहणी करा.'],
+           moderate: ['It is in the field but not through it. Walking a second stretch tells you whether it is spreading.',
+                      'शेतात आहे पण सर्वत्र नाही. दुसऱ्या भागात पाहणी केल्यास पसरतोय का ते कळेल.'],
+           low: ['Only a few of the plants you walked showed it.',
+                 'तुम्ही पाहिलेल्या थोड्याच झाडांवर आढळले.'] }[band],
+    basis: `${pct}% · ${m.assessment.arithmetic}`,
+  }
+}
+
+/* The three to five things to do, from two lists the server already ordered.
+   The order between them matters more than it looks. The agenda (`mission`) is
+   the WHOLE FIELD's work for today — on a tomato plot in humid weather that is
+   three "scout for late blight" rows, and they are the same three rows whether
+   the farmer opened this screen for late blight or for whitefly. Leading with
+   them made every target's advice identical for the first three lines, which
+   is the exact failure this screen is supposed to fix.
+   So the ladder's first rung goes first: it is chosen FOR this target and it
+   is what makes a whitefly screen read differently from a late blight one. The
+   agenda then tops up to five, because "while you are out there" is genuinely
+   useful — just not the headline. */
+function actionsNow(m, lang) {
+  if (!m) return []
+  const out = []
+  const seen = new Set()
+  const push = (key, title, detail) => {
+    const norm = (title || '').trim().toLowerCase()
+    if (!title || seen.has(norm) || out.length >= 5) return
+    seen.add(norm)
+    out.push({ key, title, detail: detail || null })
+  }
+  const first = (m.ipm_ladder || [])[0]
+  ;(first?.items || []).forEach((it, i) =>
+    push(`rung-${first.key}-${i}`, bi(lang, it.text, it.text_mr), null))
+  ;(m.mission?.items || []).forEach((it, i) =>
+    push(`mission-${i}`, bi(lang, it.title, it.title_mr), bi(lang, it.detail, it.detail_mr)))
+  return out
+}
+
+/* Where this field stands, read off records. "Done" means a row exists —
+   nothing here claims the farmer did something PRAHARI cannot see. */
+function stepStates(m, d, measured) {
+  const assessed = Boolean(measured)
+  const acted = Boolean(m?.history?.some(h => h.kind === 'application')) || Boolean(m?.phi?.blocked)
+  const monitoring = Boolean(m?.followup?.due_on || d?.recheck_on)
+  return [
+    { id: 'assess', label: ['Assess', 'पाहणी'],
+      sub: assessed ? ['Recorded', 'नोंदवले'] : ['Not yet', 'अजून नाही'],
+      state: assessed ? 'done' : 'now' },
+    { id: 'act', label: ['Act', 'कृती'],
+      sub: acted ? ['Logged', 'नोंद आहे'] : ['Start at the lowest rung', 'सर्वात खालच्या पायरीपासून'],
+      state: acted ? 'done' : assessed ? 'now' : 'next' },
+    /* Exactly one step is ever "now". Two highlighted steps is not a flow, it
+       is a pair of suggestions, and the farmer has to decide which is which —
+       which is the job this strip was added to do for them. */
+    { id: 'monitor', label: ['Monitor', 'देखरेख'],
+      sub: monitoring ? ['Re-check set', 'पुनर्तपासणी ठरली'] : ['After you act', 'कृतीनंतर'],
+      state: acted && monitoring ? 'now' : 'next' },
+  ]
+}
+
+/* Which escalation conditions actually hold, not which ones could. Each is
+   read off a value the server returned, so the list shrinks when the field
+   improves. */
+function escalationReasons(m, d, targetRow) {
+  const out = []
+  if (!m) return out
+  const dx = m.evidence?.diagnosis
+  if (d?.decision === 'expert_review' || d?.reason_code === 'low_confidence')
+    out.push(['PRAHARI is not confident enough to recommend a management action.',
+              'शिफारस करण्याइतकी प्रहरीला खात्री नाही.'])
+  else if (dx?.abstained)
+    out.push(['The camera declined to name what this is.',
+              'हे काय आहे हे कॅमेऱ्याने सांगितलेले नाही.'])
+  else if (dx?.confidence_band === 'low')
+    out.push(['The scan is only low-confidence about what this is.',
+              'हे काय आहे याबद्दल स्कॅनची खात्री कमी आहे.'])
+  if (m.trend?.direction === 'rising')
+    out.push(['Your own measurements are rising between checks.',
+              'तुमच्या नोंदी तपासणीगणिक वाढत आहेत.'])
+  if (m.chemical_availability && !m.chemical_availability.verified_available
+      && targetRow?.level === 'high')
+    out.push(['Risk is high and PRAHARI has no verified chemical option for this crop and target.',
+              'धोका जास्त आहे आणि या पिकासाठी तपासलेला रासायनिक पर्याय प्रहरीकडे नाही.'])
+  return out
 }
 
 const EV_ICON = {

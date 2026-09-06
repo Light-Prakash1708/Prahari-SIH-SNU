@@ -1020,3 +1020,101 @@
   text-transform: uppercase; color: var(--muted); margin-bottom: 3px;
 }
 .ad-section__b { font-size: 14px; line-height: 1.45; white-space: pre-line; }
+
+/* ═══ IPM management · the decision-first layout ═══════════════════════════
+   Same tokens, same card, same type scale as the rest of PRAHARI. What these
+   add is density: a farmer holding a phone at the edge of a field gets the
+   verdict, the severity and the next action without a scroll. Nothing here is
+   decorative — every rule below belongs to an element that is either a fact or
+   a control. */
+
+/* who and what — one line above the verdict */
+.ipm-who { display: flex; flex-direction: column; gap: 1px; margin-bottom: -2px; }
+.ipm-who__crop {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .09em; color: var(--muted);
+}
+.ipm-who__what { font-size: 19px; line-height: 1.15; }
+.ipm-who__where { font-size: 11.5px; color: var(--muted); }
+
+/* how serious */
+.ipm-sev__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ipm-sev__chip {
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 800;
+  border: 1px solid var(--line); background: var(--bg);
+}
+.ipm-sev__chip.high     { color: var(--bad);  border-color: var(--bad-line, var(--line)); }
+.ipm-sev__chip.moderate { color: var(--warn); border-color: var(--warn-line, var(--line)); }
+.ipm-sev__chip.low      { color: var(--ok);   border-color: var(--ok-line, var(--line)); }
+.ipm-sev__chip.unknown  { color: var(--muted); }
+.ipm-sev__why { font-size: 13.5px; line-height: 1.45; margin: 8px 0 0; }
+.ipm-sev__basis {
+  margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* what to do now — the one section that must survive a squint */
+.ipm-now__list { margin-top: 9px; }
+.ipm-act { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; }
+.ipm-act + .ipm-act { border-top: 1px dashed var(--line); }
+/* 30px box inside a 44px-tall row: the touch target is the row height, which
+   is what a thumb actually needs, without the box itself looking heavy. */
+.ipm-act__tick {
+  flex: none; width: 30px; height: 30px; margin: 1px 0; border-radius: 9px;
+  border: 2px solid var(--line); background: var(--bg);
+  font-size: 15px; font-weight: 900; line-height: 1; color: var(--ok);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.ipm-act.is-on .ipm-act__tick { border-color: var(--ok); background: var(--ok-bg, transparent); }
+.ipm-act__body { min-width: 0; }
+.ipm-act__title { font-size: 14px; font-weight: 650; line-height: 1.35; }
+.ipm-act.is-on .ipm-act__title { color: var(--muted); text-decoration: line-through; }
+.ipm-act__more > summary {
+  margin-top: 4px; font-size: 11.5px; font-weight: 700; color: var(--accent, var(--muted));
+  cursor: pointer; list-style: none;
+}
+.ipm-act__more > summary::-webkit-details-marker { display: none; }
+.ipm-act__more > summary::after { content: ' ▾'; }
+.ipm-act__more[open] > summary::after { content: ' ▴'; }
+.ipm-act__more p { margin: 5px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+
+/* assess → act → monitor */
+.ipm-steps { display: flex; align-items: stretch; gap: 4px; }
+.ipm-steps__arrow { align-self: center; color: var(--muted); font-size: 15px; }
+.ipm-step {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px;
+  padding: 9px 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+}
+.ipm-step__n {
+  width: 19px; height: 19px; border-radius: 999px; font-size: 11px; font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--line); color: var(--muted);
+}
+.ipm-step__l { font-size: 12px; font-weight: 800; }
+.ipm-step__s { font-size: 10.5px; color: var(--muted); line-height: 1.25; }
+.ipm-step.is-done { border-color: var(--ok-line, var(--line)); }
+.ipm-step.is-done .ipm-step__n { background: var(--ok); color: #fff; }
+.ipm-step.is-now  { border-color: var(--accent, var(--line)); box-shadow: 0 0 0 1px var(--accent, transparent); }
+.ipm-step.is-now  .ipm-step__n { background: var(--accent, var(--line)); color: #fff; }
+.ipm-step.is-next { opacity: .62; }
+
+/* field conditions */
+.ipm-wx__row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.ipm-wx__c {
+  padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line);
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ipm-wx__note { margin: 10px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+
+/* next check, no verified chemical, expert */
+.ipm-next__d { font-size: 16px; display: block; margin-top: 2px; }
+.ipm-nochem { border-color: var(--warn-line); background: var(--warn-bg); }
+.ipm-nochem .card-title { color: var(--warn); }
+.mg-expert.is-urgent { border-color: var(--warn-line); }
+
+@media (max-width: 340px) {
+  .ipm-steps { gap: 2px; }
+  .ipm-step { padding: 8px 6px; }
+  .ipm-steps__arrow { display: none; }
+}
