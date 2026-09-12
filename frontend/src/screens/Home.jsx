@@ -184,6 +184,41 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
             </Card>
 ) : null}
 
+            {/* ── MY NEXT BEST ACTION ─────────────────────────────────────
+                The agenda below is already ordered by consequence, so the
+                server names its first item and this shows that one alone,
+                large. A farmer at the edge of a field reads one instruction;
+                the full list stays underneath for whoever wants it. */}
+            {todo?.next_action && (
+              <>
+                <h2 className="sect-title">
+                  {lang === 'mr' ? 'सर्वात आधी हे करा' : 'My next best action'}
+                </h2>
+                <button className={`nba ${todo.next_action.tone || ''}`}
+                        onClick={() => act(todo.next_action, go)}>
+                  <span className="nba__ic">{todo.next_action.icon || '🌱'}</span>
+                  <span className="nba__body">
+                    <span className="nba__title">
+                      {bi(lang, todo.next_action.title, todo.next_action.title_mr)}
+                    </span>
+                    {todo.next_action.detail && (
+                      <span className="nba__detail">
+                        {bi(lang, todo.next_action.detail, todo.next_action.detail_mr)}
+                      </span>
+                    )}
+                  </span>
+                  <span className="nba__go">›</span>
+                </button>
+                {todo.next_action.also_due > 0 && (
+                  <p className="tiny faint" style={{ marginTop: -2 }}>
+                    {bi(lang,
+                      `${todo.next_action.also_due} more thing${todo.next_action.also_due === 1 ? '' : 's'} are due today — they are listed below.`,
+                      `आज आणखी ${todo.next_action.also_due} कामे आहेत — खाली दिली आहेत.`)}
+                  </p>
+                )}
+              </>
+            )}
+
             {/* ── WHAT SHOULD I DO TODAY ──────────────────────────────── */}
             <h2 className="sect-title">
               {lang === 'mr' ? 'आज काय करावे?' : 'What should I do today?'}

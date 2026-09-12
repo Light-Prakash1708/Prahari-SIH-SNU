@@ -1123,3 +1123,68 @@
   .ipm-step { padding: 8px 6px; }
   .ipm-steps__arrow { display: none; }
 }
+
+/* ═══ the decision loop, surfaced ═════════════════════════════════════════
+   Three additions, all reusing the existing tokens, card and type scale. */
+
+/* MY NEXT BEST ACTION — one instruction, sized to be read at arm's length in
+   sunlight. Same shape as a .todo row so it reads as the first of that list
+   rather than as a different component. */
+.nba {
+  width: 100%; display: flex; align-items: center; gap: 13px; text-align: left;
+  padding: 15px 16px; border-radius: 16px; border: 1px solid var(--line);
+  background: var(--card); cursor: pointer; box-shadow: var(--shadow-sm, none);
+}
+.nba.urgent { border-color: var(--bad-line, var(--line)); background: var(--bad-bg, var(--card)); }
+.nba.act    { border-color: var(--warn-line, var(--line)); background: var(--warn-bg, var(--card)); }
+.nba__ic { font-size: 27px; line-height: 1; flex: none; }
+.nba__body { min-width: 0; flex: 1; }
+.nba__title { display: block; font-size: 16.5px; font-weight: 750; line-height: 1.25; }
+.nba__detail {
+  display: block; margin-top: 3px; font-size: 12.5px; line-height: 1.4;
+  color: var(--muted);
+  /* Two lines, then stop. The detail is context, not the instruction. */
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.nba__go { flex: none; font-size: 22px; color: var(--muted); }
+
+/* WHERE IS THIS FIELD HEADING — the same chip as the severity card above it,
+   deliberately, so the two read as one pair of readings. */
+.ipm-traj .ipm-sev__chip.unknown { color: var(--muted); }
+
+/* AgriDoc dictation */
+.ad-mic {
+  flex: none; width: 42px; height: 42px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--bg);
+  font-size: 17px; line-height: 1; cursor: pointer;
+  display: grid; place-items: center;
+}
+.ad-mic.is-on {
+  border-color: var(--bad-line, var(--line)); color: var(--bad);
+  background: var(--bad-bg, var(--bg));
+}
+
+/* THE FIELD REPORT — a document, not a dashboard: one column, labelled rows,
+   and a print rule that drops the app chrome so a shared phone or an office
+   printer produces a page and not a screenshot. */
+.rp { display: grid; gap: 11px; }
+.rp-head { text-align: center; padding: 4px 0 2px; }
+.rp-brand {
+  font-size: 12px; font-weight: 900; letter-spacing: .22em; color: var(--accent, var(--ink));
+}
+.rp-title { font-size: 19px; font-weight: 800; margin-top: 2px; }
+.rp-row {
+  display: flex; justify-content: space-between; gap: 14px; padding: 6px 0;
+  font-size: 13.5px; line-height: 1.4;
+}
+.rp-row + .rp-row { border-top: 1px dashed var(--line); }
+.rp-k { color: var(--muted); flex: none; }
+.rp-v { font-weight: 650; text-align: right; }
+.rp-traj { font-size: 17px; font-weight: 800; margin-top: 4px; }
+
+@media print {
+  .topbar, .px-bar, .ad-composer, .px-sheet { display: none !important; }
+  .pad { padding: 0 !important; }
+  .rp { gap: 8px; }
+  .card, .rp-row { break-inside: avoid; }
+}

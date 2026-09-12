@@ -100,8 +100,51 @@ def case_detail(case_id: str, user: dict[str, Any] = Depends(require_roles("expe
     except WeatherUnavailable as exc:
         weather = {"unavailable": True, "reason": exc.reason}
 
+    # Sections 10 and 11 of the brief: why this reached an expert at all, and
+    # what is still absent. Both come from the SAME function the farmer's
+    # screen calls, so the expert reads the reasons the farmer was shown —
+    # never a second, differently-worded rationale.
+    from ..trajectory import escalation as _escalation
+    from ..trajectory import trajectory as _trajectory
+    _traj = _trajectory(db, plot["id"]) if plot else None
+    _open_fu = (db.scalar("SELECT COUNT(*) FROM followups WHERE plot_id = :p"
+                          " AND done_observation IS NULL AND outcome IS NULL",
+                          {"p": plot["id"]}) or 0) if plot else 0
+    _esc = _escalation(decision=None, diagnosis=dx, traj=_traj,
+                       chemical_available=None, open_followups=int(_open_fu))
+
+    # What the expert does NOT have. Named explicitly, because an absence a
+    # reader has to notice is an absence a reader misses — and "request another
+    # image" is only an obvious action once the brief says the image is the
+    # thing that is thin.
+    missing: list[dict[str, str]] = []
+    if not images:
+        missing.append({"kind": "image", "text": "No photograph is attached to this case."})
+    elif len(images) == 1:
+        missing.append({"kind": "image",
+                        "text": "One photograph only. A second angle — the underside of the "
+                                "leaf, or the whole plant — often settles a differential."})
+    if not context:
+        missing.append({"kind": "farmer_answers",
+                        "text": "The farmer has not answered PRAHARI's follow-up questions, so "
+                                "what the photograph cannot show is unknown."})
+    if weather.get("unavailable"):
+        missing.append({"kind": "weather",
+                        "text": "Weather for this field could not be retrieved, so no infection "
+                                "model was run and none has been estimated."})
+    if not events:
+        missing.append({"kind": "field_history",
+                        "text": "No prior field events are recorded, so there is no history to "
+                                "compare this observation against."})
+    if _traj and _traj.get("state") == "unknown":
+        missing.append({"kind": "trajectory",
+                        "text": "Not enough readings to say which way this field is going."})
+
     return {
         "case": case,
+        "escalation": _esc,
+        "trajectory": _traj,
+        "information_missing": missing,
         "plot": {k: v for k, v in (plot or {}).items() if k not in ("farmer_id",)},
         "crop_stage": rt.risk.crop_stage(plot) if plot else None,
         "observation": obs,

@@ -28,7 +28,7 @@ const T = {
     cropRecord: 'पीक नोंद', tools: 'जलद साधने', expenses: 'शेती खर्च', fert: 'खत मार्गदर्शक',
     fieldGroup: 'माझे शेत', accountGroup: 'खाते', privacy: 'तुमची माहिती',
     howItWorks: 'प्रहरी कसे काम करते',
-    hotspots: 'आजूबाजूचा प्रादुर्भाव', modes: 'प्रहरीचे कक्ष',
+    hotspots: 'आजूबाजूचा प्रादुर्भाव', modes: 'प्रहरीचे कक्ष', report: 'शेत अहवाल',
   },
   en: {
     home: 'Home', crop: 'Crop', scan: 'Scan', community: 'Community', agridoc: 'AgriDoc',
@@ -40,7 +40,7 @@ const T = {
     cropRecord: 'Crop record', tools: 'Quick tools', expenses: 'Farm expenses', fert: 'Fertilizer guide',
     fieldGroup: 'My field', accountGroup: 'Account', privacy: 'Your data',
     howItWorks: 'How PRAHARI works',
-    hotspots: 'Nearby hotspots', modes: 'PRAHARI consoles',
+    hotspots: 'Nearby hotspots', modes: 'PRAHARI consoles', report: 'Field report',
   },
 }
 const t = (lang, k) => (T[lang] || T.en)[k] ?? T.en[k]
@@ -120,6 +120,9 @@ export function Drawer({ open, onClose, lang, route, go, role }) {
           ['hotspots', 'map', t(lang, 'hotspots')],
           ['traps', 'bug', t(lang, 'traps')],
           ['history', 'history', t(lang, 'history')],
+          /* One page to hand to a Krishi Sahayak, an expert or a family
+             member, built from rows that already exist. */
+          ['report', 'clipboard', t(lang, 'report')],
         ]],
         [t(lang, 'toolsGroup'), [
           ['tools', 'toolbox', t(lang, 'tools')],

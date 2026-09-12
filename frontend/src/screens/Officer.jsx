@@ -118,7 +118,44 @@ function Overview({ summary }) {
   ]
 
   return (
+
     <>
+      {/* ── EARLY SIGNALS ────────────────────────────────────────────────
+          What CHANGED since the week before, which is a different question
+          from what is large right now. A count that has always been five is
+          not news. Cluster grading stays outbreak.py's stricter job and is
+          shown separately below. */}
+      {summary?.early_signals && (
+        <section className="oc-card">
+          <h3>Early signals · what changed this week</h3>
+          {summary.early_signals.signals?.length > 0 ? (
+            <div className="oc-sig-list">
+              {summary.early_signals.signals.map((s2, i) => (
+                <div className="oc-sig" key={i}>
+                  <div className="row between">
+                    <b>{s2.problem_name} · {s2.taluka_name}</b>
+                    <span className={'oc-badge ' + (s2.confidence === 'high' ? 'bad'
+                      : s2.confidence === 'moderate' ? 'mod' : 'ok')}>
+                      {s2.confidence} confidence
+                    </span>
+                  </div>
+                  <p className="small" style={{ marginTop: 6 }}>{s2.what_changed}</p>
+                  <div className="oc-sig__meta">
+                    <span>since {s2.since || '—'}</span>
+                    <span>{s2.cases_before} → {s2.cases_now} cases</span>
+                  </div>
+                  <p className="small" style={{ marginTop: 7 }}>
+                    <b>What to check:</b> {s2.check}
+                  </p>
+                  <p className="tiny muted" style={{ marginTop: 5 }}>{s2.confidence_basis}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="small muted">{summary.early_signals.note}</p>
+          )}
+        </section>
+      )}
       <div className="oc-kpis">
         {kpis.map(([label, val, sub]) => (
           <div className="oc-kpi" key={label}>

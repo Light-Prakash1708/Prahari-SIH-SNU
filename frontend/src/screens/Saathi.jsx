@@ -61,11 +61,63 @@ const SECTION_LABEL = {
   sources: ['Based on', 'आधार'],
 }
 
+/* Dictation, using the browser's own speech engine and nothing else.
+   No new dependency, no audio leaves the device through PRAHARI, and no key:
+   the Web Speech API runs in the browser the farmer already has. It is absent
+   on several Android browsers and on Firefox, so the button only appears where
+   the engine actually exists — a microphone that does nothing is worse than no
+   microphone. A farmer who dictates still sees the text and still presses
+   send, because a question misheard and asked anyway is a wasted answer. */
+const SR_LANG = { mr: 'mr-IN', hi: 'hi-IN', en: 'en-IN' }
+
+/* Looked up when the component mounts, not when the module loads. Some
+   browsers only expose the constructor on a secure origin and after the page
+   has settled, so a value captured at import time can be null in a browser
+   that does in fact support dictation — and the farmer then never sees the
+   button. */
+const speechEngine = () => (typeof window === 'undefined'
+  ? null
+  : window.SpeechRecognition || window.webkitSpeechRecognition || null)
+
+function useDictation(lang, onText) {
+  const [listening, setListening] = React.useState(false)
+  const [supported, setSupported] = React.useState(false)
+  const ref = React.useRef(null)
+  React.useEffect(() => { setSupported(!!speechEngine()) }, [])
+
+  const stop = () => { try { ref.current?.stop() } catch {} setListening(false) }
+
+  const start = () => {
+    const Engine = speechEngine()
+    if (!Engine) return
+    try {
+      const r = new Engine()
+      r.lang = SR_LANG[lang] || SR_LANG.mr
+      r.interimResults = false
+      r.maxAlternatives = 1
+      r.onresult = e => {
+        const said = Array.from(e.results).map(x => x[0].transcript).join(' ').trim()
+        if (said) onText(said)
+      }
+      r.onerror = () => setListening(false)
+      r.onend = () => setListening(false)
+      ref.current = r
+      r.start()
+      setListening(true)
+    } catch { setListening(false) }
+  }
+
+  React.useEffect(() => () => { try { ref.current?.abort() } catch {} }, [])
+  return { supported, listening, start, stop }
+}
+
 export default function Saathi({ lang, plot, go }) {
   const [turns, setTurns] = useState([])
   const [keyOpen, setKeyOpen] = useState(false)
   const [keyState, setKeyState] = useState(null)
   const [q, setQ] = useState('')
+  /* Dictation fills the box; the farmer still presses send. */
+  const dictation = useDictation(lang, said => setQ(said))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
   const [meta, setMeta] = useState(null)
@@ -260,8 +312,21 @@ export default function Saathi({ lang, plot, go }) {
       )}
 
       <form className="ad-composer" onSubmit={e => { e.preventDefault(); send() }}>
+        {dictation.supported && (
+          <button type="button"
+                  className={'ad-mic' + (dictation.listening ? ' is-on' : '')}
+                  onClick={() => dictation.listening ? dictation.stop() : dictation.start()}
+                  aria-pressed={dictation.listening}
+                  aria-label={bi(lang, 'Speak your question', 'तुमचा प्रश्न बोला')}
+                  title={bi(lang, 'Speak your question', 'तुमचा प्रश्न बोला')}>
+            {dictation.listening ? '■' : '🎙'}
+          </button>
+        )}
         <input value={q} onChange={e => setQ(e.target.value)}
-               placeholder={t(lang, 'ask')} aria-label={t(lang, 'ask')} />
+               placeholder={dictation.listening
+                 ? bi(lang, 'Listening…', 'ऐकत आहे…')
+                 : t(lang, 'ask')}
+               aria-label={t(lang, 'ask')} />
         <button className="ad-send" type="submit" disabled={busy || !q.trim()} aria-label="Send">
           <Icon name="send" size={18} />
         </button>

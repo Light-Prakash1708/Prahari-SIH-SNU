@@ -222,6 +222,9 @@ export const api = {
   scan: (plot_id, file, extra = {}) =>
     send('/api/observations', fd({ plot_id, image: file, ...extra })),
   observation: (id) => get(`/api/observations/${id}`, { cache: false }),
+  /* The one-page field report, assembled server-side from rows that already
+     exist so the page is one request on a village connection. */
+  fieldReport: (plot_id) => get(`/api/fields/${plot_id}/report`, { cache: false }),
   observations: (plot_id) => get(`/api/observations?plot_id=${plot_id}`),
   questions: (id) => get(`/api/observations/${id}/questions`, { cache: false }),
   answer: (id, answers) => send(`/api/observations/${id}/answers`, { answers }),

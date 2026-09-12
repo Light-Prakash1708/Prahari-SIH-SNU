@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 
 from .. import reference
+from ..clock import now_iso
 from ..clock import today as _today
 from ..db import Database
 from ..deps import current_user, db_dep, visible_plot
@@ -89,6 +90,11 @@ def health(plot_id: str, user: dict[str, Any] = Depends(current_user),
         "SELECT id, due_on, application_id FROM followups WHERE plot_id = :p"
         " AND done_observation IS NULL AND outcome IS NULL ORDER BY due_on", {"p": plot_id})
     out["followups_due"] = open_followups
+    # Where the field is HEADING, next to where it is. Derived from the series
+    # just built plus the follow-ups above — no extra query the screen has to
+    # wait for, and no reading this endpoint did not already hold.
+    from ..trajectory import trajectory
+    out["trajectory"] = trajectory(db, plot_id, out["history"])
     return out
 
 
@@ -103,7 +109,100 @@ def today(plot_id: str, user: dict[str, Any] = Depends(current_user),
           db: Database = Depends(db_dep)):
     plot = visible_plot(db, user, plot_id)
     from ..agenda import agenda
-    return agenda(db, get_runtime(), plot)
+    from ..trajectory import next_best_action
+    out = agenda(db, get_runtime(), plot)
+    # The agenda is already ordered by consequence; this names its first item
+    # so the home screen can show ONE instruction instead of six.
+    out["next_action"] = next_best_action(out)
+    return out
+
+
+@router.get("/fields/{plot_id}/report", summary="A one-page field report the farmer can show",
+            description=(
+                "One page a farmer can hand to a Krishi Sahayak, an expert or a family member "
+                "instead of explaining the whole case from memory.\n\n"
+                "Assembled entirely from rows that already exist — the health score and its "
+                "trajectory, the latest diagnosis, the current decision, the last recorded "
+                "action, the open follow-up and the last expert verdict. Nothing is computed "
+                "for the report and nothing is estimated to fill a gap: a field with no expert "
+                "verdict says so.\n\n"
+                "Carries its own disclaimer. This is decision support, not an official "
+                "agricultural recommendation, and the page says that where a reader will see it."))
+def field_report(plot_id: str, user: dict[str, Any] = Depends(current_user),
+                 db: Database = Depends(db_dep)):
+    plot = visible_plot(db, user, plot_id)
+    rt = get_runtime()
+    from ..trajectory import trajectory
+
+    # Health, and its direction. Weather may be unavailable and that is a
+    # state, not a failure — the report prints the rest and says which part is
+    # missing, because a report that refuses to exist without a forecast is
+    # useless on exactly the day a farmer needs to show someone.
+    health_block: dict[str, Any] | None = None
+    try:
+        # field_health() nests the score under "health"; the report prints the
+        # score and the terms that cost the points, and nothing else from it.
+        h = (rt.risk.field_health(plot, persist=False) or {}).get("health") or {}
+        health_block = {"score": round(h["score"]) if h.get("score") is not None else None,
+                        "band_label": h.get("band_label"),
+                        "band_label_mr": h.get("band_label_mr"),
+                        "terms": h.get("terms") or [],
+                        "meaning": ("A composite crop-health RISK indicator, not a yield "
+                                    "estimate and not a percentage of the crop.")}
+    except WeatherUnavailable as exc:
+        health_block = {"unavailable": True, "reason_code": exc.code}
+
+    dx = db.one(
+        "SELECT d.id, d.top_problem, d.top_posterior, d.abstained, d.abstain_reason,"
+        " d.created_at, o.id AS observation_id"
+        " FROM diagnoses d JOIN observations o ON o.id = d.observation_id"
+        " WHERE d.plot_id = :p ORDER BY d.created_at DESC LIMIT 1", {"p": plot_id})
+    if dx and dx.get("top_problem"):
+        dx["problem_name"] = reference.problem_name(dx["top_problem"])
+        dx["problem_name_mr"] = reference.problem_name(dx["top_problem"], "mr")
+
+    last_action = db.one(
+        "SELECT kind, product, target, applied_on, phi_days, clears_on FROM applications"
+        " WHERE plot_id = :p ORDER BY applied_on DESC LIMIT 1", {"p": plot_id})
+    followup = db.one(
+        "SELECT id, due_on, outcome, done_on FROM followups WHERE plot_id = :p"
+        " ORDER BY due_on DESC LIMIT 1", {"p": plot_id})
+    verdict = db.one(
+        "SELECT c.id, c.status, c.verdict, c.reviewed_at, r.expert_name, r.action, r.confidence"
+        " FROM expert_cases c LEFT JOIN expert_reviews r ON r.case_id = c.id"
+        " WHERE c.plot_id = :p AND c.verdict IS NOT NULL"
+        " ORDER BY c.reviewed_at DESC LIMIT 1", {"p": plot_id})
+    if verdict and verdict.get("verdict"):
+        verdict["verdict_name"] = reference.problem_name(verdict["verdict"])
+
+    return {
+        # Only what a reader needs to identify the field. No farmer_id, and no
+        # coordinates: a page meant to be handed to someone else should not
+        # carry the location of a farm it does not need to name.
+        "plot": {k: plot.get(k) for k in
+                 ("id", "name", "crop", "area_acre", "taluka", "village", "sown_on",
+                  "soil", "irrigation")},
+        "taluka_name": reference.taluka_name(plot.get("taluka") or ""),
+        "crop_stage": rt.risk.crop_stage(plot),
+        "health": health_block,
+        "trajectory": trajectory(db, plot_id),
+        "latest_diagnosis": dx,
+        "last_action": last_action,
+        "followup": followup,
+        "expert_verdict": verdict,
+        "generated_at": now_iso(),
+        "disclaimer": (
+            "PRAHARI is decision support, not an official agricultural recommendation. Its "
+            "image assessment is a model's reading of a photograph, not a laboratory "
+            "diagnosis. No chemical named here may be applied without checking the product "
+            "label, and where PRAHARI holds no verified label claim it names no product at "
+            "all. Confirm with your Krishi Sahayak, KVK or an authorised agriculture "
+            "professional before acting on anything on this page."),
+        "disclaimer_mr": (
+            "प्रहरी ही निर्णयासाठी मदत आहे — अधिकृत कृषी शिफारस नाही. फोटोवरून केलेले मूल्यांकन "
+            "प्रयोगशाळेतील निदान नाही. कोणतेही औषध लेबल तपासल्याशिवाय वापरू नका. कृती करण्यापूर्वी "
+            "कृषी सहाय्यक, केव्हीके किंवा अधिकृत कृषी तज्ज्ञांचा सल्ला घ्या."),
+    }
 
 
 @router.get("/fields/{plot_id}/weather", summary="Current conditions and the short forecast",

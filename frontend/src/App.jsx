@@ -34,6 +34,7 @@ import CommunityNew from './screens/CommunityNew'
 import Soil from './screens/Soil'
 import Water from './screens/Water'
 import Officer from './screens/Officer'
+import Report from './screens/Report'
 import Expert from './screens/Expert'
 import Hotspots from './screens/Hotspots'
 import Modes from './screens/Modes'
@@ -242,6 +243,9 @@ export default function App() {
       case 'decide':
         if (!plot) return <NoField lang={lang} go={go} />
         return <Decide lang={lang} plot={plot} target={route.params.target} go={go} online={online} />
+      case 'report':
+        if (!plot) return <NoField lang={lang} go={go} />
+        return <Report lang={lang} plot={plot} go={go} />
       case 'fields':
         return <Fields lang={lang} plots={plots} plot={plot} onPlot={setPlotId} go={go} reload={reload} />
       case 'addField':

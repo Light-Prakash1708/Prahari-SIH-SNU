@@ -21,6 +21,7 @@ from ..errors import bad_request, forbidden, not_found
 from ..obs import audit
 from ..runtime import get_runtime
 from ..schemas import AssignIn, AssignmentCloseIn
+from ..trajectory import early_signals
 
 router = APIRouter(prefix="/api/officer", tags=["officer"])
 
@@ -115,6 +116,11 @@ def summary(days: int = Query(14, ge=1, le=90),
                            "cluster justifies an advisory."),
         "by_crop": by_crop,
         "by_problem": by_problem,
+        # WHAT CHANGED since the week before, as distinct from what is large
+        # right now. A count that has always been five is not news; a count
+        # that was one last week and is five today is the thing an officer
+        # wants to see first. Cluster GRADING stays outbreak.py's stricter job.
+        "early_signals": early_signals(db, scopes, days=7),
         "generated_at": now_iso(),
     }
 

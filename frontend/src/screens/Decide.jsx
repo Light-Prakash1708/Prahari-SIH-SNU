@@ -55,8 +55,20 @@ const T = {
   escalateBecause: ['An expert would help here because:', 'तज्ज्ञांची मदत उपयोगी ठरेल, कारण:'],
   detail:     ['More detail', 'अधिक तपशील'],
   needsConf:  ['Needs field confirmation', 'शेतात खात्री करावी लागेल'],
+  heading:    ['Where is this field heading?', 'हे शेत कोणत्या दिशेने चालले आहे?'],
 }
 const t = (lang, k) => bi(lang, T[k][0], T[k][1])
+
+/* The four states app/trajectory.py can return, plus its honest fifth. The
+   lamp and the band are decided here only so the same state cannot look
+   different on two screens; the state itself is always the server's. */
+const TRAJ = {
+  improving: { lamp: '🟢', band: 'low',      en: 'Improving',  mr: 'सुधारत आहे' },
+  stable:    { lamp: '🟢', band: 'low',      en: 'Stable',     mr: 'स्थिर' },
+  watch:     { lamp: '🟡', band: 'moderate', en: 'Watch',      mr: 'लक्ष ठेवा' },
+  worsening: { lamp: '🔴', band: 'high',     en: 'Worsening',  mr: 'बिघडत आहे' },
+  unknown:   { lamp: '⚪', band: 'unknown',  en: 'Not known yet', mr: 'अजून माहीत नाही' },
+}
 
 /* The five states a decision can wear, in the farmer's words. The tone comes
    from the server; this table only translates it into a colour and a lamp so
@@ -109,7 +121,13 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
   const watchFor = (m?.ipm_ladder || []).find(r => r.key === 'monitor')?.items || []
   const wxDay = m?.weather_available === false ? null : (m?.weather_context?.days || [])[0]
   const steps = stepStates(m, d, measured)
-  const escalate = escalationReasons(m, d, targetRow)
+  /* Escalation is the SERVER's verdict now, from app/trajectory.py, and so is
+     the trajectory. It used to be derived here, which meant the farmer's
+     screen and the expert's case brief each had their own idea of why a case
+     was sent. One source, two readers. */
+  const esc = m?.escalation || null
+  const escalate = esc?.reasons || []
+  const traj = m?.trajectory || null
 
   return (
     <>
@@ -218,6 +236,35 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
                 </div>
               )}
             </Card>
+
+            {/* ── 3b · WHERE IS THIS FIELD HEADING ─────────────────────────
+                Today's severity says how bad it is; this says which way it is
+                moving, which is the question a farmer actually asks second.
+                Both come from the server, and a field with one reading says it
+                does not know rather than drawing a flat arrow. */}
+            {traj && (
+              <Card className={`ipm-traj ${traj.state}`}>
+                <div className="ipm-sev__top">
+                  <span className="k">{t(lang, 'heading')}</span>
+                  <span className={`ipm-sev__chip ${TRAJ[traj.state]?.band || 'unknown'}`}>
+                    {TRAJ[traj.state]?.lamp} {bi(lang, TRAJ[traj.state]?.en || traj.state,
+                                                       TRAJ[traj.state]?.mr || traj.state)}
+                  </span>
+                </div>
+                {traj.note ? (
+                  <p className="ipm-sev__why">{bi(lang, traj.note, traj.note_mr)}</p>
+                ) : (
+                  <div style={{ marginTop: 7 }}>
+                    {traj.reasons.map((r, i) => (
+                      <div className="evid" key={i}>
+                        <span className="tick">•</span>
+                        <span>{bi(lang, r.text, r.text_mr)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            )}
 
             {/* ── 4 · WHAT TO DO NOW ───────────────────────────────────────
                 The section the page exists for, and it was the eighth thing on
@@ -365,23 +412,32 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
                 holds the card still offers the route, quietly, because a
                 farmer who wants a second opinion should not have to earn it. */}
             <Card className={'mg-expert' + (escalate.length ? ' is-urgent' : '')}>
-              <div className="card-title">🔬 {t(lang, 'needHelp')}</div>
+              <div className="row between">
+                <div className="card-title">🔬 {t(lang, 'needHelp')}</div>
+                {esc?.level && esc.level !== 'low' && (
+                  <span className={`badge ${esc.level === 'high' ? 'bad' : 'warn'}`}>
+                    {bi(lang, esc.level === 'high' ? 'High' : 'Medium',
+                              esc.level === 'high' ? 'जास्त' : 'मध्यम')}
+                  </span>
+                )}
+              </div>
               {escalate.length > 0 ? (
                 <>
                   <p className="small" style={{ marginTop: 6 }}>{t(lang, 'escalateBecause')}</p>
                   <div style={{ marginTop: 7 }}>
                     {escalate.map((r, i) => (
                       <div className="evid" key={i}>
-                        <span className="tick">⚠</span>
-                        <span>{bi(lang, r[0], r[1])}</span>
+                        <span className="tick">{r.level === 'high' ? '🔴' : '🟠'}</span>
+                        <span>{bi(lang, r.text, r.text_mr)}</span>
                       </div>
                     ))}
                   </div>
                 </>
               ) : (
                 <p className="small" style={{ marginTop: 6 }}>
-                  {bi(lang, 'Nothing here needs an expert right now. You can still ask if the field looks worse than this screen says.',
-                            'सध्या तज्ज्ञांची गरज नाही. शेत यापेक्षा वाईट दिसत असेल तर विचारू शकता.')}
+                  {bi(lang, esc?.note, esc?.note_mr)
+                    || bi(lang, 'Nothing here needs an expert right now.',
+                                'सध्या तज्ज्ञांची गरज नाही.')}
                 </p>
               )}
               <button className={'btn block' + (escalate.length ? '' : ' ghost')}
@@ -702,32 +758,6 @@ function stepStates(m, d, measured) {
       sub: monitoring ? ['Re-check set', 'पुनर्तपासणी ठरली'] : ['After you act', 'कृतीनंतर'],
       state: acted && monitoring ? 'now' : 'next' },
   ]
-}
-
-/* Which escalation conditions actually hold, not which ones could. Each is
-   read off a value the server returned, so the list shrinks when the field
-   improves. */
-function escalationReasons(m, d, targetRow) {
-  const out = []
-  if (!m) return out
-  const dx = m.evidence?.diagnosis
-  if (d?.decision === 'expert_review' || d?.reason_code === 'low_confidence')
-    out.push(['PRAHARI is not confident enough to recommend a management action.',
-              'शिफारस करण्याइतकी प्रहरीला खात्री नाही.'])
-  else if (dx?.abstained)
-    out.push(['The camera declined to name what this is.',
-              'हे काय आहे हे कॅमेऱ्याने सांगितलेले नाही.'])
-  else if (dx?.confidence_band === 'low')
-    out.push(['The scan is only low-confidence about what this is.',
-              'हे काय आहे याबद्दल स्कॅनची खात्री कमी आहे.'])
-  if (m.trend?.direction === 'rising')
-    out.push(['Your own measurements are rising between checks.',
-              'तुमच्या नोंदी तपासणीगणिक वाढत आहेत.'])
-  if (m.chemical_availability && !m.chemical_availability.verified_available
-      && targetRow?.level === 'high')
-    out.push(['Risk is high and PRAHARI has no verified chemical option for this crop and target.',
-              'धोका जास्त आहे आणि या पिकासाठी तपासलेला रासायनिक पर्याय प्रहरीकडे नाही.'])
-  return out
 }
 
 const EV_ICON = {

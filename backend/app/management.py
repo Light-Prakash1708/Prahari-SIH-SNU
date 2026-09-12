@@ -394,11 +394,31 @@ def build(db: Database, rt, plot: dict[str, Any], target: str | None,
         "   AND done_observation IS NULL AND outcome IS NULL"
         " ORDER BY due_on LIMIT 1", {"p": plot["id"]})
 
+    # Where the field is heading, and whether this needs a human. Both are
+    # derived from rows already gathered above — the decision, the diagnosis
+    # evidence, the follow-ups — and both are returned to the FARMER here and
+    # attached to the EXPERT's case brief from the same function, so the two
+    # views can never disagree about why a case was sent.
+    from .trajectory import escalation as _escalation
+    from .trajectory import trajectory as _trajectory
+    _evidence = _field_evidence(db, plot, chosen, kind)
+    _traj = _trajectory(db, plot["id"])
+    _open_fu = db.scalar(
+        "SELECT COUNT(*) FROM followups WHERE plot_id = :p"
+        " AND done_observation IS NULL AND outcome IS NULL", {"p": plot["id"]}) or 0
+    _esc = _escalation(
+        decision=decision, diagnosis=(_evidence or {}).get("diagnosis"), traj=_traj,
+        chemical_available=(prescription.get("chemical_availability") or {}).get(
+            "verified_available"),
+        open_followups=int(_open_fu))
+
     return {
         "plot_id": plot["id"],
         "plot_name": plot["name"],
         "crop": plot["crop"],
         "crop_stage": stage,
+        "trajectory": _traj,
+        "escalation": _esc,
         "targets": targets,
         "target": chosen,
         "target_kind": kind,
@@ -407,7 +427,7 @@ def build(db: Database, rt, plot: dict[str, Any], target: str | None,
         "decision": decision,
         "threshold": threshold,
         "assessment": assessment,
-        "evidence": _field_evidence(db, plot, chosen, kind),
+        "evidence": _evidence,
         "trend": _trend(db, plot, chosen, kind),
         "prevention_window": prevention,
         "mission": mission,
