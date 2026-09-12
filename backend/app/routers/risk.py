@@ -12,6 +12,11 @@ from ..clock import today as _today
 from ..db import Database
 from ..deps import current_user, db_dep, visible_plot
 from ..runtime import get_runtime
+from ..trajectory import (
+    last_reported,
+    surveillance_change,
+    weekly_counts,
+)
 from ..weather import WeatherUnavailable, forecast_view, status_of, to_http_error
 
 log = logging.getLogger("prahari.risk")
@@ -272,6 +277,19 @@ def nearby(plot_id: str, problem: str = Query("late_blight"),
         "problem_name_mr": reference.problem_name(problem, "mr"),
         "window_days": days,
         "total_cases": sum(int(h.get("cases") or 0) for h in hotspots),
+        # ── what the surveillance screen needs and could not derive ────────
+        # This window against the one before it, the weekly buckets behind the
+        # trend bars, and when this problem was last seen here. All three are
+        # counts of the same rows outbreak.py grades — counted, never
+        # re-graded, and each with an honest empty answer.
+        "change": surveillance_change(db, plot["taluka"], problem, days),
+        "trend_weeks": weekly_counts(db, plot["taluka"], problem, 6),
+        "last_reported": last_reported(db, plot["taluka"], problem),
+        # How many talukas in the district have any case of this at all. The
+        # screen says "talukas", not "villages": this endpoint is aggregated to
+        # taluka resolution on purpose and there is no village geography behind
+        # it to show.
+        "affected_talukas": sum(1 for h in hotspots if int(h.get("cases") or 0) > 0),
         "privacy": ("Counts are aggregated to taluka level and positioned on the taluka's own "
                     "centroid. PRAHARI never shows another farmer's field, name or "
                     "coordinates on this screen."),

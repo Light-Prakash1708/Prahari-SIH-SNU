@@ -216,7 +216,16 @@ export const api = {
      and that difference is why one can fail while the other is fine. */
   fieldWeather: (id) => get(`/api/fields/${id}/weather`, { cache: true }),
   today: (id) => get(`/api/fields/${id}/today`, { cache: true }),
-  nearby: (id, problem) => get(`/api/fields/${id}/nearby${problem ? `?problem=${problem}` : ''}`),
+  /* `days` was always accepted by the endpoint (3-90) and was never passed,
+     which is why the time range on the surveillance screen needed no backend
+     change. One request serves every panel on that page. */
+  nearby: (id, problem, days) => {
+    const q = new URLSearchParams()
+    if (problem) q.set('problem', problem)
+    if (days) q.set('days', String(days))
+    const s = q.toString()
+    return get(`/api/fields/${id}/nearby${s ? `?${s}` : ''}`)
+  },
 
   // observations
   scan: (plot_id, file, extra = {}) =>

@@ -259,7 +259,7 @@ export default function App() {
       case 'hotspots':
         /* Handles its own no-field state: the map is drawn around the taluka
            the field is in, so it explains that rather than bouncing. */
-        return <Hotspots lang={lang} plot={plot} go={go} />
+        return <Hotspots lang={lang} plot={plot} me={me} go={go} />
       case 'modes':
         return <Modes lang={lang} me={me} health={health} go={go} />
       case 'officer':

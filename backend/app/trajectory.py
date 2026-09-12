@@ -319,3 +319,110 @@ def _age_days(stamp: Any) -> int | None:
         return (_today() - dt.date.fromisoformat(str(stamp)[:10])).days
     except Exception:
         return None
+
+# ── surveillance, for the nearby-hotspots screen ───────────────────────────
+def _case_rows(db: Database, taluka: str, problem: str, since: str,
+               until: str | None = None) -> list[dict[str, Any]]:
+    """Diagnosed, non-abstained cases of one problem in one taluka.
+
+    The same population outbreak.py grades — counted here, not re-graded. A
+    count and a grade are different claims and this file only makes the first.
+    """
+    clause = " AND substr(o.observed_at,1,10) >= :since"
+    params: dict[str, Any] = {"tk": taluka, "pb": problem, "since": since}
+    if until:
+        clause += " AND substr(o.observed_at,1,10) < :until"
+        params["until"] = until
+    return db.rows(
+        f"SELECT substr(o.observed_at,1,10) AS day, o.plot_id FROM observations o"
+        f" JOIN diagnoses d ON d.observation_id = o.id"
+        f" WHERE o.taluka = :tk AND d.top_problem = :pb AND d.abstained = 0"
+        f"{clause} ORDER BY day DESC", params)
+
+
+def surveillance_change(db: Database, taluka: str, problem: str,
+                        days: int = 21) -> dict[str, Any]:
+    """This window against the one before it — or "not enough history".
+
+    The percentage the screen shows is only computed when there is something
+    to divide by. Going from 0 cases to 4 is not "+400%", it is "4 where there
+    were none", and saying it the second way is both true and more useful. A
+    window with nothing in either half says so.
+    """
+    day = _today()
+    now_from = (day - dt.timedelta(days=days)).isoformat()
+    base_from = (day - dt.timedelta(days=days * 2)).isoformat()
+    now = len(_case_rows(db, taluka, problem, now_from))
+    before = len(_case_rows(db, taluka, problem, base_from, now_from))
+
+    if now == 0 and before == 0:
+        return {"cases_now": 0, "cases_before": 0, "direction": None,
+                "change_pct": None, "comparable": False,
+                "note": f"No cases of this problem were recorded here in the last {days * 2} days.",
+                "note_mr": f"गेल्या {days * 2} दिवसांत येथे या समस्येची नोंद नाही."}
+    if before == 0:
+        return {"cases_now": now, "cases_before": 0, "direction": "up",
+                "change_pct": None, "comparable": False,
+                "note": (f"{now} case{'s' if now != 1 else ''} in the last {days} days, where "
+                         f"the {days} days before had none. There is no earlier figure to "
+                         f"compare against, so no percentage is shown."),
+                "note_mr": (f"गेल्या {days} दिवसांत {now} नोंद; त्याआधीच्या {days} दिवसांत "
+                            f"काहीही नाही. तुलना करण्यासाठी आधीचा आकडा नाही.")}
+
+    pct = round((now - before) / before * 100)
+    direction = "up" if pct > 5 else "down" if pct < -5 else "flat"
+    return {
+        "cases_now": now, "cases_before": before, "direction": direction,
+        "change_pct": pct, "comparable": True,
+        "note": (f"{now} case{'s' if now != 1 else ''} in the last {days} days, against "
+                 f"{before} in the {days} days before."),
+        "note_mr": (f"गेल्या {days} दिवसांत {now}; त्याआधीच्या {days} दिवसांत {before}."),
+    }
+
+
+def weekly_counts(db: Database, taluka: str, problem: str,
+                  weeks: int = 6) -> dict[str, Any]:
+    """Cases per week, for the trend bars. Buckets, not a model.
+
+    Every bar is a count of rows in a seven-day slice. Empty weeks are returned
+    as zero rather than omitted, because a gap drawn as a missing bar reads as
+    missing DATA, and the difference matters on a screen about surveillance.
+    """
+    day = _today()
+    # `weeks - 1` deliberately: the buckets are half-open [start, start+7), so
+    # starting a full 7*weeks back put TODAY one day past the final bucket and
+    # silently dropped every case reported this morning from the trend. The
+    # last bucket must contain today, because today is the day the farmer is
+    # looking at the screen.
+    start = day - dt.timedelta(days=7 * weeks - 1)
+    rows = _case_rows(db, taluka, problem, start.isoformat())
+    buckets = []
+    for i in range(weeks):
+        wk_start = start + dt.timedelta(days=7 * i)
+        wk_end = wk_start + dt.timedelta(days=7)
+        n = sum(1 for r in rows
+                if wk_start.isoformat() <= str(r["day"]) < wk_end.isoformat())
+        buckets.append({"week_start": wk_start.isoformat(), "cases": n})
+    total = sum(b["cases"] for b in buckets)
+    return {
+        "weeks": buckets, "total": total,
+        # Two non-empty weeks is the least that can show a direction. Below
+        # that the bars are honest but a TREND is not, and the screen says so.
+        "enough": sum(1 for b in buckets if b["cases"] > 0) >= 2,
+        "note": (None if sum(1 for b in buckets if b["cases"] > 0) >= 2 else
+                 "Not enough history for a trend — two separate weeks with cases are needed."),
+        "note_mr": (None if sum(1 for b in buckets if b["cases"] > 0) >= 2 else
+                    "कल दाखवण्यासाठी पुरेशी नोंद नाही."),
+    }
+
+
+def last_reported(db: Database, taluka: str, problem: str,
+                  days: int = 90) -> dict[str, Any] | None:
+    """When this problem was last diagnosed here. None means never, in window."""
+    day = _today()
+    rows = _case_rows(db, taluka, problem, (day - dt.timedelta(days=days)).isoformat())
+    if not rows:
+        return None
+    latest = str(rows[0]["day"])
+    age = _age_days(latest)
+    return {"day": latest, "days_ago": age}
