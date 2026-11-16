@@ -60,6 +60,7 @@ from .routers import (
     demo,
     expert,
     followups,
+    fpo,
     ledger,
     management,
     misc,
@@ -119,6 +120,8 @@ TAGS = [
                                          "weed cover — the inputs upstream of disease.")},
     {"name": "community", "description": ("The farmer community, and the graded cluster signals "
                                           "it produces. Coarse geography by construction.")},
+    {"name": "fpo", "description": ("Farmer producer organisations — counts across "
+                                    "members who chose to join. Never a member's field.")},
     {"name": "assistant", "description": "PRAHARI Saathi — grounded answers, or an honest refusal."},
     {"name": "reference", "description": "Agronomic reference data and health checks."},
     {"name": "admin", "description": "Chemical reference verification and the audit trail."},
@@ -306,6 +309,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(privacy.router)
     app.include_router(community.router)
     app.include_router(saathi.router)
+    app.include_router(fpo.router)
     app.include_router(misc.notifications)
     app.include_router(misc.sync)
     app.include_router(misc.meta)

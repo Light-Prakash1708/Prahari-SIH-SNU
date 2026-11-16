@@ -1317,3 +1317,11 @@
 .oc-out__t th, .oc-out__t td { text-align: left; padding: 7px 6px; border-bottom: 1px solid rgba(0,0,0,.07); vertical-align: top; }
 .oc-out__t th { font-weight: 600; font-size: 12px; opacity: .75; }
 .oc-out__t td:not(:first-child), .oc-out__t th:not(:first-child) { text-align: center; white-space: nowrap; }
+
+/* ── FPO console (Fpo.jsx) ─────────────────────────────────────────────── */
+.fpo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-top: 8px; }
+.fpo-cell { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 9px 11px; border-radius: 10px; border: 1px solid rgba(255,255,255,.09); font-size: 13px; }
+.fpo-cell.band-safe { border-color: rgba(16,185,129,.4); }
+.fpo-cell.band-watch { border-color: rgba(234,179,8,.45); }
+.fpo-cell.band-rising { border-color: rgba(249,115,22,.5); }
+.fpo-cell.band-high { border-color: rgba(239,68,68,.55); }

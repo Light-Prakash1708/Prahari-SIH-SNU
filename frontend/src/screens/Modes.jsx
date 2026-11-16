@@ -53,6 +53,7 @@ const DEMO_CONSOLES = [
   ['farmer',  ['Farmer demo', 'शेतकरी डेमो']],
   ['expert',  ['Expert demo', 'तज्ञ डेमो']],
   ['officer', ['Officer demo', 'अधिकारी डेमो']],
+  ['fpo',     ['FPO demo', 'उत्पादक संस्था डेमो']],
 ]
 
 export default function Modes({ lang, me, health, go }) {

@@ -36,6 +36,7 @@ import Water from './screens/Water'
 import Officer from './screens/Officer'
 import Report from './screens/Report'
 import Expert from './screens/Expert'
+import Fpo from './screens/Fpo'
 import Hotspots from './screens/Hotspots'
 import Modes from './screens/Modes'
 import { AccountSheet, BottomNav, Drawer, Header } from './shell/Chrome'
@@ -229,6 +230,9 @@ export default function App() {
   }
   if (role === 'expert') {
     return <div className="shell wide"><Expert me={me} /></div>
+  }
+  if (role === 'fpo') {
+    return <div className="shell wide"><Fpo me={me} /></div>
   }
 
   /* ── the farmer app ───────────────────────────────────────────────────── */

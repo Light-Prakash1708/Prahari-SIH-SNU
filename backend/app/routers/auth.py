@@ -63,13 +63,19 @@ DEMO_CONSOLE_ROLES = {
     "farmer":  ("Demo Farmer", "farmer@prahari.demo"),
     "expert":  ("Dr. A. Kulkarni (demo)", "expert@prahari.demo"),
     "officer": ("Krishi Sahayak (demo)", "officer@prahari.demo"),
+    "fpo":     ("FPO coordinator (demo)", "fpo@prahari.demo"),
 }
+
+# The organisation the demo FPO account is linked to. Clearly a demo, and it
+# starts with NO members: membership stays the farmer's own act, so it fills
+# only when a farmer (the demo farmer included) chooses to join it.
+DEMO_FPO = ("FPO-DEMO", "Demo Producer Organisation", "डेमो उत्पादक संस्था")
 
 
 @router.post("/demo-console", response_model=TokenOut,
              summary="Sign in to a demo console (only when DEMO_CONSOLE_ACCESS is on)",
              description=(
-                 "Returns a normal session for one of three fixed demo accounts, so the officer "
+                 "Returns a normal session for one of four fixed demo accounts, so the officer "
                  "and expert consoles can be shown without an administrator provisioning staff "
                  "first.\n\n"
                  "It grants nothing new. The account it signs in is a real account of that role, "
@@ -78,7 +84,7 @@ DEMO_CONSOLE_ROLES = {
                  "removes is the need for a password to exist anywhere a client could read: one "
                  "is generated per request, used once, and never returned.\n\n"
                  "Disabled unless DEMO_CONSOLE_ACCESS=true, in which case this route does not "
-                 "exist. It never touches a real account: the three addresses are fixed and end "
+                 "exist. It never touches a real account: the four addresses are fixed and end "
                  "in @prahari.demo.\n\n"
                  "Errors: 404 not_found when the switch is off · 400 unknown_role"))
 def demo_console(role: str, request: Request, db: Database = Depends(db_dep)):
@@ -90,7 +96,7 @@ def demo_console(role: str, request: Request, db: Database = Depends(db_dep)):
        route answers 404 — the same as any path that does not exist, so its
        presence is not advertised.
     2. The role is not taken from the caller in any meaningful sense: it selects
-       one of three FIXED accounts by a table in this file. A caller cannot name
+       one of four FIXED accounts by a table in this file. A caller cannot name
        an account, cannot name a role outside the table, and cannot reach admin.
     3. No credential exists to steal. The password is generated here, per
        request, used immediately by the real login path, and never stored in a
@@ -133,11 +139,25 @@ def demo_console(role: str, request: Request, db: Database = Depends(db_dep)):
     token = accounts.login(db, email, password,
                            user_agent=request.headers.get("user-agent", ""),
                            ip=_ip(request))
+    if role == "fpo":
+        _link_demo_fpo(db, token["user_id"])
     audit("auth.demo_console", entity="user", entity_id=token["user_id"],
           user_id=token["user_id"], role=token["role"], ip=_ip(request),
           detail={"console": role})
     log.warning("demo console session issued", extra={"console": role})
     return token
+
+
+def _link_demo_fpo(db: Database, user_id: str) -> None:
+    fid, name, name_mr = DEMO_FPO
+    if not db.one("SELECT id FROM fpos WHERE id = :i", {"i": fid}):
+        db.execute("INSERT INTO fpos (id, name, name_mr, district, created_at)"
+                   " VALUES (:i,:n,:nm,'nashik',:now)",
+                   {"i": fid, "n": name, "nm": name_mr, "now": now_iso()})
+    if not db.one("SELECT 1 AS x FROM fpo_staff WHERE fpo_id = :f AND user_id = :u",
+                  {"f": fid, "u": user_id}):
+        db.execute("INSERT INTO fpo_staff (fpo_id, user_id, created_at) VALUES (:f,:u,:now)",
+                   {"f": fid, "u": user_id, "now": now_iso()})
 
 
 @router.post("/logout", summary="End this session",

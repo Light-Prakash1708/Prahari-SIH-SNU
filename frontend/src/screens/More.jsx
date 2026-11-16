@@ -607,6 +607,41 @@ export function Rescan({ lang, followup, go }) {
 }
 
 /* ═══ PROFILE ══════════════════════════════════════════════════════════ */
+/* Producer organisation membership — the farmer's own choice, with what it
+   shares stated before the button, not after. */
+function FpoCard({ lang }) {
+  const [d, setD] = useState(null)
+  const [busy, setBusy] = useState(null)
+  const [err, setErr] = useState(null)
+  const load = () => api.fpoList().then(setD).catch(() => setD(null))
+  useEffect(() => { load() }, [])
+  if (!d || !d.fpos?.length) return null
+  const toggle = async (f) => {
+    setBusy(f.id); setErr(null)
+    try { f.member ? await api.fpoLeave(f.id) : await api.fpoJoin(f.id); await load() }
+    catch (e) { setErr(e) }
+    finally { setBusy(null) }
+  }
+  return (
+    <Card>
+      <div className="card-title" style={{ marginBottom: 6 }}>
+        {bi(lang, 'Producer organisation (FPO)', 'शेतकरी उत्पादक संस्था')}
+      </div>
+      <p className="tiny muted" style={{ marginBottom: 10 }}>{bi(lang, d.sharing, d.sharing_mr)}</p>
+      {d.fpos.map(f => (
+        <div className="row between" key={f.id} style={{ padding: '6px 0' }}>
+          <span className="small"><b>{bi(lang, f.name, f.name_mr)}</b></span>
+          <button className={'btn sm ' + (f.member ? 'ghost' : '')} disabled={busy === f.id}
+                  onClick={() => toggle(f)}>
+            {f.member ? bi(lang, 'Leave', 'बाहेर पडा') : bi(lang, 'Join', 'सामील व्हा')}
+          </button>
+        </div>
+      ))}
+      {err && <ErrorNote error={err} lang={lang} />}
+    </Card>
+  )
+}
+
 export function Profile({ lang, onLang, me, plots, go, health, demo, onScenario }) {
   const [ledger, setLedger] = useState(null)
   const [busy, setBusy] = useState(null)
@@ -660,6 +695,8 @@ export function Profile({ lang, onLang, me, plots, go, health, demo, onScenario 
             <Prov label="Caveat" value={ledger.summary.caveat} />
           </Card>
         )}
+
+        {me?.user?.role === 'farmer' && <FpoCard lang={lang} />}
 
         <Card>
           <div className="card-title" style={{ marginBottom: 10 }}>{lang === 'mr' ? 'भाषा' : 'Language'}</div>

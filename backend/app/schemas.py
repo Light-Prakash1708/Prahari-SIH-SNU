@@ -13,7 +13,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 PHONE_RE = re.compile(r"^(\+91)?[6-9]\d{9}$")
-Role = Literal["farmer", "officer", "expert", "admin"]
+Role = Literal["farmer", "officer", "expert", "admin", "fpo"]
 Lang = Literal["mr", "hi", "en"]
 
 

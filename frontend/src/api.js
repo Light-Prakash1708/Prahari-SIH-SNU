@@ -261,6 +261,12 @@ export const api = {
 
   // follow-up
   followups: (plot_id) => get(`/api/followups${plot_id ? `?plot_id=${plot_id}` : ''}`),
+  /* Producer organisations. Membership is the farmer's own act; staff get counts only. */
+  fpoList: () => get('/api/fpo', { cache: false }),
+  fpoJoin: (id) => send(`/api/fpo/${id}/join`, {}),
+  fpoLeave: (id) => send(`/api/fpo/${id}/join`, undefined, 'DELETE'),
+  fpoMine: () => get('/api/fpo/mine', { cache: false }),
+  fpoSummary: (id) => get(`/api/fpo/${id}/summary`, { cache: false }),
   outcomes: (plot_id) => get(`/api/followups/outcomes${plot_id ? `?plot_id=${plot_id}` : ''}`),
   rescan: (id, file) => send(`/api/followups/${id}/rescan`, fd({ image: file })),
   // for a farmer who cannot retake a comparable photograph; stored, and shown,
