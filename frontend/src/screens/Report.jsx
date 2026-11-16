@@ -14,6 +14,7 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api'
 import { Card, ErrorNote, Loading, bi, fmtDate } from '../ui'
+import Outcomes from './Outcomes'
 
 const TRAJ = {
   improving: ['🟢 Improving', '🟢 सुधारत आहे'],
@@ -26,11 +27,14 @@ const TRAJ = {
 export default function Report({ lang, plot, go }) {
   const [d, setD] = useState(null)
   const [err, setErr] = useState(null)
+  const [outcomes, setOutcomes] = useState(null)
 
   const load = () => {
     if (!plot) return
-    setErr(null); setD(null)
+    setErr(null); setD(null); setOutcomes(null)
     api.fieldReport(plot.id).then(setD).catch(setErr)
+    // Its own request and its own failure: the report stands without it.
+    api.outcomes(plot.id).then(setOutcomes).catch(() => setOutcomes(null))
   }
   useEffect(load, [plot?.id])
   if (!plot) return null
@@ -169,6 +173,13 @@ export default function Report({ lang, plot, go }) {
                 </>
               ) : <p className="small muted" style={{ marginTop: 6 }}>{none}</p>}
             </Card>
+
+            {outcomes && outcomes.total?.followups > 0 && (
+              <Card>
+                <div className="card-title">{bi(lang, 'After past actions', 'आधीच्या कृतींनंतर')}</div>
+                <Outcomes data={outcomes} lang={lang} compact />
+              </Card>
+            )}
 
             <Card>
               <div className="card-title">{bi(lang, 'Follow-up', 'पुनर्तपासणी')}</div>

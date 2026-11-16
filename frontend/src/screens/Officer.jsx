@@ -8,6 +8,7 @@
    authorised for. Farmer contact details appear only on a case they have been
    assigned — never in the queue, never on the map. */
 import React, { useEffect, useState } from 'react'
+import Outcomes from './Outcomes'
 import { api, auth } from '../api'
 import { Donut, ErrorNote, Loading, Prov, Shield, Spark } from '../ui'
 
@@ -96,6 +97,8 @@ function Overview({ summary }) {
   const loadSignals = () =>
     api.officerSignals(true).then(r => setSignals(r.signals || [])).catch(() => setSignals([]))
   useEffect(() => { loadSignals() }, [])
+  const [outcomes, setOutcomes] = useState(null)
+  useEffect(() => { api.outcomes().then(setOutcomes).catch(() => setOutcomes(null)) }, [])
 
   const decide = async (id, confirmed) => {
     const text = note.trim() || (confirmed
@@ -154,6 +157,12 @@ function Overview({ summary }) {
           ) : (
             <p className="small muted">{summary.early_signals.note}</p>
           )}
+        </section>
+      )}
+      {outcomes && (
+        <section className="oc-card">
+          <h3>After action · follow-up outcomes in your talukas</h3>
+          <Outcomes data={outcomes} lang="en" />
         </section>
       )}
       <div className="oc-kpis">

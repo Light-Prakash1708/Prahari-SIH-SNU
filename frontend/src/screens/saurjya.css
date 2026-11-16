@@ -1310,3 +1310,10 @@
   .hs-trend { gap: 5px; height: 96px; }
   .hs-acts .btn { min-width: 100%; }
 }
+
+/* ── outcomes after action (Outcomes.jsx) ─────────────────────────────── */
+.oc-out { overflow-x: auto; }
+.oc-out__t { width: 100%; border-collapse: collapse; font-size: 13px; }
+.oc-out__t th, .oc-out__t td { text-align: left; padding: 7px 6px; border-bottom: 1px solid rgba(0,0,0,.07); vertical-align: top; }
+.oc-out__t th { font-weight: 600; font-size: 12px; opacity: .75; }
+.oc-out__t td:not(:first-child), .oc-out__t th:not(:first-child) { text-align: center; white-space: nowrap; }

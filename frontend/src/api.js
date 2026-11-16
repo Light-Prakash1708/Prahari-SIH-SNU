@@ -261,6 +261,7 @@ export const api = {
 
   // follow-up
   followups: (plot_id) => get(`/api/followups${plot_id ? `?plot_id=${plot_id}` : ''}`),
+  outcomes: (plot_id) => get(`/api/followups/outcomes${plot_id ? `?plot_id=${plot_id}` : ''}`),
   rescan: (id, file) => send(`/api/followups/${id}/rescan`, fd({ image: file })),
   // for a farmer who cannot retake a comparable photograph; stored, and shown,
   // as self-reported rather than as a measured comparison

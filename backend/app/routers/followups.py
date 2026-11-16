@@ -68,6 +68,33 @@ def list_followups(plot_id: str | None = Query(None),
     }
 
 
+@router.get("/outcomes", summary="What happened after each kind of action",
+            description=(
+                "Counts of closed follow-ups after logged actions, grouped by kind of action "
+                "and target — never by product or supplier. Measured outcomes (two photographs "
+                "compared) and the farmer's own account are counted separately and never "
+                "summed. A share is given only from five measured outcomes upward.\n\n"
+                "Scope: a farmer sees their own fields (or one with `plot_id`); an officer sees "
+                "their talukas; an expert only a field they can already see."))
+def outcomes(plot_id: str | None = Query(None),
+             user: dict[str, Any] = Depends(current_user),
+             db: Database = Depends(db_dep)):
+    from .. import interventions
+    if plot_id:
+        visible_plot(db, user, plot_id)
+        return interventions.summarise(db, plot_ids=[plot_id])
+    if user["role"] == "farmer":
+        farmer = farmer_of(db, user)
+        ids = [r["id"] for r in db.rows("SELECT id FROM plots WHERE farmer_id = :f",
+                                        {"f": farmer["id"]})]
+        return interventions.summarise(db, plot_ids=ids)
+    if user["role"] in ("officer", "admin"):
+        from ..deps import officer_talukas
+        return interventions.summarise(db, talukas=officer_talukas(db, user))
+    from ..errors import forbidden
+    raise forbidden("follow-up outcomes without naming a field (plot_id)")
+
+
 @router.post("/{followup_id}/outcome",
              summary="Close a follow-up by reporting what happened",
              description=(
