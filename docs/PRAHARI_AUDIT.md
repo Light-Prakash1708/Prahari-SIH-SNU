@@ -68,7 +68,7 @@ Uploads: `STORAGE_PROVIDER=local` on a free web service has no persistent disk, 
 
 ## 7. Missing capabilities
 
-There is no FPO (farmer producer organisation) entity, role or aggregate view. There is no outbound WhatsApp channel (SMS provider is `none`, notifications are in-app with honest delivery state). There is no marketplace (DigiHaat) and no billing or subscription layer. There is no AgriDoc document-upload pipeline. Chemical label claims are all `draft`, so chemical recommendations remain gated off until a named person verifies them against the CIB&RC register.
+There was no FPO (farmer producer organisation) entity, role or aggregate view (built afterwards; see the execution log). There is no WhatsApp channel. An HTTP SMS adapter and an S3/R2 storage adapter do exist and only need credentials: the live service runs with `SMS_PROVIDER=none` and `STORAGE_PROVIDER=local`. There is no marketplace (DigiHaat) and no billing or subscription layer. There is no AgriDoc document-upload pipeline. Chemical label claims are all `draft`, so chemical recommendations remain gated off until a named person verifies them against the CIB&RC register.
 
 ## 8. Priority order
 

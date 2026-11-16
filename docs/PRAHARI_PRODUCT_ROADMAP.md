@@ -6,13 +6,13 @@ Classification key: EXISTS means shipped and tested; ENHANCE means shipped with 
 
 ## Module classification
 
-**A. Farmer Command Centre — EXISTS / ENHANCE.** The Home screen already carries the field health score, today's agenda, "my next best action" from `trajectory.next_best_action`, the weather card with an explicit unavailable state, and risk from published infection models. The gap is consolidation across several fields: a farmer with three plots sees them one at a time. Enhancement: a multi-field strip ranked by escalation level, reusing `management.py` escalation rather than a new scoring system.
+**A. Farmer Command Centre — EXISTS.** The Home screen carries the field health score, today's agenda, "my next best action", the weather card with an explicit unavailable state, and risk from published infection models. The multi-field view I first listed as a gap already exists: `GET /api/plots/board` (`fieldboard.py`) orders every field by what it asks for today and is rendered by the Fields screen. Nothing was rebuilt.
 
-**B. Alert Orchestration — PARTIAL.** `notify.py` records in-app, SMS and IVR deliveries with an honest state (`skipped` when no gateway). There is no outbound gateway configured and no WhatsApp channel. Next: an SMS provider adapter behind the existing `NotificationService` (MSG91 or Twilio, test mode first), then WhatsApp only through the official WhatsApp Business Platform with approved templates. Unofficial WhatsApp automation is excluded.
+**B. Alert Orchestration — EXISTS (configuration only) / WhatsApp DEFERRED.** `notify.py` already has a generic HTTP SMS channel (`SMS_PROVIDER=http`, `SMS_API_URL`, `SMS_API_KEY`, `SMS_SENDER_ID`) and SMTP email, each recording an honest delivery state. Turning SMS on is a matter of a DLT-registered sender and those variables, not code. WhatsApp is deferred: it needs Meta business verification and approved templates, plus a farmer opt-in column, and only the official WhatsApp Business Platform will be used.
 
-**C. FPO Intelligence — NEW.** No FPO entity, membership or role exists. It needs a migration (`fpo`, `fpo_members`), an `fpo` role provisioned by an administrator through the existing `/api/admin/users`, and aggregate views that reuse `outbreak.py`, `spatial.priority_queue` and `trajectory.early_signals` scoped to members' plots. No individual farmer's coordinates should reach an FPO view; talukas and counts only, as the officer views already do.
+**C. FPO Intelligence — BUILT (16 Nov 2026, commit `d86f999`).** Migration `007_fpo`, role `fpo` created by an administrator, membership as the farmer's own consented act, and a counts-only summary with small-cell suppression. See the execution log.
 
-**D. Intervention Intelligence — EXISTS / ENHANCE.** The economic threshold gate, the IPM ladder, the decision ledger, follow-up re-scans and escalation on "worse after treatment" are all shipped. The gap is an outcome summary: across closed follow-ups, how often each ladder rung was followed by "better", stated as counts with their denominator and never as a percentage on a small base.
+**D. Intervention Intelligence — ENHANCED (16 Nov 2026, commit `e4c4879`).** The threshold gate, IPM ladder, ledger, re-scans and escalation were already shipped. Added `GET /api/followups/outcomes`: outcomes after each kind of action, measured and self-reported kept apart, a share only from five measured outcomes, grouped by kind and never by product.
 
 **E. Expert / Officer operations — EXISTS.** Expert case queue and brief, officer overview, early signals, outbreak grading, Gi* hotspots, the reasoned priority queue, assignments and route planning are shipped. Enhancement only on request.
 
@@ -22,7 +22,7 @@ Classification key: EXISTS means shipped and tested; ENHANCE means shipped with 
 
 ## Reliability and AI track (cross-cutting)
 
-Production stays up when a dependency fails: done for the database (degraded mode, 503 `database_unavailable`, self-recovery). Uploads to object storage: next. Gemini remains wording-only with number and product guards; it never supplies weather, a count or a dose. Chemical label claims stay `draft` until verified by a named person.
+Production stays up when a dependency fails: done for the database (degraded mode, 503 `database_unavailable`, self-recovery). Uploads to object storage: the S3 adapter already exists and works with Cloudflare R2 through `S3_ENDPOINT_URL`; set `STORAGE_PROVIDER=s3` and the five `S3_*` variables. Gemini remains wording-only with number and product guards; it never supplies weather, a count or a dose. Chemical label claims stay `draft` until verified by a named person.
 
 ## Priority matrix
 
@@ -30,12 +30,12 @@ Production stays up when a dependency fails: done for the database (degraded mod
 |---|---|---|---|---|
 | Restore DATABASE_URL and a non-expiring database | Site exists at all | Total outage | Minutes | 1 |
 | Degraded mode on dependency failure | Site visible during outages | Blank site | Small (done) | 2 |
-| Uploads to object storage | Evidence photos persist | Photos lost on restart | Small | 3 |
+| Uploads to object storage | Evidence photos persist | Photos lost on restart | Config only (S3/R2 adapter exists) | 3 |
 | Verify chemical label claims | Chemical step becomes usable | Ladder stops at non-chemical rungs | Human review | 4 |
-| SMS adapter (test mode) | Alerts reach phones | Alerts are in-app only | Medium | 5 |
-| Multi-field command strip | Faster triage for multi-plot farmers | Minor | Small | 6 |
-| Intervention outcome summary | Evidence of what works | Minor | Small | 7 |
-| FPO intelligence | New user group | None to existing users | Large | 8 |
+| SMS gateway credentials | Alerts reach phones | Alerts are in-app only | Config only (adapter exists) | 5 |
+| Multi-field command strip | Faster triage for multi-plot farmers | — | Already exists | done |
+| Intervention outcome summary | Evidence of what works | Minor | Small | done |
+| FPO intelligence | New user group | None to existing users | Large | done (first version) |
 | WhatsApp Business channel | Reach | None | Medium, needs Meta approval | 9 |
 | DigiHaat | Revenue | Distraction from core | Large | 10, gated |
 | Commercial layer | Revenue | None | Medium | 11, gated |

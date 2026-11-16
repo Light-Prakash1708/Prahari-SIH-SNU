@@ -31,3 +31,17 @@ Per the project rule, nothing on `feat/evolution-reliability` has been pushed to
 ## 2026-11-16 — Production restored and verified
 
 The owner pointed `DATABASE_URL` at the new database. Render redeployed commit `87478c8` (deploy `dep-dbtggfoae00c73dc6cjg`); the log shows all six migrations applied, 42 reference label claims inserted, "Application startup complete" and "Your service is live". Checked on the live URL: `/api/ready` returns `ready: true`, database `ok` on PostgreSQL, weather `live` (WeatherAPI + Open-Meteo), Gemini vision and assistant configured with key source `GEMINI_API_KEY`, `degraded: []`; the only soft warning is that no SMS gateway is configured. The sign-in page renders in Marathi. The database is empty: accounts from before the outage no longer exist. Demo console access is on; `ADMIN_BOOTSTRAP_*` is not set.
+
+## 2026-11-16 — Module review against the code before building
+
+Module A (multi-field command centre) already exists as `GET /api/plots/board` and the Fields screen, so nothing was built. Module B's SMS channel (`HttpSmsChannel`) and the S3/R2 storage adapter already exist and only need credentials, so nothing was built there either; the roadmap and audit were corrected. WhatsApp stays deferred until Meta business verification and approved templates exist.
+
+## 2026-11-16 — Module D: outcomes after action (commit `e4c4879`)
+
+`GET /api/followups/outcomes` counts closed follow-ups after logged actions by kind of action and target. It keeps measured outcomes (two photographs compared) apart from the farmer's own account, never sums them, and gives a share only from five measured outcomes. It never groups by product or supplier, and nothing in it reaches the chemical gate. The scoping is the same as `/api/followups`. It is shown on the printable field report and the officer overview. Verified by 9 tests and a jsdom render of the shared component.
+
+## 2026-11-16 — Module C: producer organisations (commit `d86f999`)
+
+Migration `007_fpo` adds `fpos`, `fpo_staff` and `fpo_members` (additive only). An administrator creates an FPO and links staff accounts with the new `fpo` role, which cannot be self-registered. Joining is the farmer's own act, with the consent time recorded and the sharing terms shown before the button, and the farmer can leave at any time. An administrator cannot join a farmer on their behalf. The FPO summary gives counts only: members, fields, crops, talukas, the latest health band per field ("not scored" is never "safe"), open and overdue follow-ups, open outbreak events in members' talukas, and outcomes after action. Any count below 3 is reported as "fewer than 3". Staff of one FPO cannot read another. The demo console gains an FPO account linked to an empty demo organisation, which nobody is joined to automatically.
+
+Verified by 10 tests. A live jsdom render of the FPO console and the farmer's join card against a running backend caught a bug: a crop's name was overwritten by its own count label. It was fixed and a test now covers it. The full suite gives 521 passed, ruff is clean, and the build is 150.7 kB gzipped JS (budget 200 kB).
