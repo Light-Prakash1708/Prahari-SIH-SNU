@@ -1061,6 +1061,14 @@ class WeatherService:
                     # from a remembered observation an hour later.
                     return self._decorate(demo, fresh=False)
                 raise
+            # Keep every observed past day, then use what is kept to complete a
+            # short series. Only ever for a live provider: a generated day is
+            # never archived, and today and the forecast are never archived.
+            if getattr(self.provider, "kind", "") == "live":
+                self._archive_days(lat, lng, today, payload)
+                if payload.get("insufficient_history"):
+                    payload = self._fill_from_archive(lat, lng, today, back, payload)
+
             # A short series is the state production ended up in: the primary
             # answered, its plan covered one day, and the historical provider
             # did not fill the rest. The models cannot run on it, so for THEM
@@ -1092,6 +1100,91 @@ class WeatherService:
             payload["cached"] = False
             payload["fetched_at"] = now_iso()
             return self._decorate(payload, fresh=True)
+
+    # ── observed days, kept ────────────────────────────────────────────────
+    @staticmethod
+    def _cell(lat: float, lng: float) -> str:
+        return f"{round(float(lat), 2)}:{round(float(lng), 2)}"
+
+    def _archive_days(self, lat: float, lng: float, today: dt.date,
+                      payload: dict[str, Any]) -> int:
+        """Store each PAST day of a live payload. Never raises: losing an
+        archive write must not lose the weather the request already has."""
+        if payload.get("demo_fallback") or payload.get("source_kind") == "generated":
+            return 0
+        cell = self._cell(lat, lng)
+        stamp = now_iso()
+        n = 0
+        try:
+            for d in payload.get("days") or []:
+                try:
+                    day = dt.date.fromisoformat(str(d.get("date"))[:10])
+                except ValueError:
+                    continue
+                if day >= today or d.get("archived"):
+                    continue
+                src = str(d.get("src") or payload.get("source") or self.provider.name)
+                self.db.execute(
+                    "INSERT INTO weather_days (cell, day, src, payload, stored_at)"
+                    " VALUES (:c,:d,:s,:p,:t)"
+                    " ON CONFLICT (cell, day) DO UPDATE SET src=:s, payload=:p, stored_at=:t",
+                    {"c": cell, "d": day.isoformat(), "s": src, "p": dumps(d), "t": stamp})
+                n += 1
+        except Exception as exc:                       # pragma: no cover - infra
+            log.warning("weather day archive write failed", extra={"error": type(exc).__name__})
+        return n
+
+    def _fill_from_archive(self, lat: float, lng: float, today: dt.date, back: int,
+                           payload: dict[str, Any]) -> dict[str, Any]:
+        """Complete a short live series with stored observed days.
+
+        Only a COMPLETE window is returned as complete: if any day in it is
+        missing from both the fresh series and the store, the payload goes back
+        unchanged and still says it is short. Nothing is interpolated."""
+        days = list(payload.get("days") or [])
+        have = {str(d.get("date"))[:10] for d in days}
+        first_needed = today - dt.timedelta(days=int(back))
+        want = [(first_needed + dt.timedelta(days=i)).isoformat()
+                for i in range((today - first_needed).days)]
+        missing = [w for w in want if w not in have]
+        if not missing:
+            return payload
+        try:
+            ph = ",".join(f":d{i}" for i in range(len(missing)))
+            rows = self.db.rows(
+                f"SELECT day, src, payload FROM weather_days WHERE cell = :c AND day IN ({ph})",
+                {"c": self._cell(lat, lng), **{f"d{i}": m for i, m in enumerate(missing)}})
+        except Exception as exc:                       # pragma: no cover - infra
+            log.warning("weather day archive read failed", extra={"error": type(exc).__name__})
+            return payload
+        found = {}
+        for r in rows:
+            d = loads(r["payload"], {}) or {}
+            if d:
+                d["src"] = f"{r['src']} (stored)"
+                d["archived"] = True
+                found[str(r["day"])[:10]] = d
+        if len(found) < len(missing):
+            log.info("weather archive could not complete the window",
+                     extra={"missing": len(missing), "found": len(found)})
+            return payload
+        merged = sorted(days + list(found.values()), key=lambda d: str(d.get("date")))
+        out = dict(payload)
+        out["days"] = merged
+        out["history_days"] = int(back)
+        out.pop("insufficient_history", None)
+        out.pop("insufficient_reason", None)
+        out["archive_days"] = len(found)
+        sources = dict(out.get("sources") or {})
+        sources["history"] = "stored observations"
+        out["sources"] = sources
+        out["note"] = ((out.get("note") or "").rstrip() + " "
+                       f"{len(found)} older day(s) are observed readings PRAHARI received "
+                       f"earlier and kept, because the history provider did not answer "
+                       f"this time; each is marked with the provider that reported it.").strip()
+        log.info("weather window completed from stored observations",
+                 extra={"stored_days": len(found)})
+        return out
 
     def _decorate(self, payload: dict[str, Any], fresh: bool) -> dict[str, Any]:
         fetched = parse_ts(payload.get("fetched_at"))

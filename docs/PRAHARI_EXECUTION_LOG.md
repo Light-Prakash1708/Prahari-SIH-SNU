@@ -64,3 +64,15 @@ Visual pass: every main screen was rendered in Playwright at phone and desktop w
 Suite: 527 passed. Build: 151.5 kB gzipped JS.
 
 Push: this environment cannot push to GitHub (it allows clone and fetch only, and cannot type into Terminal). The owner pushes the branch from their own Mac: `git push origin feat/evolution-reliability:main`.
+
+## 2026-11-16 — Production verified after deploy; weather history kept (migration 008)
+
+Deploy `dep-dbtkq7e8bjmc73b8hv10` (commit `bcbb758`) is live. Migration `007_fpo` applied on the production database, and `/api/ready` returns ready with the database OK.
+
+The live logs then showed a separate production fault. Open-Meteo answered HTTP 429 to Render's shared outbound IP. WeatherAPI's free plan covers one day of history and the models need twenty-one, so every risk request logged "live window too short for the models; serving GENERATED weather". `WEATHER_DEMO_FALLBACK` is on in the service settings.
+
+The fix is migration `008_weather_days` plus `WeatherService._archive_days` / `_fill_from_archive`. Every observed past day from a live provider is now kept per ~1 km cell, with the provider that reported it. Today, the forecast and generated weather are never kept. When a fresh series comes back short, the missing older days are taken from the store, but only if every one of them is there. Those days are labelled "(stored)" and the payload says "stored observations". Once a cell has been filled once, WeatherAPI's daily history keeps it topped up, so an Open-Meteo outage no longer forces generated weather. The first fill still needs one successful Open-Meteo answer per cell.
+
+Verified by 5 new tests. Suite: 532 passed.
+
+Recommendation, not changed by me: set `WEATHER_DEMO_FALLBACK=false` on Render, so a short window shows "weather unavailable" instead of generated weather.
