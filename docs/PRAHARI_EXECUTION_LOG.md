@@ -45,3 +45,22 @@ Module A (multi-field command centre) already exists as `GET /api/plots/board` a
 Migration `007_fpo` adds `fpos`, `fpo_staff` and `fpo_members` (additive only). An administrator creates an FPO and links staff accounts with the new `fpo` role, which cannot be self-registered. Joining is the farmer's own act, with the consent time recorded and the sharing terms shown before the button, and the farmer can leave at any time. An administrator cannot join a farmer on their behalf. The FPO summary gives counts only: members, fields, crops, talukas, the latest health band per field ("not scored" is never "safe"), open and overdue follow-ups, open outbreak events in members' talukas, and outcomes after action. Any count below 3 is reported as "fewer than 3". Staff of one FPO cannot read another. The demo console gains an FPO account linked to an empty demo organisation, which nobody is joined to automatically.
 
 Verified by 10 tests. A live jsdom render of the FPO console and the farmer's join card against a running backend caught a bug: a crop's name was overwritten by its own count label. It was fixed and a test now covers it. The full suite gives 521 passed, ruff is clean, and the build is 150.7 kB gzipped JS (budget 200 kB).
+
+## 2026-11-16 — Front door, reliability and a visual pass (commits `27d8312`, `c08dfbd`)
+
+Front door: the sign-in card shows the Farmer, Expert, Officer and FPO demo buttons only when the server reports `DEMO_CONSOLE_ACCESS`. The demo farmer now opens on one real field: taluka centre, tomato, sown 45 days ago, created through the normal `create_plot`. Its weather and risk are live and nothing on it is invented.
+
+Reliability: every API call now has a deadline, 30 s for reads and 90 s for writes. A read that times out falls back to the cache. A write that times out is reported as a timeout (408) rather than as "offline", so it is never queued and sent twice. HEAD on `/` and `/api/health` now answers 200 instead of 405, so uptime monitors can see the site.
+
+Visual pass: every main screen was rendered in Playwright at phone and desktop widths against a local build. Fixes:
+
+- The tick boxes and dividers never drew, because four CSS tokens were undefined.
+- Home listed the next best action twice. The second list now holds only what remains.
+- Plurals ("1 acre", "1 more thing is").
+- The profile and the officer table showed taluka IDs instead of names.
+- The officer high-risk list showed a field once per bad day and kept listing recovered fields.
+- Console cards touched edge to edge.
+
+Suite: 527 passed. Build: 151.5 kB gzipped JS.
+
+Push: this environment cannot push to GitHub (it allows clone and fetch only, and cannot type into Terminal). The owner pushes the branch from their own Mac: `git push origin feat/evolution-reliability:main`.
