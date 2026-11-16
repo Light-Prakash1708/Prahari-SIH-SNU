@@ -299,7 +299,7 @@ function Overview({ summary }) {
                 <tr key={f.plot_id + f.day}>
                   <td>{f.plot_name}</td>
                   <td style={{ textTransform: 'capitalize' }}>{f.crop}</td>
-                  <td>{f.taluka}</td>
+                  <td>{f.taluka_name || f.taluka}</td>
                   <td><span className="oc-badge high">{Math.round(f.score)}</span></td>
                   <td style={{ color: 'var(--d-muted)' }}>{f.day}</td>
                 </tr>

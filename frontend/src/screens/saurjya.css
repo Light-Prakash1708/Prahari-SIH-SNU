@@ -1327,3 +1327,20 @@
 .fpo-cell.band-high { border-color: rgba(239,68,68,.55); }
 
 .oc .oc-out__t th, .oc .oc-out__t td { border-bottom-color: rgba(255,255,255,.08); }
+
+/* ── tokens the IPM, AgriDoc and report rules use ─────────────────────────
+   These four were referenced but never defined, so the tick boxes on "What
+   to do now" had no border, section dividers did not draw, and the current
+   IPM step was not highlighted. Mapped onto the existing palette — no new
+   colour enters the design. */
+:root {
+  --line: var(--rule, #E2E8E4);
+  --bg: var(--card, #FFFFFF);
+  --accent: var(--g-600, #157A3C);
+  --shadow-sm: 0 1px 2px rgba(11, 61, 34, .07);
+}
+
+/* Stacked console cards touched edge to edge; the grids already had a gap. */
+.oc-main section.oc-card + section.oc-card,
+.oc-main section.oc-card + .oc-kpis,
+.oc-main .oc-kpis + section.oc-card { margin-top: 14px; }

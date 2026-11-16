@@ -669,7 +669,7 @@ export function Profile({ lang, onLang, me, plots, go, health, demo, onScenario 
               </div>
               <div className="small muted">
                 {me?.profile?.village ? `${me.profile.village}, ` : ''}
-                {me?.profile?.taluka} · {me?.user?.phone || me?.user?.email}
+                {me?.profile?.taluka_name || me?.profile?.taluka} · {me?.user?.phone || me?.user?.email}
               </div>
               <div className="tiny faint" style={{ marginTop: 3 }}>
                 {plots?.length || 0} {lang === 'mr' ? 'शेते नोंदवली' : 'field(s) registered'}

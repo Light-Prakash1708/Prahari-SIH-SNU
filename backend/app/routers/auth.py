@@ -258,6 +258,8 @@ def change(data: PasswordChangeIn, user: dict[str, Any] = Depends(current_user),
                         "— the exact list of talukas they are authorised to query.")
 def me(user: dict[str, Any] = Depends(current_user), db: Database = Depends(db_dep)):
     profile = accounts.profile_for(db, user)
+    if profile and profile.get("taluka"):
+        profile = {**profile, "taluka_name": reference.taluka_name(profile["taluka"])}
     scopes = []
     if user["role"] in ("officer", "admin"):
         from ..deps import officer_talukas

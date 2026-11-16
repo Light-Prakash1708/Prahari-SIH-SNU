@@ -269,7 +269,7 @@ function FieldCard({ p, f, lang, active, onOpen, onNewCrop, go, onPlot }) {
           <div className="card-title">{p.name}</div>
           <div className="small muted">
             {bi(lang, f?.crop_label || p.crop_label || p.crop, f?.crop_label_mr)}
-            {' · '}{p.area_acre} {lang === 'mr' ? 'एकर' : 'acres'}
+            {' · '}{p.area_acre} {lang === 'mr' ? 'एकर' : (Number(p.area_acre) === 1 ? 'acre' : 'acres')}
             {p.taluka_name ? ` · ${p.taluka_name}` : ''}
           </div>
         </div>
@@ -563,7 +563,7 @@ export function History({ lang, plot, go }) {
             <Card>
               <div className="card-title">{data.plot.name}</div>
               <div className="small muted" style={{ marginTop: 3 }}>
-                {data.plot.crop_label || data.plot.crop} · {data.plot.area_acre} acres · {data.plot.taluka_name}
+                {data.plot.crop_label || data.plot.crop} · {data.plot.area_acre} {Number(data.plot.area_acre) === 1 ? 'acre' : 'acres'} · {data.plot.taluka_name}
               </div>
               {data.health_scores?.length > 1 && (
                 <div style={{ marginTop: 14 }}>

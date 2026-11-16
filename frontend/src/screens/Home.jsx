@@ -72,7 +72,7 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
           <div className="grow">
             <div className="hdr-greet">{GREET(hour, lang)}, {first} 👋</div>
             <div className="hdr-sub">
-              {plot ? `${plot.name} · ${plot.area_acre} ${lang === 'mr' ? 'एकर' : 'acres'}`
+              {plot ? `${plot.name} · ${plot.area_acre} ${lang === 'mr' ? 'एकर' : (Number(plot.area_acre) === 1 ? 'acre' : 'acres')}`
                     : (lang === 'mr' ? 'अजून शेत नोंदवलेले नाही' : 'No field registered yet')}
             </div>
           </div>
@@ -212,20 +212,36 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
                 {todo.next_action.also_due > 0 && (
                   <p className="tiny faint" style={{ marginTop: -2 }}>
                     {bi(lang,
-                      `${todo.next_action.also_due} more thing${todo.next_action.also_due === 1 ? '' : 's'} are due today — they are listed below.`,
+                      todo.next_action.also_due === 1
+                        ? '1 more thing is due today — it is listed below.'
+                        : `${todo.next_action.also_due} more things are due today — they are listed below.`,
                       `आज आणखी ${todo.next_action.also_due} कामे आहेत — खाली दिली आहेत.`)}
                   </p>
                 )}
               </>
             )}
 
-            {/* ── WHAT SHOULD I DO TODAY ──────────────────────────────── */}
+            {/* ── WHAT SHOULD I DO TODAY ──────────────────────────────────
+                The next best action above IS the first agenda item. Listing
+                it again here showed the same instruction twice in a row, so
+                the list underneath now holds only what remains — and is
+                titled for that. With nothing remaining it is left out rather
+                than showing an all-clear that contradicts the card above. */}
+            {(() => {
+              const nba = todo?.next_action
+              const items = todo?.items || []
+              const rest = nba ? items.filter((it, i) => !(i === 0 && it.key === nba.key)) : items
+              if (nba && rest.length === 0) return null
+              return (
+                <>
             <h2 className="sect-title">
-              {lang === 'mr' ? 'आज काय करावे?' : 'What should I do today?'}
+              {nba
+                ? (lang === 'mr' ? 'आज आणखी' : 'Also due today')
+                : (lang === 'mr' ? 'आज काय करावे?' : 'What should I do today?')}
             </h2>
-            {todo?.items?.length > 0 ? (
+            {rest.length > 0 ? (
               <div className="today">
-                {todo.items.map((it, i) => (
+                {rest.map((it, i) => (
                   <button key={i} className={`todo ${it.tone}`} onClick={() => act(it, go)}>
                     <span className="ic">{it.icon}</span>
                     <span className="grow">
@@ -251,6 +267,9 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
                 </div>
               </Card>
             )}
+                </>
+              )
+            })()}
             {/* The method paragraph is the app showing its working — it has
                 to stay, and it does not have to be four lines of standing
                 text on the screen a farmer opens every morning. Folded, and

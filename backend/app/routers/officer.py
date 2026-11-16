@@ -64,11 +64,20 @@ def summary(days: int = Query(14, ge=1, le=90),
         f" FROM followups f JOIN plots p ON p.id = f.plot_id"
         f" WHERE p.taluka IN ({ph}) AND f.outcome = 'worse' ORDER BY f.done_on DESC LIMIT 20",
         params)
-    high_risk = db.rows(
-        f"SELECT h.plot_id, h.day, h.score, p.name AS plot_name, p.crop, p.taluka"
-        f" FROM health_snapshots h JOIN plots p ON p.id = h.plot_id"
-        f" WHERE p.taluka IN ({ph}) AND h.day >= :since AND h.score < 50"
-        f" ORDER BY h.score LIMIT 20", {**params, "since": since})
+    # The LATEST snapshot of each field decides whether it is high-risk now.
+    # Filtering every snapshot in the window listed a field once per bad day,
+    # and kept listing a field that had since recovered.
+    latest: dict[str, dict[str, Any]] = {}
+    for r in db.rows(
+            f"SELECT h.plot_id, h.day, h.score, p.name AS plot_name, p.crop, p.taluka"
+            f" FROM health_snapshots h JOIN plots p ON p.id = h.plot_id"
+            f" WHERE p.taluka IN ({ph}) AND h.day >= :since ORDER BY h.day",
+            {**params, "since": since}):
+        latest[r["plot_id"]] = r
+    high_risk = sorted(
+        ({**r, "taluka_name": reference.taluka_name(r["taluka"])}
+         for r in latest.values() if r["score"] is not None and r["score"] < 50),
+        key=lambda r: r["score"])[:20]
     clusters = list(rt.outbreak.open_events(scopes))
     # Community signals sit BESIDE the diagnosed clusters, never merged into
     # them. They are a different kind of evidence — earlier, cheaper, weaker —

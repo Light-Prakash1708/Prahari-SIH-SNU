@@ -58,3 +58,30 @@ def test_a_real_farmer_gets_no_field_created(client, farmer):
     plots = client.get("/api/plots", headers=farmer["headers"]).json()
     plots = plots.get("plots", plots) if isinstance(plots, dict) else plots
     assert plots == []
+
+
+def test_me_names_the_taluka_not_its_id(client, farmer):
+    me = client.get("/api/auth/me", headers=farmer["headers"]).json()
+    assert me["profile"]["taluka"] == "niphad"
+    assert me["profile"]["taluka_name"] == "Niphad"
+
+
+def test_officer_high_risk_lists_each_field_once_by_its_latest_score(client, farmer, plot, officer):
+    from app.clock import now_iso
+    from app.db import get_db
+    db = get_db()
+    # a bad day, then a worse day, for the same field
+    for day, score in (("2026-08-25", 45.0), ("2026-08-26", 30.0)):
+        db.execute("INSERT INTO health_snapshots (plot_id, day, score, disease, pest, weather,"
+                   " nearby, created_at) VALUES (:p,:d,:s,0,0,0,0,:now)",
+                   {"p": plot["id"], "d": day, "s": score, "now": now_iso()})
+    rows = client.get("/api/officer/summary?days=14", headers=officer["headers"]).json()["high_risk_fields"]
+    mine = [r for r in rows if r["plot_id"] == plot["id"]]
+    assert len(mine) == 1 and mine[0]["score"] == 30.0
+    assert mine[0]["taluka_name"]
+    # it recovers: the latest snapshot is above 50, so it is no longer listed
+    db.execute("INSERT INTO health_snapshots (plot_id, day, score, disease, pest, weather,"
+               " nearby, created_at) VALUES (:p,'2026-08-27',80,0,0,0,0,:now)",
+               {"p": plot["id"], "now": now_iso()})
+    rows = client.get("/api/officer/summary?days=14", headers=officer["headers"]).json()["high_risk_fields"]
+    assert not [r for r in rows if r["plot_id"] == plot["id"]]
