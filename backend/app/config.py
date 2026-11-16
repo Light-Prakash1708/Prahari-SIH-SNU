@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./prahari.db"
     db_echo: bool = False
     auto_migrate: bool = True          # runs the versioned migration runner
+    # An unreachable database degrades the service instead of exiting it.
+    db_startup_attempts: int = 3       # tries at boot, with a short backoff
+    db_retry_seconds: float = 30.0     # then at most one retry per this interval
+    db_connect_timeout: int = 10       # seconds; PostgreSQL only
     auto_seed_demo: bool = False       # NEVER honoured when app_env=production
 
     # ── the first administrator ────────────────────────────────────────────

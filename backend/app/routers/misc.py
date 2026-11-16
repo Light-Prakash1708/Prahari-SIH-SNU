@@ -221,10 +221,14 @@ def get_advisory(plot_id: str = Query(...), target: str = Query(...),
 
 
 @meta.get("/health", summary="Liveness", description="Is the process up? No dependency checks.")
-def health():
+def health(request: Request):
     s = get_settings()
+    st = getattr(request.app.state, "db_state", None) or {"ready": True}
     return {"ok": True, "service": "prahari", "version": s.app_version,
-            "app_env": s.app_env, "demo_mode": s.demo_mode, "today": _today().isoformat()}
+            "app_env": s.app_env, "demo_mode": s.demo_mode, "today": _today().isoformat(),
+            # Liveness stays 200 so the host does not restart-loop a process
+            # that is waiting for its database; readiness says why.
+            "database": "ok" if st["ready"] else "unavailable"}
 
 
 @meta.get("/ready", summary="Readiness",

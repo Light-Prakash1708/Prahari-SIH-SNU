@@ -32,6 +32,7 @@ Routers, in the order of the argument:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -42,6 +43,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.exc import InterfaceError, OperationalError
+from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -70,6 +73,9 @@ from .routers import (
 from .runtime import Runtime, set_runtime
 
 log = logging.getLogger("prahari")
+
+# Answer without the database: liveness, and readiness (which reports it as down).
+_DB_FREE_PATHS = frozenset({"/api/health", "/api/ready"})
 
 DESCRIPTION = """
 **PRAHARI (प्रहरी)** — early detection and management of crop disease and pest infestation.
@@ -124,21 +130,51 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     s = settings or get_settings()
     configure_logging()
 
+    def bring_up(app: FastAPI, rt: Runtime, attempts: int = 1) -> bool:
+        """Migrate, sync reference data and bootstrap the first administrator.
+
+        A database that cannot be REACHED is not a configuration error, so it
+        does not kill the process: the service comes up degraded, every data
+        route answers 503 database_unavailable, and the next request after
+        DB_RETRY_SECONDS tries again. Before this, an expired or unreachable
+        database made uvicorn exit at startup and the whole site — including
+        the static frontend — disappeared behind the host's generic error page.
+        A schema error (bad SQL in a migration) is NOT caught here and still
+        stops the start, because retrying it would never succeed."""
+        st = app.state.db_state
+        for i in range(attempts):
+            st["last_try"] = time.monotonic()
+            try:
+                info = rt.startup()
+                if s.demo_mode and s.auto_seed_demo:
+                    from .seed_demo import seed
+                    info["seed"] = seed(rt)
+                # Independent of the demo seed, and allowed in production: the one
+                # step that had no other way to happen. Creates nothing when it is
+                # not configured, and nothing again once an administrator exists.
+                from .seed_demo import bootstrap_admin
+                info["admin_bootstrap"] = bootstrap_admin(rt)
+                st.update(ready=True, error=None)
+                log.info("ready", extra=info)
+                return True
+            except (OperationalError, InterfaceError) as exc:
+                # The exception TYPE only: driver messages can carry a host name,
+                # and nothing about the connection belongs in a log line.
+                st.update(ready=False, error=type(exc).__name__)
+                log.error("database unreachable — serving degraded",
+                          extra={"attempt": i + 1, "error": type(exc).__name__})
+                if i + 1 < attempts:
+                    time.sleep(min(2 * (i + 1), 6))
+        return False
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         rt = Runtime(s)
         set_runtime(rt)
         app.state.runtime = rt
-        info = rt.startup()
-        if s.demo_mode and s.auto_seed_demo:
-            from .seed_demo import seed
-            info["seed"] = seed(rt)
-        # Independent of the demo seed, and allowed in production: the one step
-        # that had no other way to happen. Creates nothing when it is not
-        # configured, and nothing again once an administrator exists.
-        from .seed_demo import bootstrap_admin
-        info["admin_bootstrap"] = bootstrap_admin(rt)
-        log.info("ready", extra=info)
+        app.state.db_state = {"ready": False, "last_try": 0.0, "error": None}
+        app.state.db_retry_lock = asyncio.Lock()
+        bring_up(app, rt, attempts=max(1, s.db_startup_attempts))
         yield
         rt.db.dispose()
         set_runtime(None)
@@ -167,6 +203,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     limiter = RateLimiter(s)
 
+    async def _database_gate(request: Request, rid: str):
+        """None when the request may proceed; a 503 when the database is down."""
+        st = getattr(request.app.state, "db_state", None)
+        if st is None or st["ready"]:
+            return None
+        path = request.url.path
+        if not path.startswith("/api") or path in _DB_FREE_PATHS:
+            return None
+        if time.monotonic() - st["last_try"] >= s.db_retry_seconds:
+            async with request.app.state.db_retry_lock:
+                if not st["ready"] and time.monotonic() - st["last_try"] >= s.db_retry_seconds:
+                    await run_in_threadpool(bring_up, request.app, request.app.state.runtime)
+            if st["ready"]:
+                return None
+        return JSONResponse(
+            status_code=503,
+            content={"error": "database_unavailable",
+                     "message": ("PRAHARI cannot reach its database right now. Nothing you "
+                                 "saved is shown as if it were current. Try again shortly."),
+                     "message_mr": ("PRAHARI ला सध्या डेटाबेसशी जोडता येत नाही. थोड्या वेळाने "
+                                    "पुन्हा प्रयत्न करा."),
+                     "retryable": True, "request_id": rid},
+            headers={"X-Request-ID": rid, "Retry-After": str(int(s.db_retry_seconds))})
+
     @app.middleware("http")
     async def request_context(request: Request, call_next):
         rid = request.headers.get("x-request-id") or new_request_id()
@@ -177,6 +237,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         blocked = limiter.check(request)
         if blocked is not None:
             return blocked
+
+        unavailable = await _database_gate(request, rid)
+        if unavailable is not None:
+            return unavailable
 
         try:
             response = await call_next(request)

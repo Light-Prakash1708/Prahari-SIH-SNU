@@ -87,6 +87,8 @@ class Database:
         else:
             kwargs["pool_size"] = 5
             kwargs["max_overflow"] = 10
+            # Without this an unreachable host blocks a worker for minutes.
+            kwargs["connect_args"] = {"connect_timeout": self.settings.db_connect_timeout}
         self.engine: Engine = create_engine(url, **kwargs)
         if self.dialect == "sqlite":
             @event.listens_for(self.engine, "connect")
