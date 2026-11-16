@@ -34,9 +34,11 @@ services:
       - key: CORS_ORIGINS
         # Same-origin deployment: the API serves the frontend. Set this to your
         # Vercel domain instead if you split them.
-        value: https://prahari.onrender.com
+        value: https://prahari-7m0e.onrender.com
       - key: TRUSTED_HOSTS
-        value: prahari.onrender.com
+        # The live service's real hostname. Render appends a suffix when the
+        # plain name is taken, so check the service page before relaunching.
+        value: prahari-7m0e.onrender.com
       - key: WEATHER_PROVIDER
         # WeatherAPI.com first when a key is present, Open-Meteo behind it,
         # then the cache. With no key this is exactly Open-Meteo.
@@ -70,11 +72,21 @@ services:
         # the blueprint. It is read server-side only and never sent to the
         # browser. A farmer's own key is separate and encrypted at rest.
         sync: false
+      - key: GEMINI_API_KEY
+        # Accepted as an alias of LLM_API_KEY (the live service uses this
+        # name). Set one of the two, in the dashboard only.
+        sync: false
       - key: STORAGE_PROVIDER
         value: local
       - key: SMS_PROVIDER
         value: none
 
+# Why the database is NOT on the free plan: a free Render PostgreSQL instance
+# expires 30 days after creation and is then deleted. That is what took the
+# live site down in October 2026 — DATABASE_URL kept pointing at a host that no
+# longer existed. The app now stays up and answers 503 database_unavailable in
+# that state (see main.py), but the data is still gone. Use a paid plan, or an
+# external PostgreSQL with backups, for anything that must persist.
 databases:
   - name: prahari-db
     plan: basic-256mb
