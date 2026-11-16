@@ -141,3 +141,9 @@ select.px-auth__input { padding-right: 38px; cursor: pointer; }
   border-radius: 12px; padding: 10px 12px; font-size: 13px; font-weight: 600;
   margin-bottom: 12px;
 }
+
+/* demo consoles on the sign-in card (shown only when the server enables them) */
+.px-auth__demo { margin-top: 14px; padding: 12px; border: 1px dashed rgba(21,122,60,.35); border-radius: 14px; background: rgba(21,122,60,.04); }
+.px-auth__demo-h { font-size: 12.5px; font-weight: 700; color: #0f3d24; margin-bottom: 8px; text-align: center; }
+.px-auth__demo-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.px-auth__demo-note { font-size: 11px; color: #5b6b62; margin-top: 8px; text-align: center; line-height: 1.4; }

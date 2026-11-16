@@ -94,10 +94,38 @@ function headers(extra = {}) {
   return h
 }
 
+/* A request that never answers used to leave a screen on its loading state
+   for ever — a stalled mobile connection does exactly that. Every call now
+   has a deadline. A read that misses it falls back to the cached copy like
+   any other network failure; a write that misses it is reported as a
+   timeout (status 408), NOT as offline, because the server may already have
+   acted on it and queueing it again could record it twice. */
+const READ_TIMEOUT_MS = 30000
+const WRITE_TIMEOUT_MS = 90000          // a photo upload with a vision model can take a while
+
+const TIMEOUT = {
+  message: 'The server took too long to answer. Check your connection and try again.',
+  message_mr: 'सर्व्हरकडून वेळेत उत्तर आले नाही. इंटरनेट तपासा आणि पुन्हा प्रयत्न करा.',
+  error: 'timeout', retryable: true,
+}
+
+async function fetchWithin(url, opts, ms) {
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null
+  const timer = ctl ? setTimeout(() => ctl.abort(), ms) : null
+  try {
+    return await fetch(url, ctl ? { ...opts, signal: ctl.signal } : opts)
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw new ApiError(TIMEOUT, 408)
+    throw e
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 /* ── verbs ─────────────────────────────────────────────────────────────── */
 async function get(path, { cache = true } = {}) {
   try {
-    const r = await fetch(BASE + path, { headers: headers() })
+    const r = await fetchWithin(BASE + path, { headers: headers() }, READ_TIMEOUT_MS)
     const data = await parse(r)
     if (cache) { const c = readCache(); c[path] = { at: Date.now(), data }; writeCache(c) }
     return data
@@ -105,7 +133,7 @@ async function get(path, { cache = true } = {}) {
     if (e instanceof ApiError) {
       // A real server answer is never replaced by a cached one — a 403 is a
       // fact about permission, not a network problem.
-      if (e.status !== 503 || !cache) throw e
+      if ((e.status !== 503 && e.status !== 408) || !cache) throw e
     }
     const hit = cache && readCache()[path]
     if (hit) return { ...hit.data, _stale: true, _cachedAt: hit.at }
@@ -122,7 +150,7 @@ async function send(path, body, method = 'POST') {
     opts.body = JSON.stringify(body)
   }
   try {
-    return await parse(await fetch(BASE + path, opts))
+    return await parse(await fetchWithin(BASE + path, opts, WRITE_TIMEOUT_MS))
   } catch (e) {
     if (e instanceof ApiError) throw e
     throw new ApiError({

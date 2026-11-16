@@ -141,11 +141,35 @@ def demo_console(role: str, request: Request, db: Database = Depends(db_dep)):
                            ip=_ip(request))
     if role == "fpo":
         _link_demo_fpo(db, token["user_id"])
+    if role == "farmer":
+        _ensure_demo_field(db, token["user_id"])
     audit("auth.demo_console", entity="user", entity_id=token["user_id"],
           user_id=token["user_id"], role=token["role"], ip=_ip(request),
           detail={"console": role})
     log.warning("demo console session issued", extra={"console": role})
     return token
+
+
+def _ensure_demo_field(db: Database, user_id: str) -> None:
+    """A demo farmer with no field opens on an empty "add your first field"
+    screen, which shows a judge nothing. Give the demo account ONE field —
+    placed at its taluka's centre, sown 45 days ago — through the same
+    create_plot every farmer uses. Everything shown for it afterwards is real:
+    live weather for those coordinates and the published risk models on it.
+    No observation, count or score is invented; those start empty."""
+    import datetime as dt
+
+    from ..schemas import PlotIn
+    from .plots import create_plot
+    farmer = db.one("SELECT id, taluka FROM farmers WHERE user_id = :u", {"u": user_id})
+    if not farmer or db.one("SELECT id FROM plots WHERE farmer_id = :f", {"f": farmer["id"]}):
+        return
+    from ..clock import today
+    user = db.one("SELECT * FROM users WHERE id = :u", {"u": user_id})
+    create_plot(PlotIn(name="Demo field · tomato", crop="tomato", area_acre=1.0,
+                       sown_on=today() - dt.timedelta(days=45),
+                       taluka=farmer["taluka"], location_source="manual"),
+                user=user, db=db)
 
 
 def _link_demo_fpo(db: Database, user_id: str) -> None:

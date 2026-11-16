@@ -64,6 +64,25 @@ export default function Auth({ lang, onLang, onSignedIn }) {
 
   useEffect(() => { setErr(null); setMsg(null) }, [mode])
 
+  /* Demo consoles on the front door, when — and only when — the SERVER says
+     DEMO_CONSOLE_ACCESS is on. The buttons carry no credential: each asks the
+     server for a session on one of its fixed demo accounts, the same call the
+     Modes screen makes. With the switch off, /api/ready says so and nothing
+     renders here. */
+  const [demoOn, setDemoOn] = useState(false)
+  const [demoBusy, setDemoBusy] = useState(null)
+  useEffect(() => {
+    api.ready().then(h => setDemoOn(!!h?.config?.demo_console_access)).catch(() => setDemoOn(false))
+  }, [])
+  const openDemo = async (role) => {
+    setDemoBusy(role); setErr(null)
+    try {
+      const out = await api.demoConsole(role)
+      auth.set(out.access_token)
+      onSignedIn()
+    } catch (e2) { setErr(e2) } finally { setDemoBusy(null) }
+  }
+
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
   const submit = async (e) => {
@@ -216,6 +235,29 @@ export default function Auth({ lang, onLang, onSignedIn }) {
               <button type="button" className="px-auth__btn--link" onClick={() => setMode('reset')}>
                 {c.reset}
               </button>
+            </div>
+          )}
+
+          {demoOn && mode === 'in' && (
+            <div className="px-auth__demo">
+              <div className="px-auth__demo-h">
+                {lang === 'mr' ? 'खाते नसताना पाहा — डेमो' : 'Explore without an account — demo'}
+              </div>
+              <div className="px-auth__demo-row">
+                {[['farmer', 'Farmer', 'शेतकरी'], ['expert', 'Expert', 'तज्ज्ञ'],
+                  ['officer', 'Officer', 'अधिकारी'], ['fpo', 'FPO', 'उत्पादक संस्था']]
+                  .map(([role, en, mr]) => (
+                    <button key={role} type="button" className="px-auth__chip"
+                            disabled={!!demoBusy} onClick={() => openDemo(role)}>
+                      {demoBusy === role ? '…' : (lang === 'mr' ? mr : en)}
+                    </button>
+                  ))}
+              </div>
+              <div className="px-auth__demo-note">
+                {lang === 'mr'
+                  ? 'डेमो खाती खरी असतात आणि खरे हवामान वापरतात; ती तुमची नसतात.'
+                  : 'Demo accounts are real accounts on live weather — not yours, and shared.'}
+              </div>
             </div>
           )}
 

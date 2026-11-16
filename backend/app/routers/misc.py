@@ -220,7 +220,9 @@ def get_advisory(plot_id: str = Query(...), target: str = Query(...),
     return out
 
 
-@meta.get("/health", summary="Liveness", description="Is the process up? No dependency checks.")
+@meta.api_route("/health", methods=["GET", "HEAD"], summary="Liveness",
+                description="Is the process up? No dependency checks. Answers HEAD as well, "
+                            "for uptime monitors.")
 def health(request: Request):
     s = get_settings()
     st = getattr(request.app.state, "db_state", None) or {"ready": True}

@@ -133,6 +133,8 @@ export const ErrorNote = ({ error, lang = 'en', onRetry }) => {
     : error.code === 'chemical_not_authorised' ? '🛡️ Not authorised yet'
     : error.status === 403 ? '🔒 Not permitted'
     : error.status === 429 ? '⏳ Too many requests'
+    : error.code === 'timeout' ? '⏳ Taking too long'
+    : error.code === 'database_unavailable' ? '🛠 PRAHARI is briefly unavailable'
     : error.status === 0 ? '📴 Offline' : '⚠ Something went wrong'
   return (
     <div className={`note ${tone}`} role="alert">

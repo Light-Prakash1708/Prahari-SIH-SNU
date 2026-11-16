@@ -328,7 +328,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if dist.exists():
         app.mount("/assets", StaticFiles(directory=str(dist / "assets")), name="assets")
 
-        @app.get("/{full_path:path}", include_in_schema=False)
+        # HEAD too: uptime monitors and some load balancers probe with HEAD, and
+        # answering it 405 made a healthy site look down to them.
+        @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
         async def spa(full_path: str):
             if full_path.startswith(("api/", "docs", "openapi.json", "media/")):
                 return JSONResponse({"error": "not_found", "message": "No such endpoint."},
