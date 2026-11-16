@@ -27,3 +27,7 @@ Verified: six new tests in `backend/tests/test_database_degraded.py` (start with
 ## Not pushed
 
 Per the project rule, nothing on `feat/evolution-reliability` has been pushed to GitHub. Production restoration does not depend on these commits; it depends only on `DATABASE_URL`.
+
+## 2026-11-16 — Production restored and verified
+
+The owner pointed `DATABASE_URL` at the new database. Render redeployed commit `87478c8` (deploy `dep-dbtggfoae00c73dc6cjg`); the log shows all six migrations applied, 42 reference label claims inserted, "Application startup complete" and "Your service is live". Checked on the live URL: `/api/ready` returns `ready: true`, database `ok` on PostgreSQL, weather `live` (WeatherAPI + Open-Meteo), Gemini vision and assistant configured with key source `GEMINI_API_KEY`, `degraded: []`; the only soft warning is that no SMS gateway is configured. The sign-in page renders in Marathi. The database is empty: accounts from before the outage no longer exist. Demo console access is on; `ADMIN_BOOTSTRAP_*` is not set.
