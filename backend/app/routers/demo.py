@@ -84,3 +84,22 @@ def reset(plot_id: str = Query(...), user: dict[str, Any] = Depends(current_user
     return {"removed_threshold_checks": n, "demo": True,
             "note": ("Scenario rows carry a `demo` column. Provenance lives in its own column and "
                      "is never smuggled into a value another query reads.")}
+
+
+# ── judge mode ──────────────────────────────────────────────────────────────
+@router.get("/judge", summary="The judge demonstration: eight cases and whether staging can show them")
+def judge_guide(user: dict[str, Any] = Depends(current_user),
+                db: Database = Depends(db_dep)):
+    from .. import judge
+    return judge.guide(db)
+
+
+@router.post("/judge/reset", summary="Restore the judge starting state (staging only)",
+             description=("Archives the fixed demo farmer's fields and creates a fresh one, sets the "
+                          "labelled weather story, and makes sure the demo FPO has three synthetic "
+                          "members. Deletes nothing and writes no diagnosis, decision or verdict. "
+                          "Exists only when DEMO_MODE=true, which production refuses."))
+def judge_reset(user: dict[str, Any] = Depends(current_user),
+                db: Database = Depends(db_dep)):
+    from .. import judge
+    return judge.reset(db, get_runtime())

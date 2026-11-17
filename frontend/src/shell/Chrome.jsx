@@ -43,13 +43,26 @@ const T = {
     hotspots: 'Nearby hotspots', modes: 'PRAHARI consoles', report: 'Field report',
   },
 }
+/* DRAFT — for review with the rest of i18n/bn.js. */
+T.bn = {
+  home: 'হোম', crop: 'ফসল', scan: 'স্ক্যান', community: 'সমাজ', agridoc: 'সাথী',
+  menu: 'মেনু', account: 'অ্যাকাউন্ট', signout: 'সাইন আউট', close: 'বন্ধ করুন',
+  nav: 'নেভিগেশন', toolsGroup: 'সরঞ্জাম', fields: 'জমি', forecast: 'পূর্বাভাস',
+  traps: 'ফাঁদ', soil: 'মাটি', water: 'জল', alerts: 'সতর্কবার্তা',
+  profile: 'প্রোফাইল', history: 'ইতিহাস', fieldsCount: 'জমি', queued: 'অপেক্ষায়',
+  unread: 'না-পড়া', ipm: 'সিদ্ধান্ত', guest: 'ব্যবহারকারী',
+  cropRecord: 'ফসলের খাতা', tools: 'দ্রুত সরঞ্জাম', expenses: 'চাষের খরচ', fert: 'সার নির্দেশিকা',
+  fieldGroup: 'আমার জমি', accountGroup: 'অ্যাকাউন্ট', privacy: 'আপনার তথ্য',
+  howItWorks: 'প্রহরী কীভাবে কাজ করে',
+  hotspots: 'আশেপাশের আক্রমণ', modes: 'প্রহরীর কনসোল', report: 'জমির রিপোর্ট',
+}
 const t = (lang, k) => (T[lang] || T.en)[k] ?? T.en[k]
 
 const ROLE_LABEL = {
-  farmer: { en: 'Farmer', mr: 'शेतकरी' },
-  officer: { en: 'Agriculture Officer', mr: 'कृषी अधिकारी' },
-  expert: { en: 'Expert', mr: 'तज्ज्ञ' },
-  admin: { en: 'Administrator', mr: 'प्रशासक' },
+  farmer: { en: 'Farmer', mr: 'शेतकरी', bn: 'কৃষক' },
+  officer: { en: 'Agriculture Officer', mr: 'कृषी अधिकारी', bn: 'কৃষি আধিকারিক' },
+  expert: { en: 'Expert', mr: 'तज्ज्ञ', bn: 'বিশেষজ্ঞ' },
+  admin: { en: 'Administrator', mr: 'प्रशासक', bn: 'প্রশাসক' },
 }
 
 /* ── header ───────────────────────────────────────────────────────────── */

@@ -26,6 +26,12 @@ import '@fontsource/ibm-plex-mono/latin-500.css'
 import '@fontsource/noto-sans-devanagari/devanagari-400.css'
 import '@fontsource/noto-sans-devanagari/devanagari-600.css'
 import '@fontsource/noto-sans-devanagari/devanagari-700.css'
+// Bengali: bundled for the same reason as Devanagari — a CDN font renders the
+// script as empty boxes on an offline phone. Subset files, loaded only when
+// Bengali text is on screen (unicode-range).
+import '@fontsource/noto-sans-bengali/bengali-400.css'
+import '@fontsource/noto-sans-bengali/bengali-600.css'
+import '@fontsource/noto-sans-bengali/bengali-700.css'
 
 import './styles.css'
 /* Saurjya's identity is layered over the design system: tokens first, then the

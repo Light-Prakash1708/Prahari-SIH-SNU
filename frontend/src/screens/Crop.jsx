@@ -40,11 +40,9 @@ export default function Crop({ lang, plot, plots, onPlot, go }) {
   return (
     <>
       <header className="hdr" style={{ paddingBottom: 54 }}>
-        <div className="hdr-greet">{lang === 'mr' ? 'माझे पीक' : 'My Crop'}</div>
+        <div className="hdr-greet">{bi(lang, 'My Crop', 'माझे पीक')}</div>
         <div className="hdr-sub">
-          {lang === 'mr'
-            ? 'हंगामात कुठे आहात, पुढे काय आहे, आणि आतापर्यंतची नोंद.'
-            : 'Where you are in the season, what is due, and the record so far.'}
+          {bi(lang, 'Where you are in the season, what is due, and the record so far.', 'हंगामात कुठे आहात, पुढे काय आहे, आणि आतापर्यंतची नोंद.')}
         </div>
       </header>
 
@@ -58,20 +56,20 @@ export default function Crop({ lang, plot, plots, onPlot, go }) {
                 <div className="em">{CROP_EM[p.crop] || '🌱'}</div>
                 <div className="nm">{p.name}</div>
                 <div className="sub">
-                  {p.crop_label || p.crop} · {p.area_acre} {lang === 'mr' ? 'एकर' : 'ac'}
+                  {p.crop_label || p.crop} · {p.area_acre} {bi(lang, 'ac', 'एकर')}
                 </div>
               </button>
             ))}
             <button className="cropcard" onClick={() => go('addField')}>
               <div className="em">➕</div>
-              <div className="nm">{lang === 'mr' ? 'शेत जोडा' : 'Add a field'}</div>
-              <div className="sub">{lang === 'mr' ? 'नवीन नोंदणी' : 'Register another'}</div>
+              <div className="nm">{bi(lang, 'Add a field', 'शेत जोडा')}</div>
+              <div className="sub">{bi(lang, 'Register another', 'नवीन नोंदणी')}</div>
             </button>
           </div>
         ) : (
-          <Empty icon="🌾" title={lang === 'mr' ? 'अजून शेत नाही' : 'No field yet'}
+          <Empty icon="🌾" title={bi(lang, 'No field yet', 'अजून शेत नाही')}
                  action={<button className="btn" onClick={() => go('addField')}>
-                   {lang === 'mr' ? 'शेत जोडा' : 'Add a field'}</button>} />
+                   {bi(lang, 'Add a field', 'शेत जोडा')}</button>} />
         )}
 
         {busy && plot && <Loading lines={3} />}
@@ -88,13 +86,13 @@ export default function Crop({ lang, plot, plots, onPlot, go }) {
         {crop?.stages && (
           <Card>
             <div className="card-title" style={{ marginBottom: 4 }}>
-              {lang === 'mr' ? 'पीक दिनदर्शिका' : 'Crop calendar'}
+              {bi(lang, 'Crop calendar', 'पीक दिनदर्शिका')}
             </div>
             <p className="tiny muted" style={{ marginBottom: 10 }}>
               {stage?.days != null
                 ? (lang === 'mr' ? `पेरणीनंतर ${stage.days} दिवस · ${bi(lang, stage.label, stage.label_mr)}`
                                  : `Day ${stage.days} after sowing · ${bi(lang, stage.label, stage.label_mr)}`)
-                : (lang === 'mr' ? 'पेरणीची तारीख नोंदवा' : 'Add a sowing date to place the crop')}
+                : (bi(lang, 'Add a sowing date to place the crop', 'पेरणीची तारीख नोंदवा'))}
             </p>
 
             <div className="calbar">
@@ -123,15 +121,11 @@ export default function Crop({ lang, plot, plots, onPlot, go }) {
 
             <button className="btn block ghost" style={{ marginTop: 12 }}
                     onClick={() => go('crop')}>
-              {lang === 'mr'
-                ? 'संपूर्ण पीक प्रवास पहा — धोक्याचा कालावधी व इतिहास'
-                : 'Open the full Crop Journey — dates, threat windows, history'}
+              {bi(lang, 'Open the full Crop Journey — dates, threat windows, history', 'संपूर्ण पीक प्रवास पहा — धोक्याचा कालावधी व इतिहास')}
             </button>
 
             <div className="tiny faint" style={{ marginTop: 10, lineHeight: 1.5 }}>
-              {lang === 'mr'
-                ? 'अवस्था आर्थिक नुकसान मर्यादा बदलते आणि फवारणी किडीपर्यंत पोहोचेल का हे ठरवते.'
-                : 'The stage scales the economic threshold and decides whether a spray can physically reach the pest — it is not decoration.'}
+              {bi(lang, 'The stage scales the economic threshold and decides whether a spray can physically reach the pest — it is not decoration.', 'अवस्था आर्थिक नुकसान मर्यादा बदलते आणि फवारणी किडीपर्यंत पोहोचेल का हे ठरवते.')}
             </div>
           </Card>
         )}
@@ -139,25 +133,25 @@ export default function Crop({ lang, plot, plots, onPlot, go }) {
         {/* ── what is due ─────────────────────────────────────────────── */}
         <Card>
           <div className="card-title" style={{ marginBottom: 10 }}>
-            {lang === 'mr' ? 'तपासणी आणि मोजणी' : 'Scouting and counts'}
+            {bi(lang, 'Scouting and counts', 'तपासणी आणि मोजणी')}
           </div>
           <div className="steps">
             <div className="s"><div className="n">1</div><div className="ic">🚶</div>
-              <div className="l">{lang === 'mr' ? 'शेतात फिरा' : 'Walk the field'}</div></div>
+              <div className="l">{bi(lang, 'Walk the field', 'शेतात फिरा')}</div></div>
             <div className="s"><div className="n">2</div><div className="ic">📷</div>
-              <div className="l">{lang === 'mr' ? 'बाधित पानाचा फोटो' : 'Photograph a leaf'}</div></div>
+              <div className="l">{bi(lang, 'Photograph a leaf', 'बाधित पानाचा फोटो')}</div></div>
             <div className="s"><div className="n">3</div><div className="ic">🪤</div>
-              <div className="l">{lang === 'mr' ? 'सापळा मोजा' : 'Count the trap'}</div></div>
+              <div className="l">{bi(lang, 'Count the trap', 'सापळा मोजा')}</div></div>
           </div>
           <div className="quick" style={{ marginTop: 14 }}>
-            {[['scan', '📷', lang === 'mr' ? 'स्कॅन' : 'Scan'],
-              ['traps', '🪤', lang === 'mr' ? 'सापळे' : 'Traps'],
-              ['forecast', '🌦', lang === 'mr' ? 'अंदाज' : 'Forecast'],
-              ['history', '📜', lang === 'mr' ? 'इतिहास' : 'History'],
-              ['soil', '🪴', lang === 'mr' ? 'जमीन' : 'Soil'],
-              ['water', '💧', lang === 'mr' ? 'पाणी' : 'Water'],
-              ['decide', '🛡️', lang === 'mr' ? 'फवारू का?' : 'Spray?'],
-              ['saathi', '🌿', lang === 'mr' ? 'साथी' : 'AgriDoc']].map(([k, ic, label]) => (
+            {[['scan', '📷', bi(lang, 'Scan', 'स्कॅन')],
+              ['traps', '🪤', bi(lang, 'Traps', 'सापळे')],
+              ['forecast', '🌦', bi(lang, 'Forecast', 'अंदाज')],
+              ['history', '📜', bi(lang, 'History', 'इतिहास')],
+              ['soil', '🪴', bi(lang, 'Soil', 'जमीन')],
+              ['water', '💧', bi(lang, 'Water', 'पाणी')],
+              ['decide', '🛡️', bi(lang, 'Spray?', 'फवारू का?')],
+              ['saathi', '🌿', bi(lang, 'AgriDoc', 'साथी')]].map(([k, ic, label]) => (
               <button key={k} onClick={() => go(k)}>
                 <span className="ic">{ic}</span><span className="lbl">{label}</span>
               </button>
@@ -169,9 +163,9 @@ export default function Crop({ lang, plot, plots, onPlot, go }) {
         {traps?.traps?.length > 0 && (
           <Card>
             <div className="row between" style={{ marginBottom: 10 }}>
-              <div className="card-title">{lang === 'mr' ? 'सापळे' : 'Pest traps'}</div>
+              <div className="card-title">{bi(lang, 'Pest traps', 'सापळे')}</div>
               <button className="btn sm quiet" onClick={() => go('traps')}>
-                {lang === 'mr' ? 'सर्व' : 'All'} ›
+                {bi(lang, 'All', 'सर्व')} ›
               </button>
             </div>
             {traps.traps.map(t => {
@@ -187,7 +181,7 @@ export default function Crop({ lang, plot, plots, onPlot, go }) {
                 </div>
               )
             })}
-            <Prov label={lang === 'mr' ? 'मर्यादा' : 'Threshold'}
+            <Prov label={bi(lang, 'Threshold', 'मर्यादा')}
                   value={traps.traps[0]?.etl_source} />
           </Card>
         )}
@@ -196,9 +190,9 @@ export default function Crop({ lang, plot, plots, onPlot, go }) {
         {hist?.timeline?.length > 0 && (
           <Card>
             <div className="row between" style={{ marginBottom: 10 }}>
-              <div className="card-title">{lang === 'mr' ? 'अलीकडील नोंदी' : 'Recent record'}</div>
+              <div className="card-title">{bi(lang, 'Recent record', 'अलीकडील नोंदी')}</div>
               <button className="btn sm quiet" onClick={() => go('history')}>
-                {lang === 'mr' ? 'पूर्ण' : 'Full'} ›
+                {bi(lang, 'Full', 'पूर्ण')} ›
               </button>
             </div>
             <div className="tl">
@@ -210,7 +204,7 @@ export default function Crop({ lang, plot, plots, onPlot, go }) {
                 </div>
               ))}
             </div>
-            <Prov label={lang === 'mr' ? 'टीप' : 'Note'} value={hist.note} />
+            <Prov label={bi(lang, 'Note', 'टीप')} value={hist.note} />
           </Card>
         )}
       </div>

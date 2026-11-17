@@ -201,7 +201,7 @@ function CropHero({ cal, lang, onNewCrop }) {
             {crop.variety && <span className="cj-hero__variety"> · {crop.variety}</span>}
           </div>
           <div className="cj-hero__field">
-            {field.name} · {field.area_acre} {lang === 'mr' ? 'एकर' : 'ac'}
+            {field.name} · {field.area_acre} {bi(lang, 'ac', 'एकर')}
             {crop.sown_on && <> · {fmtDate(crop.sown_on, lang)}</>}
           </div>
         </div>
@@ -327,7 +327,7 @@ function PreventionWindow({ cal, lang, go }) {
               <Icon name="bug" size={14} /> {t(lang, 'trap')}
             </button>
             <button className="cj-minibtn" onClick={() => go('forecast')}>
-              <Icon name="radar" size={14} /> {lang === 'mr' ? 'अंदाज' : 'Forecast'}
+              <Icon name="radar" size={14} /> {bi(lang, 'Forecast', 'अंदाज')}
             </button>
           </div>
         </div>
@@ -370,7 +370,7 @@ function Mission({ cal, lang, go }) {
             </div>
             {it.action?.do && (
               <button className="cj-minibtn cj-task__go" onClick={() => go(it.action.do)}>
-                {lang === 'mr' ? 'उघडा' : 'Open'} <Icon name="chevron" size={12} />
+                {bi(lang, 'Open', 'उघडा')} <Icon name="chevron" size={12} />
               </button>
             )}
           </Card>
@@ -443,14 +443,14 @@ function StageSheet({ stage, cal, lang, onClose, go }) {
     <Sheet open={!!stage} onClose={onClose} title={bi(lang, st.label, st.label_mr)}>
       <p className="small muted" style={{ marginBottom: 12 }}>
         {st.from
-          ? `${fmtDate(st.from, lang)} — ${fmtDate(st.to, lang)} · ${lang === 'mr' ? 'दिवस' : 'day'} ${st.day_from}–${st.day_to}`
-          : `${lang === 'mr' ? 'दिवस' : 'Day'} ${st.day_from}–${st.day_to}`}
+          ? `${fmtDate(st.from, lang)} — ${fmtDate(st.to, lang)} · ${bi(lang, 'day', 'दिवस')} ${st.day_from}–${st.day_to}`
+          : `${bi(lang, 'Day', 'दिवस')} ${st.day_from}–${st.day_to}`}
       </p>
 
       {w.diseases.length > 0 && (
         <div className="cj-sheetgroup">
           <div className="cj-sheetgroup__title">
-            {lang === 'mr' ? 'सध्या सक्रिय रोग' : 'Diseases firing now'}
+            {bi(lang, 'Diseases firing now', 'सध्या सक्रिय रोग')}
           </div>
           {w.diseases.map(d => (
             <div key={d.id} className="cj-sheetrow">
@@ -470,7 +470,7 @@ function StageSheet({ stage, cal, lang, onClose, go }) {
       {w.pests.length > 0 && (
         <div className="cj-sheetgroup">
           <div className="cj-sheetgroup__title">
-            {lang === 'mr' ? 'या अवस्थेतील कीड' : 'Pests at this stage'}
+            {bi(lang, 'Pests at this stage', 'या अवस्थेतील कीड')}
           </div>
           {w.pests.map(p => (
             <div key={p.id} className="cj-sheetrow">
@@ -491,9 +491,7 @@ function StageSheet({ stage, cal, lang, onClose, go }) {
 
       {!w.diseases.length && !w.pests.length && (
         <p className="small muted">
-          {lang === 'mr'
-            ? 'या अवस्थेसाठी प्रकाशित मर्यादा तक्त्यात नोंद नाही.'
-            : 'The published threshold tables carry no entry for this stage.'}
+          {bi(lang, 'The published threshold tables carry no entry for this stage.', 'या अवस्थेसाठी प्रकाशित मर्यादा तक्त्यात नोंद नाही.')}
         </p>
       )}
 

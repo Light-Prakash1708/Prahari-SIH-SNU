@@ -72,6 +72,25 @@ BANDS = {
 }
 
 
+def reference(row: dict[str, Any], stage: str | None) -> dict[str, Any]:
+    """The threshold a count WOULD be weighed against, before any count exists.
+
+    The same arithmetic `decide` uses (base × stage factor), so the number the
+    farmer sees while typing is the number the saved decision will use. It
+    authorises nothing: no band, no chemical flag, no rupee figure — those
+    exist only once a real count does."""
+    base = float(row["etl"])
+    factor = float((row.get("stage_factor") or {}).get(stage or "", 1.0))
+    return {
+        "pest": row["pest"], "crop": row["crop"], "unit": row["unit"],
+        "etl_base": base, "stage": stage, "stage_factor": factor,
+        "etl_effective": round(base * factor, 2),
+        "persist_nights": row.get("persist_nights", 1),
+        "alt_threshold": row.get("alt"),
+        "source": row.get("source"), "source_status": row.get("status", "draft"),
+    }
+
+
 def decide(row: dict[str, Any], count: float, stage: str | None,
            crop_value: dict[str, float] | None = None,
            area_acre: float = 1.0) -> dict[str, Any]:

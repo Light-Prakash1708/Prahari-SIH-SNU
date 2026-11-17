@@ -14,6 +14,7 @@
      decoration; it is where "who says so" lives.
    ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useEffect, useRef, useState } from 'react'
+import BN, { BN_KEYS } from './i18n/bn'
 
 /* ── the mark ──────────────────────────────────────────────────────────── */
 export const Shield = ({ size = 34, tone = '#157A3C', leaf = '#8BD3A4' }) => (
@@ -62,10 +63,42 @@ export const L = {
   },
 }
 L.hi = { ...L.en }
+L.bn = { ...L.en, ...BN_KEYS }
 export const t = (lang, key) => (L[lang] || L.en)[key] || (L.en[key] || key)
 
-/* pick the Marathi string when the farmer reads Marathi and one exists */
-export const bi = (lang, en, mr) => (lang === 'mr' && mr) ? mr : en
+/* Pick the farmer's language. Marathi strings live at each call site; Bengali
+   ones are looked up by their English source in i18n/bn.js. A missing Bengali
+   entry falls back to ENGLISH — never to Marathi and never to a guess. */
+export const bi = (lang, en, mr) => {
+  if (lang === 'mr' && mr) return mr
+  if (lang === 'bn' && typeof en === 'string') return BN[en] ?? en
+  return en
+}
+/* For a server field pair (name / name_mr): Bengali reads the English field
+   until the server carries a reviewed Bengali one. */
+export const pick = (lang, en, mr, bn) =>
+  lang === 'mr' && mr ? mr : (lang === 'bn' && bn ? bn : bi(lang, en))
+
+/* A farmer's own ticks for one day, kept on this phone only. They are a
+   to-do list, not a record: nothing here reaches the server, moves a decision
+   or counts as evidence. Storage can be blocked (private mode), so every read
+   and write is guarded and the list still works for the session. */
+export function useDayTicks(scope) {
+  const day = new Date().toISOString().slice(0, 10)
+  const key = `prahari.ticks.${scope}.${day}`
+  const [ticks, setTicks] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] }
+  })
+  useEffect(() => {
+    try { setTicks(JSON.parse(localStorage.getItem(key) || '[]')) } catch { setTicks([]) }
+  }, [key])
+  const toggle = (id) => setTicks(prev => {
+    const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    try { localStorage.setItem(key, JSON.stringify(next)) } catch { /* session only */ }
+    return next
+  })
+  return [ticks, toggle]
+}
 
 /* ── layout ────────────────────────────────────────────────────────────── */
 export const Card = ({ children, className = '', ...rest }) =>
@@ -413,7 +446,9 @@ export function Camera({ onCapture, onClose, title = 'Scan Crop', tips, lang = '
 
   const DEFAULT_TIPS = lang === 'mr'
     ? ['चांगला नैसर्गिक उजेड', 'बाधित भागाचा फोटो घ्या', 'एकच पान चौकटीत भरा']
-    : ['Good natural light', 'Capture the affected part', 'Fill the frame with one leaf']
+    : lang === 'bn'
+      ? ['দিনের ভালো আলোয় তুলুন', 'আক্রান্ত অংশের ছবি তুলুন', 'ফ্রেম জুড়ে একটি পাতা রাখুন']
+      : ['Good natural light', 'Capture the affected part', 'Fill the frame with one leaf']
 
   return (
     <div className="cam">
@@ -430,9 +465,7 @@ export function Camera({ onCapture, onClose, title = 'Scan Crop', tips, lang = '
                 <div>
                   <div style={{ fontSize: 40 }}>📷</div>
                   <p style={{ marginTop: 10, fontSize: 14, opacity: .85 }}>
-                    {lang === 'mr'
-                      ? 'कॅमेरा उपलब्ध नाही. खालील बटणाने फोटो निवडा.'
-                      : 'The camera is not available. Use the button below to choose a photo.'}
+                    {bi(lang, 'The camera is not available. Use the button below to choose a photo.', 'कॅमेरा उपलब्ध नाही. खालील बटणाने फोटो निवडा.')}
                   </p>
                 </div>
               </div>
@@ -446,24 +479,24 @@ export function Camera({ onCapture, onClose, title = 'Scan Crop', tips, lang = '
                 shutter and can refuse the photograph outright. */}
             <div className="cam-reticle"><b /><b /><b /><b /><span className="cam-scanline" /></div>
             <div className="cam-hint">
-              {lang === 'mr' ? 'एकच पान चौकटीत भरा' : 'Fill the frame with one leaf'}
+              {bi(lang, 'Fill the frame with one leaf', 'एकच पान चौकटीत भरा')}
             </div>
           </>
         )}
         {!preview && (
           <div className="cam-tips">
-            <div className="t">{lang === 'mr' ? 'चांगल्या निकालासाठी' : 'Tips for best result'}</div>
+            <div className="t">{bi(lang, 'Tips for best result', 'चांगल्या निकालासाठी')}</div>
             <ul>{(tips || DEFAULT_TIPS).map((x, i) => <li key={i}><span>✓</span><span>{x}</span></li>)}</ul>
           </div>
         )}
       </div>
       <div className="cam-bar">
         <button className="cam-side" onClick={() => galleryRef.current?.click()}>
-          <span className="ic">🖼</span><span>{lang === 'mr' ? 'गॅलरी' : 'Gallery'}</span>
+          <span className="ic">🖼</span><span>{bi(lang, 'Gallery', 'गॅलरी')}</span>
         </button>
-        <button className="shutter" onClick={shoot} aria-label={lang === 'mr' ? 'फोटो काढा' : 'Take photo'} />
+        <button className="shutter" onClick={shoot} aria-label={bi(lang, 'Take photo', 'फोटो काढा')} />
         <div className="cam-side" style={{ opacity: .55 }}>
-          <span className="ic">💡</span><span>{lang === 'mr' ? 'उजेड' : 'Light'}</span>
+          <span className="ic">💡</span><span>{bi(lang, 'Light', 'उजेड')}</span>
         </div>
       </div>
       {/* No `capture` — this is the photo library. */}
@@ -482,9 +515,7 @@ export const Banners = ({ online, queued, demo, stale, lang = 'en' }) => (
     {demo && (
       <div className="banner demo">
         <span>⚠</span>
-        <span>{lang === 'mr'
-          ? 'डेमो मोड — हवामान माहिती तयार केलेली आहे, प्रत्यक्ष निरीक्षण नाही.'
-          : 'DEMO MODE — weather is generated, not observed.'}</span>
+        <span>{bi(lang, 'DEMO MODE — weather is generated, not observed.', 'डेमो मोड — हवामान माहिती तयार केलेली आहे, प्रत्यक्ष निरीक्षण नाही.')}</span>
       </div>
     )}
     {!online && (
@@ -492,13 +523,17 @@ export const Banners = ({ online, queued, demo, stale, lang = 'en' }) => (
         <span>📴</span>
         <span>{lang === 'mr'
           ? `ऑफलाइन${queued ? ` · ${queued} नोंदी पाठवायच्या आहेत` : ''}`
-          : `Offline${queued ? ` · ${queued} record${queued > 1 ? 's' : ''} waiting to send` : ''}`}</span>
+          : lang === 'bn'
+            ? `অফলাইন${queued ? ` · ${queued}টি তথ্য পাঠানোর অপেক্ষায়` : ''}`
+            : `Offline${queued ? ` · ${queued} record${queued > 1 ? 's' : ''} waiting to send` : ''}`}</span>
       </div>
     )}
     {online && queued > 0 && (
       <div className="banner stale">
         <span>⟳</span>
-        <span>{lang === 'mr' ? `${queued} नोंदी पाठवत आहे…` : `Syncing ${queued} saved record${queued > 1 ? 's' : ''}…`}</span>
+        <span>{lang === 'mr' ? `${queued} नोंदी पाठवत आहे…`
+          : lang === 'bn' ? `${queued}টি জমা থাকা তথ্য পাঠানো হচ্ছে…`
+          : `Syncing ${queued} saved record${queued > 1 ? 's' : ''}…`}</span>
       </div>
     )}
     {stale && (
@@ -506,7 +541,9 @@ export const Banners = ({ online, queued, demo, stale, lang = 'en' }) => (
         <span>🕘</span>
         <span>{lang === 'mr'
           ? `हे ${stale} चे साठवलेले दृश्य आहे`
-          : `Showing what was saved on this phone at ${stale}`}</span>
+          : lang === 'bn'
+            ? `এই ফোনে ${stale}-এ যা রাখা ছিল, তা দেখানো হচ্ছে`
+            : `Showing what was saved on this phone at ${stale}`}</span>
       </div>
     )}
   </>
@@ -546,12 +583,15 @@ export const LEVEL_LABEL = {
   rising: { en: 'Rising', mr: 'वाढतोय' }, high: { en: 'High', mr: 'जास्त' },
   moderate: { en: 'Moderate', mr: 'मध्यम' }, safe: { en: 'Good', mr: 'चांगले' },
 }
-export const levelLabel = (l, lang) => (LEVEL_LABEL[l] || { en: l, mr: l })[lang === 'mr' ? 'mr' : 'en']
+export const levelLabel = (l, lang) => {
+  const row = LEVEL_LABEL[l] || { en: l, mr: l }
+  return lang === 'mr' ? row.mr : bi(lang, row.en)
+}
 
 export const fmtDate = (iso, lang = 'en') => {
   if (!iso) return ''
   const d = new Date(String(iso).slice(0, 10) + 'T00:00:00')
   if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10)
-  return d.toLocaleDateString(lang === 'mr' ? 'mr-IN' : 'en-IN', { day: 'numeric', month: 'short' })
+  return d.toLocaleDateString(bi(lang, 'en-IN', 'mr-IN'), { day: 'numeric', month: 'short' })
 }
 export const fmtMoney = (n) => '₹' + Number(n || 0).toLocaleString('en-IN')

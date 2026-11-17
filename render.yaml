@@ -80,6 +80,43 @@ services:
         value: local
       - key: SMS_PROVIDER
         value: none
+      # Never set on production: generated weather would reach real farmers'
+      # risk decisions. The code ignores it in production anyway.
+      - key: WEATHER_DEMO_FALLBACK
+        value: "false"
+
+  # Judge / staging service. Synthetic data only, generated and labelled
+  # weather, its own throwaway SQLite database re-seeded on every restart.
+  # DEMO_MODE is refused when APP_ENV=production, which is why this is a
+  # separate service and never a flag on the one above. Live as
+  # https://prahari-staging.onrender.com (created 17 Nov 2026).
+  - type: web
+    name: prahari-staging
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: APP_ENV
+        value: demo
+      - key: DEMO_MODE
+        value: "true"
+      - key: AUTO_SEED_DEMO
+        value: "true"
+      - key: DEMO_CONSOLE_ACCESS
+        value: "true"
+      - key: WEATHER_PROVIDER
+        value: demo
+      - key: DATABASE_URL
+        value: sqlite:////app/var/prahari-staging.db
+      - key: VISION_PROVIDER
+        value: none
+      - key: ALLOW_FEATURE_ENGINE
+        value: "true"
+      - key: STORAGE_PROVIDER
+        value: local
+      - key: SMS_PROVIDER
+        value: none
 
 # Why the database is NOT on the free plan: a free Render PostgreSQL instance
 # expires 30 days after creation and is then deleted. That is what took the

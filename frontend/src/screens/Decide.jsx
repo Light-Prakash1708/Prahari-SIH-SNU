@@ -11,7 +11,7 @@
    name of an unverified product is half of recommending it. */
 import React, { useEffect, useState } from 'react'
 import { api, newRef, queue } from '../api'
-import { Card, ErrorNote, Loading, Prov, Seg, Sheet, Why, bi, fmtDate, fmtMoney, levelLabel } from '../ui'
+import { Card, ErrorNote, Loading, Prov, Seg, Sheet, Why, bi, fmtDate, fmtMoney, levelLabel, useDayTicks } from '../ui'
 
 const T = {
   title:      ['What should I do?', 'काय करावे?'],
@@ -85,9 +85,8 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
   const [m, setM] = useState(null)
   const [err, setErr] = useState(null)
   const [busy, setBusy] = useState(true)
-  const [countOpen, setCountOpen] = useState(false)
   const [assessOpen, setAssessOpen] = useState(false)
-  const [plan, setPlan] = useState([])
+  const [plan, togglePlan] = useDayTicks(`ipm.${plot?.id}.${target || 'auto'}`)
 
   /* One call. The screen needs the decision, its evidence, the ladder, the
      trend, the prevention window, the day's work, the open follow-up and the
@@ -103,6 +102,12 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
   useEffect(load, [plot?.id, target, lang])
 
   if (!plot) return null
+  /* Scroll to the part of the screen where a step is done. */
+  const jump = (id) => {
+    const el = document.getElementById(id === 'act' ? 'ipm-act' : id === 'monitor' ? 'ipm-monitor' : 'ipm-assess')
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (id === 'assess' && kind !== 'pest') setAssessOpen(true)
+  }
   const d = m?.decision
   const kind = m?.target_kind
   const state = STATE[d?.tone] || STATE.grey
@@ -110,7 +115,6 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
   /* The chosen target's own row on the risk board, so the glance strip states
      the level the server computed rather than deriving one here. */
   const targetRow = (m?.targets || []).find(x => x.id === m?.target)
-  const recordAction = kind === 'pest' ? () => setCountOpen(true) : () => setAssessOpen(true)
 
   /* Everything below is DERIVED from what the server already returned. None of
      it is a new judgement and none of it is a second opinion — it is the same
@@ -118,7 +122,6 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
      be answered in the first screenful instead of the fifth. */
   const sev = severity(m, kind, measured, lang)
   const doNow = actionsNow(m, lang)
-  const watchFor = (m?.ipm_ladder || []).find(r => r.key === 'monitor')?.items || []
   const wxDay = m?.weather_available === false ? null : (m?.weather_context?.days || [])[0]
   const steps = stepStates(m, d, measured)
   /* Escalation is the SERVER's verdict now, from app/trajectory.py, and so is
@@ -198,93 +201,109 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
               </span>
             </div>
 
-            {/* ── 2 · THE DECISION ─────────────────────────────────────────
-                Unchanged in substance: the lamp, the answer and the reason are
-                the server's. What moved is everything that used to sit inside
-                it — three fact rows and a button — which pushed the one thing
-                the farmer came for below the fold. */}
-            <div className={`mg-decision ${state.cls}`}>
+            {/* ── 2 · THE DECISION, AND THE ONE THING THAT MOVES IT ─────────
+                The verdict, how serious it is, and the action that changes it,
+                in one card. It used to be three cards with the same "Record a
+                count" button on two of them. The count is now entered HERE,
+                and while the farmer types, the server says where that number
+                would land against the published threshold — before anything
+                is saved, and without authorising anything. */}
+            <div className={`mg-decision ${state.cls}`} id="ipm-assess">
               <div className="mg-decision__lamp">{state.lamp}</div>
               <div className="mg-decision__ans">{bi(lang, d.answer, d.answer_mr)}</div>
               <p className="mg-decision__why">{bi(lang, d.reason, d.reason_mr)}</p>
-            </div>
-
-            {/* ── 3 · HOW SERIOUS IS IT? ───────────────────────────────────
-                Banded from a number the farmer produced, never from the photo.
-                A diagnosis confidence says WHAT this is; it is not evidence of
-                HOW MUCH, and the two must never be blended into one score. So
-                with nothing counted this reads "needs field confirmation" and
-                offers the count — which is the honest answer and also the
-                useful one, because the count is the next thing to do. */}
-            <Card className={`ipm-sev ${sev.band}`}>
-              <div className="ipm-sev__top">
-                <span className="k">{t(lang, 'howBad')}</span>
+              <div className="ipm-hero__sev">
                 <span className={`ipm-sev__chip ${sev.band}`}>
                   {sev.lamp} {bi(lang, sev.label[0], sev.label[1])}
                 </span>
-              </div>
-              <p className="ipm-sev__why">{bi(lang, sev.why[0], sev.why[1])}</p>
-              {sev.basis && <div className="ipm-sev__basis">{sev.basis}</div>}
-              {!measured && (
-                <button className="btn block" style={{ marginTop: 11 }} onClick={recordAction}>
-                  {kind === 'pest' ? t(lang, 'addCount') : t(lang, 'addAssess')}
-                </button>
-              )}
-              {kind === 'pest' && m.threshold && (
-                <div style={{ marginTop: 13 }}>
-                  <EtlBar pct={m.threshold.percent_of_threshold} />
-                </div>
-              )}
-            </Card>
-
-            {/* ── 3b · WHERE IS THIS FIELD HEADING ─────────────────────────
-                Today's severity says how bad it is; this says which way it is
-                moving, which is the question a farmer actually asks second.
-                Both come from the server, and a field with one reading says it
-                does not know rather than drawing a flat arrow. */}
-            {traj && (
-              <Card className={`ipm-traj ${traj.state}`}>
-                <div className="ipm-sev__top">
-                  <span className="k">{t(lang, 'heading')}</span>
-                  <span className={`ipm-sev__chip ${TRAJ[traj.state]?.band || 'unknown'}`}>
+                {traj && (
+                  <span className={`ipm-sev__chip ${TRAJ[traj.state]?.band || 'unknown'}`}
+                        title={bi(lang, traj.note, traj.note_mr) || undefined}>
                     {TRAJ[traj.state]?.lamp} {bi(lang, TRAJ[traj.state]?.en || traj.state,
-                                                       TRAJ[traj.state]?.mr || traj.state)}
+                                                     TRAJ[traj.state]?.mr || traj.state)}
                   </span>
-                </div>
-                {traj.note ? (
-                  <p className="ipm-sev__why">{bi(lang, traj.note, traj.note_mr)}</p>
-                ) : (
-                  <div style={{ marginTop: 7 }}>
-                    {traj.reasons.map((r, i) => (
-                      <div className="evid" key={i}>
-                        <span className="tick">•</span>
-                        <span>{bi(lang, r.text, r.text_mr)}</span>
-                      </div>
-                    ))}
-                  </div>
                 )}
+                {d.recheck_on && (
+                  <span className="ipm-sev__chip unknown">📅 {fmtDate(d.recheck_on, lang)}</span>
+                )}
+              </div>
+            </div>
+
+            {kind === 'pest' ? (
+              <QuickCount lang={lang} plot={plot} m={m} online={online} onSaved={load} />
+            ) : (
+              <Card className={`ipm-sev ${sev.band}`}>
+                <div className="ipm-sev__top">
+                  <span className="k">{t(lang, 'howBad')}</span>
+                </div>
+                <p className="ipm-sev__why">{bi(lang, sev.why[0], sev.why[1])}</p>
+                {sev.basis && <div className="ipm-sev__basis">{sev.basis}</div>}
+                <button className="btn block" style={{ marginTop: 11 }} onClick={() => setAssessOpen(true)}>
+                  🔍 {measured ? bi(lang, 'Record a new inspection', 'नवीन पाहणी नोंदवा')
+                               : t(lang, 'addAssess')}
+                </button>
               </Card>
             )}
 
-            {/* ── 4 · WHAT TO DO NOW ───────────────────────────────────────
-                The section the page exists for, and it was the eighth thing on
-                it. Nothing here is newly invented: the rows are today's agenda
-                items and the first rung of the ladder the server already
-                chose, which is why they change with the crop and the target
-                rather than being a fixed list. Long guidance folds away — a
-                farmer standing in a field reads the line, not the paragraph. */}
+            {/* Trajectory reasons, only when there are some. "Not known yet"
+                is already the chip above; a whole card saying so was noise. */}
+            {traj && !traj.note && traj.reasons?.length > 0 && (
+              <Card className={`ipm-traj ${traj.state}`}>
+                <div className="k">{t(lang, 'heading')}</div>
+                <div style={{ marginTop: 7 }}>
+                  {traj.reasons.map((r, i) => (
+                    <div className="evid" key={i}>
+                      <span className="tick">•</span>
+                      <span>{bi(lang, r.text, r.text_mr)}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {/* ── 3 · ASSESS → ACT → MONITOR ───────────────────────────────
+                Where this field stands, read off records. Each step now takes
+                you to the part of the screen where that step is done. */}
+            <div className="ipm-steps" aria-label={t(lang, 'flow')}>
+              {steps.map((s, i) => (
+                <React.Fragment key={s.id}>
+                  {i > 0 && <span className="ipm-steps__arrow" aria-hidden="true">›</span>}
+                  <button type="button" className={`ipm-step is-${s.state}`}
+                          onClick={() => jump(s.id)}>
+                    <span className="ipm-step__n">{s.state === 'done' ? '✓' : i + 1}</span>
+                    <span className="ipm-step__l">{bi(lang, s.label[0], s.label[1])}</span>
+                    <span className="ipm-step__s">{bi(lang, s.sub[0], s.sub[1])}</span>
+                  </button>
+                </React.Fragment>
+              ))}
+            </div>
+
+            {/* ── 4 · TODAY'S CHECKLIST ────────────────────────────────────
+                Ticks are kept on this phone for today, so coming back after
+                walking the field shows what is left. A tick is the farmer's
+                note to self; only a saved count or inspection moves the
+                decision, and each row that needs one offers it directly. */}
             {doNow.length > 0 && (
               <Card className="ipm-now">
-                <div className="card-title">✅ {t(lang, 'doNow2')}</div>
+                <div className="row between">
+                  <div className="card-title">✅ {t(lang, 'doNow2')}</div>
+                  <span className="tiny muted">
+                    {plan.filter(k => doNow.some(x => x.key === k)).length}/{doNow.length}{' '}
+                    {bi(lang, 'done', 'झाले')}
+                  </span>
+                </div>
+                <div className="ipm-progress" aria-hidden="true">
+                  <i style={{ width: `${Math.round(100 * plan.filter(k => doNow.some(x => x.key === k)).length / doNow.length)}%` }} />
+                </div>
                 <div className="ipm-now__list">
                   {doNow.map(it => {
                     const on = plan.includes(it.key)
+                    const verb = rowAction(it, kind, lang)
                     return (
                       <div className={'ipm-act' + (on ? ' is-on' : '')} key={it.key}>
                         <button className="ipm-act__tick" aria-pressed={on}
                                 aria-label={it.title}
-                                onClick={() => setPlan(p => on ? p.filter(x => x !== it.key)
-                                                               : [...p, it.key])}>
+                                onClick={() => togglePlan(it.key)}>
                           {on ? '✓' : ''}
                         </button>
                         <div className="ipm-act__body">
@@ -296,43 +315,34 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
                             </details>
                           )}
                         </div>
+                        {verb && !on && (
+                          <button type="button" className="btn sm ghost ipm-act__go"
+                                  onClick={() => verb.run({ go, jump, openAssess: () => setAssessOpen(true) })}>
+                            {verb.label}
+                          </button>
+                        )}
                       </div>
                     )
                   })}
                 </div>
-                <button className="btn block" style={{ marginTop: 12 }} onClick={recordAction}>
-                  {measured ? t(lang, 'markChecked')
-                            : (kind === 'pest' ? t(lang, 'addCount') : t(lang, 'addAssess'))}
-                </button>
                 <p className="tiny faint" style={{ marginTop: 9 }}>
-                  {bi(lang, 'Ticking is only for you. Recording a count or an inspection is what moves the decision.',
-                            'खूण फक्त तुमच्यासाठी. निर्णय बदलण्यासाठी मोजणी किंवा पाहणी नोंदवा.')}
+                  {bi(lang, 'Ticks stay on this phone for today. Only a saved count or inspection changes the decision.',
+                            'खूण आजसाठी या फोनवर राहते. निर्णय फक्त नोंदवलेल्या मोजणी किंवा पाहणीने बदलतो.')}
                 </p>
               </Card>
             )}
 
-            {/* ── 5 · ASSESS → ACT → MONITOR ───────────────────────────────
-                Where this field actually stands, read off records rather than
-                off a checkbox. "Done" means a row exists; nothing here claims
-                the farmer did something PRAHARI cannot see. */}
-            <div className="ipm-steps" aria-label={t(lang, 'flow')}>
-              {steps.map((s, i) => (
-                <React.Fragment key={s.id}>
-                  {i > 0 && <span className="ipm-steps__arrow" aria-hidden="true">›</span>}
-                  <div className={`ipm-step is-${s.state}`}>
-                    <span className="ipm-step__n">{s.state === 'done' ? '✓' : i + 1}</span>
-                    <span className="ipm-step__l">{bi(lang, s.label[0], s.label[1])}</span>
-                    <span className="ipm-step__s">{bi(lang, s.sub[0], s.sub[1])}</span>
-                  </div>
-                </React.Fragment>
-              ))}
-            </div>
+            {/* ── 5 · YOUR IPM PLAN ────────────────────────────────────────
+                The ladder used to be folded under "More detail", so the IPM
+                layer — the reason this screen exists — was the least visible
+                thing on it. It is now a plan: the rung PRAHARI points to is
+                open, the others are one tap away, and the chemical rung says
+                exactly what would have to be true for it to open. */}
+            <IpmPlan lang={lang} m={m} d={d} kind={kind} />
 
             {/* ── 6 · FIELD CONDITIONS ─────────────────────────────────────
                 Only when the existing weather service actually returned a day.
-                Generated weather says so on its face — a demo series that
-                looks like an observation is the one thing this card must never
-                become. */}
+                Generated weather says so on its face. */}
             {wxDay && (
               <Card className="ipm-wx">
                 <div className="row between">
@@ -348,8 +358,6 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
                   {wxDay.rain_chance_pct != null &&
                     <span className="ipm-wx__c">🌧 {Math.round(wxDay.rain_chance_pct)}%</span>}
                 </div>
-                {/* The claim is the server's, not this screen's: it is made
-                    only when a published infection model actually fired. */}
                 {m.prevention_window?.level && m.prevention_window.level !== 'none' && (
                   <p className="ipm-wx__note">
                     {bi(lang, m.prevention_window.title, m.prevention_window.title_mr)}
@@ -361,29 +369,11 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
               </Card>
             )}
 
-            {/* ── 7 · WHAT TO WATCH FOR ────────────────────────────────────
-                The monitor rung, which the reference table already writes per
-                problem. Nothing generic and nothing invented: a crop with no
-                monitor rung shows no card. */}
-            {watchFor.length > 0 && (
-              <Card className="ipm-watch">
-                <div className="card-title">👁 {t(lang, 'watchFor')}</div>
-                <div style={{ marginTop: 7 }}>
-                  {watchFor.map((it, i) => (
-                    <div className="evid" key={i}>
-                      <span className="tick">•</span>
-                      <span>{bi(lang, it.text, it.text_mr)}</span>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            )}
-
             {/* ── 8 · NEXT FIELD CHECK ─────────────────────────────────────
                 Informational plus two real actions. There is no reminder
                 infrastructure on this device, so none is promised. */}
             {(m.followup?.due_on || d.recheck_on) && (
-              <Card className="ipm-next">
+              <Card className="ipm-next" id="ipm-monitor">
                 <div className="row between">
                   <div>
                     <div className="k">{t(lang, 'nextCheck')}</div>
@@ -451,27 +441,6 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
               </p>
             </Card>
 
-            {/* ── 10 · THE CHEMICAL GATE ───────────────────────────────────
-                Kept exactly as it was, only tighter. The rule it enforces is
-                the one thing on this screen that must not be relaxed for
-                brevity: nothing is named unless a person verified the label
-                claim against the CIB&RC list. */}
-            {m.chemical_availability && !m.chemical_availability.verified_available && (
-              <Card className="ipm-nochem">
-                <div className="card-title">
-                  ⚗ {bi(lang, 'No verified chemical recommendation', 'तपासलेली रासायनिक शिफारस नाही')}
-                </div>
-                <p className="small" style={{ marginTop: 7 }}>
-                  {bi(lang, m.chemical_availability.message, m.chemical_availability.message_mr)}
-                </p>
-                <details className="method-fold" style={{ marginTop: 10 }}>
-                  <summary>{bi(lang, 'Why not?', 'का नाही?')}</summary>
-                  <p className="small">{m.chemical_availability.why}</p>
-                  <Prov label="Process" value={m.chemical_availability.verification_process} />
-                </details>
-              </Card>
-            )}
-
             {m.chemical?.options?.length > 0 && (
               <>
                 <h2 className="sect-title">{t(lang, 'chem')}</h2>
@@ -515,37 +484,6 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
                 </div>
               </details>
             )}
-
-            <details className="method-fold mg-fold">
-              <summary>{t(lang, 'ladder')}</summary>
-              {m.ipm_ladder.map(step => (
-                <details className={`rung ${step.withheld ? 'shut' : 'open'}`} key={step.key}>
-                  <summary className="rung-head">
-                    <span className="rung-n">{step.rung}</span>
-                    <div className="grow">
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>
-                        {bi(lang, step.title, step.title_mr)}
-                      </div>
-                      {step.cost != null && (
-                        <div className="tiny faint">
-                          {step.cost === 0 ? '₹0' : `≈ ${fmtMoney(step.cost)}/acre`}
-                        </div>
-                      )}
-                    </div>
-                    {step.withheld && <span className="badge grey">{bi(lang, 'Withheld', 'बंद')}</span>}
-                  </summary>
-                  <div style={{ marginTop: 9 }}>
-                    {step.items.map((it, i) => (
-                      <div className="evid" key={i}>
-                        <span className={step.withheld ? 'cross' : 'tick'}>{step.withheld ? '✗' : '✓'}</span>
-                        <span>{bi(lang, it.text, it.text_mr)}{it.cost ? ` — ${fmtMoney(it.cost)}` : ''}</span>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              ))}
-              <Prov label="Principle" value={m.ladder_principle} />
-            </details>
 
             <details className="method-fold mg-fold">
               <summary>{t(lang, 'trend')}</summary>
@@ -633,13 +571,6 @@ export default function Decide({ lang, plot, target: initialTarget, go, online }
         )}
       </div>
 
-      <CountSheet open={countOpen} onClose={() => setCountOpen(false)} lang={lang}
-                  plot={plot} pest={m?.threshold ? { ...m.threshold, id: m.target,
-                    name: m.target_name, name_mr: m.target_name_mr,
-                    etl: m.threshold.etl_effective, unit: m.threshold.unit }
-                    : { id: m?.target, name: m?.target_name, name_mr: m?.target_name_mr,
-                        unit: bi(lang, 'per trap', 'प्रति सापळा') }}
-                  online={online} onSaved={load} />
       <AssessSheet open={assessOpen} onClose={() => setAssessOpen(false)} lang={lang}
                    plot={plot} problem={m?.target} name={m?.target_name}
                    name_mr={m?.target_name_mr} onSaved={load} />
@@ -724,17 +655,18 @@ function actionsNow(m, lang) {
   if (!m) return []
   const out = []
   const seen = new Set()
-  const push = (key, title, detail) => {
+  const push = (key, title, detail, extra) => {
     const norm = (title || '').trim().toLowerCase()
     if (!title || seen.has(norm) || out.length >= 5) return
     seen.add(norm)
-    out.push({ key, title, detail: detail || null })
+    out.push({ key, title, detail: detail || null, ...extra })
   }
   const first = (m.ipm_ladder || [])[0]
   ;(first?.items || []).forEach((it, i) =>
-    push(`rung-${first.key}-${i}`, bi(lang, it.text, it.text_mr), null))
+    push(`rung-${first.key}-${i}`, bi(lang, it.text, it.text_mr), null, { source_text: it.text }))
   ;(m.mission?.items || []).forEach((it, i) =>
-    push(`mission-${i}`, bi(lang, it.title, it.title_mr), bi(lang, it.detail, it.detail_mr)))
+    push(`mission-${i}`, bi(lang, it.title, it.title_mr), bi(lang, it.detail, it.detail_mr),
+         { action: it.action, source_text: it.title }))
   return out
 }
 
@@ -879,7 +811,7 @@ function AssessSheet({ open, onClose, lang, plot, problem, name, name_mr, onSave
 }
 
 /* ── the ETL bar ───────────────────────────────────────────────────────── */
-function EtlBar({ pct }) {
+function EtlBar({ pct, lang = 'en' }) {
   const clamped = Math.min(200, Math.max(0, pct || 0))
   const width = (clamped / 200) * 100
   const colour = clamped < 50 ? 'var(--ok)' : clamped < 100 ? 'var(--warn)' : 'var(--bad)'
@@ -898,7 +830,7 @@ function EtlBar({ pct }) {
       </div>
       <div className="center" style={{ marginTop: 6 }}>
         <span className={`badge ${clamped < 50 ? 'ok' : clamped < 100 ? 'warn' : 'bad'}`}>
-          {pct}% of threshold
+          {lang === 'mr' ? `मर्यादेच्या ${pct}%` : lang === 'bn' ? `সীমার ${pct}%` : `${pct}% of threshold`}
         </span>
       </div>
     </div>
@@ -925,13 +857,13 @@ function ChemOption({ o, lang }) {
           </div>
         </div>
         {o.blocked
-          ? <span className="badge bad">{lang === 'mr' ? 'वापरू नका' : 'Blocked'}</span>
-          : <span className="badge ok">{lang === 'mr' ? 'वापरता येईल' : 'Allowed'}</span>}
+          ? <span className="badge bad">{bi(lang, 'Blocked', 'वापरू नका')}</span>
+          : <span className="badge ok">{bi(lang, 'Allowed', 'वापरता येईल')}</span>}
       </div>
 
       {!o.blocked && o.dose && (
         <div className="note" style={{ marginTop: 10 }}>
-          <b>{lang === 'mr' ? 'मात्रा' : 'Dose'}:</b> {o.dose.plain}
+          <b>{bi(lang, 'Dose', 'मात्रा')}:</b> {o.dose.plain}
         </div>
       )}
 
@@ -962,14 +894,14 @@ function ApplyButton({ lang, plot, target, rec, checkId, go }) {
   if (done) {
     return (
       <Card style={{ borderColor: 'var(--ok-line)', background: 'var(--ok-bg)' }}>
-        <div className="card-title">{lang === 'mr' ? 'नोंद झाली' : 'Recorded'}</div>
+        <div className="card-title">{bi(lang, 'Recorded', 'नोंद झाली')}</div>
         <p className="small" style={{ marginTop: 6 }}>{done.note}</p>
         <div className="note" style={{ marginTop: 10 }}>
-          🗓 {lang === 'mr' ? 'पुन्हा तपासणी' : 'Follow-up scan due'}: <b>{fmtDate(done.followup_due, lang)}</b>
-          {done.harvest_gate && <> · {lang === 'mr' ? 'काढणी थांबवा' : 'harvest gated until'} <b>{fmtDate(done.harvest_gate, lang)}</b></>}
+          🗓 {bi(lang, 'Follow-up scan due', 'पुन्हा तपासणी')}: <b>{fmtDate(done.followup_due, lang)}</b>
+          {done.harvest_gate && <> · {bi(lang, 'harvest gated until', 'काढणी थांबवा')} <b>{fmtDate(done.harvest_gate, lang)}</b></>}
         </div>
         <button className="btn block" style={{ marginTop: 12 }} onClick={() => go('home')}>
-          {lang === 'mr' ? 'ठीक आहे' : 'Done'}
+          {bi(lang, 'Done', 'ठीक आहे')}
         </button>
       </Card>
     )
@@ -990,83 +922,291 @@ function ApplyButton({ lang, plot, target, rec, checkId, go }) {
     <>
       {err && <ErrorNote error={err} lang={lang} />}
       <button className="btn block" disabled={busy} onClick={record}>
-        {busy ? '…' : (lang === 'mr' ? 'ही फवारणी केल्याची नोंद करा' : 'I applied this — record it')}
+        {busy ? '…' : (bi(lang, 'I applied this — record it', 'ही फवारणी केल्याची नोंद करा'))}
       </button>
       <p className="tiny faint center">
-        {lang === 'mr'
-          ? 'नोंद केल्यावर काढणीचा प्रतीक्षा कालावधी सुरू होतो आणि पाच दिवसांनी पुन्हा तपासणी ठरते.'
-          : 'Recording it sets the pre-harvest gate and schedules the re-scan five days from now.'}
+        {bi(lang, 'Recording it sets the pre-harvest gate and schedules the re-scan five days from now.', 'नोंद केल्यावर काढणीचा प्रतीक्षा कालावधी सुरू होतो आणि पाच दिवसांनी पुन्हा तपासणी ठरते.')}
       </p>
     </>
   )
 }
 
-/* ── the count sheet, with an offline path ─────────────────────────────── */
-function CountSheet({ open, onClose, lang, plot, pest, online, onSaved }) {
+/* ── what each checklist row can do, right there ────────────────────────────
+   A row that says "count the trap" should let you count the trap. Matched on
+   the server's own action where one exists (agenda items carry `action.do`),
+   and on the ladder's wording only for the one instruction every pest ladder
+   opens with. A row with nothing to do here simply has no button. */
+function rowAction(it, kind, lang) {
+  const doWhat = it.action?.do
+  if (doWhat === 'scan') return { label: bi(lang, 'Scan', 'स्कॅन'), run: ({ go }) => go('scan') }
+  if (doWhat === 'traps') return { label: bi(lang, 'Count', 'मोजा'), run: ({ jump }) => jump('assess') }
+  if (doWhat === 'community') return { label: bi(lang, 'See', 'पहा'), run: ({ go }) => go('hotspots') }
+  if (doWhat === 'rescan' && it.action.followup_id)
+    return { label: bi(lang, 'Re-scan', 'पुन्हा'), run: ({ go }) => go('rescan', { followup: { id: it.action.followup_id } }) }
+  const text = (it.source_text || '').toLowerCase()
+  if (kind === 'pest' && /count|trap/.test(text))
+    return { label: bi(lang, 'Count', 'मोजा'), run: ({ jump }) => jump('assess') }
+  if (kind !== 'pest' && /inspect|walk|scout/.test(text))
+    return { label: bi(lang, 'Inspect', 'पाहणी'), run: ({ openAssess }) => openAssess() }
+  if (/photograph|photo|scan/.test(text))
+    return { label: bi(lang, 'Scan', 'स्कॅन'), run: ({ go }) => go('scan') }
+  return null
+}
+
+/* ── the count, entered where the decision is ──────────────────────────────
+   Type a number and the server answers where it would land against the
+   published threshold for this crop at today's stage — the same arithmetic the
+   saved decision uses, so what the farmer sees while typing is what they get.
+   The preview writes nothing and names no chemical. Offline, the threshold
+   reference still shows (it came with the screen) and the count is queued with
+   an idempotency key, exactly as the old sheet did. */
+const BAND_TONE = { monitor: 'ok', 'act-nonchemical': 'warn', chemical: 'bad', urgent: 'bad' }
+
+function QuickCount({ lang, plot, m, online, onSaved }) {
+  const ref = m?.etl_reference || null
+  const measured = m?.threshold || null
+  const [open, setOpen] = useState(!measured)
   const [count, setCount] = useState('')
+  const [preview, setPreview] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
   const [queued, setQueued] = useState(false)
+  const unit = ref?.unit || measured?.unit || bi(lang, 'per trap', 'प्रति सापळा')
 
-  useEffect(() => { if (open) { setCount(''); setErr(null); setQueued(false) } }, [open])
-  if (!pest) return null
+  useEffect(() => { setCount(''); setPreview(null); setQueued(false); setOpen(!measured) }, [m?.target, measured?.check_id])
+
+  /* Debounced: a preview per keystroke on a 2G network is a queue of requests
+     answering numbers the farmer has already changed. */
+  useEffect(() => {
+    if (count === '' || !ref || !online) { setPreview(null); return }
+    const n = Number(count)
+    if (!Number.isFinite(n) || n < 0) { setPreview(null); return }
+    let live = true
+    const h = setTimeout(() => {
+      api.thresholdPreview(plot.id, m.target, n)
+        .then(p => { if (live) setPreview(p) })
+        .catch(() => { if (live) setPreview(null) })
+    }, 350)
+    return () => { live = false; clearTimeout(h) }
+  }, [count, ref, online, plot?.id, m?.target])
+
+  const step = (delta) => setCount(c => {
+    const n = Math.max(0, (Number(c) || 0) + delta)
+    return String(Math.round(n * 10) / 10)
+  })
 
   const save = async () => {
     const n = Number(count)
     if (!Number.isFinite(n) || n < 0) return
     setBusy(true); setErr(null)
     try {
-      await api.threshold({ plot_id: plot.id, pest: pest.id, count: n })
+      await api.threshold({ plot_id: plot.id, pest: m.target, count: n })
       onSaved()
-      onClose()
     } catch (e) {
       if (e.status === 0) {
-        // Offline: the count is kept on the phone with an idempotency key and
-        // sent when the connection returns. It is never silently dropped.
-        queue.add({ kind: 'threshold', plot_id: plot.id, payload: { pest: pest.id, count: n }, client_ref: newRef() })
+        queue.add({ kind: 'threshold', plot_id: plot.id, payload: { pest: m.target, count: n }, client_ref: newRef() })
         setQueued(true)
       } else setErr(e)
     } finally { setBusy(false) }
   }
 
   return (
-    <Sheet open={open} onClose={onClose}
-           title={lang === 'mr' ? 'मोजणी नोंदवा' : 'Record a count'}>
-      {queued ? (
+    <Card className="ipm-count">
+      <div className="row between">
+        <div className="card-title">🪤 {t(lang, 'howBad')}</div>
+        {ref && (
+          <span className="tiny muted">
+            {bi(lang, 'Threshold today', 'आजची मर्यादा')}: <b>{ref.etl_effective}</b>
+          </span>
+        )}
+      </div>
+
+      {measured ? (
         <>
-          <div className="note warn">
-            📴 {lang === 'mr'
-              ? 'तुम्ही ऑफलाइन आहात. ही मोजणी फोनवर साठवली आहे आणि इंटरनेट आल्यावर पाठवली जाईल — दोनदा मोजली जाणार नाही.'
-              : 'You are offline. This count is saved on your phone and will be sent when you reconnect — it cannot be counted twice.'}
-          </div>
-          <button className="btn block" style={{ marginTop: 14 }} onClick={onClose}>OK</button>
-        </>
-      ) : (
-        <>
-          <p className="small muted" style={{ marginBottom: 14 }}>
-            {pest.em} <b>{bi(lang, pest.name, pest.name_mr)}</b> — {pest.scout || ''}
+          <p className="small" style={{ marginTop: 6 }}>
+            {bi(lang, 'Last count', 'शेवटची मोजणी')}: <b>{measured.count}</b> {measured.unit}
+            {measured.counted_on && <span className="muted"> · {fmtDate(measured.counted_on, lang)}</span>}
           </p>
-          <label className="field">
-            <span className="lbl">{pest.unit}</span>
-            <input className="input" type="number" inputMode="decimal" min="0" step="0.5"
-                   value={count} onChange={e => setCount(e.target.value)} autoFocus />
-            <span className="hint">
-              {lang === 'mr'
-                ? `या पिकासाठी मर्यादा: ${pest.etl} ${pest.unit}`
-                : `Threshold for this crop: ${pest.etl} ${pest.unit}`}
-            </span>
-          </label>
-          {err && <ErrorNote error={err} lang={lang} />}
-          <button className="btn block" disabled={busy || count === ''} onClick={save}>
-            {busy ? '…' : (lang === 'mr' ? 'नोंदवा' : 'Save count')}
-          </button>
-          {!online && (
-            <p className="tiny faint center" style={{ marginTop: 8 }}>
-              {lang === 'mr' ? 'ऑफलाइन असतानाही नोंद करता येते.' : 'This works offline — it will sync later.'}
-            </p>
+          <div style={{ marginTop: 10 }}><EtlBar pct={measured.percent_of_threshold} lang={lang} /></div>
+          {!open && (
+            <button className="btn block ghost" style={{ marginTop: 12 }} onClick={() => setOpen(true)}>
+              ➕ {bi(lang, 'Record today’s count', 'आजची मोजणी नोंदवा')}
+            </button>
           )}
         </>
+      ) : (
+        <p className="small" style={{ marginTop: 6 }}>
+          {bi(lang, 'Count the trap (or the plants) and enter the number. Nothing is decided from a photograph alone.',
+                    'सापळा (किंवा झाडे) मोजा आणि आकडा लिहा. फक्त फोटोवरून निर्णय होत नाही.')}
+        </p>
       )}
-    </Sheet>
+
+      {queued && (
+        <div className="note warn" style={{ marginTop: 10 }}>
+          📴 {bi(lang, 'You are offline. This count is saved on your phone and will be sent when you reconnect — it cannot be counted twice.', 'तुम्ही ऑफलाइन आहात. ही मोजणी फोनवर साठवली आहे आणि इंटरनेट आल्यावर पाठवली जाईल — दोनदा मोजली जाणार नाही.')}
+        </div>
+      )}
+
+      {open && !queued && (
+        <div className="ipm-count__entry">
+          <div className="ipm-stepper" role="group" aria-label={unit}>
+            <button type="button" className="ipm-stepper__b" onClick={() => step(-1)} aria-label="−1">−</button>
+            <input className="input ipm-stepper__n" type="number" inputMode="decimal" min="0" step="0.5"
+                   value={count} placeholder="0" onChange={e => setCount(e.target.value)}
+                   aria-label={unit} />
+            <button type="button" className="ipm-stepper__b" onClick={() => step(1)} aria-label="+1">+</button>
+          </div>
+          <div className="tiny muted center" style={{ marginTop: 4 }}>{unit}</div>
+
+          {preview ? (
+            <div className={`note ${BAND_TONE[preview.band] || 'info'}`} style={{ marginTop: 10 }}>
+              <b>{bi(lang, preview.title, preview.title_mr)}</b>
+              <div className="tiny" style={{ marginTop: 3 }}>
+                {preview.count} ÷ {preview.etl_effective} = {preview.percent_of_threshold}% ·{' '}
+                {bi(lang, 'preview, not saved yet', 'पूर्वावलोकन — अजून नोंद नाही')}
+              </div>
+            </div>
+          ) : ref ? (
+            <p className="tiny faint" style={{ marginTop: 8 }}>
+              {bi(lang, `Published threshold at this stage: ${ref.etl_effective} ${ref.unit}`,
+                        `या अवस्थेसाठी प्रकाशित मर्यादा: ${ref.etl_effective} ${ref.unit}`)}
+              {ref.alt_threshold ? ` (${ref.alt_threshold})` : ''}
+            </p>
+          ) : (
+            <p className="tiny faint" style={{ marginTop: 8 }}>
+              {bi(lang, 'No published threshold for this pest on this crop — the count is recorded, but it cannot be judged against one.',
+                        'या पिकावर या किडीची प्रकाशित मर्यादा नाही — मोजणी नोंदवली जाईल, पण तुलना करता येणार नाही.')}
+            </p>
+          )}
+
+          {err && <ErrorNote error={err} lang={lang} />}
+          <button className="btn block" style={{ marginTop: 10 }} disabled={busy || count === ''} onClick={save}>
+            {busy ? '…' : bi(lang, 'Save count', 'नोंदवा')}
+          </button>
+          {!online && (
+            <p className="tiny faint center" style={{ marginTop: 6 }}>
+              {bi(lang, 'This works offline — it will sync later.', 'ऑफलाइन असतानाही नोंद करता येते.')}
+            </p>
+          )}
+        </div>
+      )}
+
+      {ref && (
+        <Prov label="Source" value={ref.source}
+              extra={ref.source_status === 'draft' ? 'transcribed, pending verification' : undefined} />
+      )}
+    </Card>
   )
+}
+
+/* ── the IPM plan ──────────────────────────────────────────────────────────
+   One rung open at a time, starting from the rung the server's decision points
+   at. The pointing is a reading of the decision the server already made —
+   `threshold.action` for a counted pest, otherwise the monitoring rung — not a
+   new judgement. The chemical rung is never opened by this screen: it shows
+   what is offered only when the server put a verified option in
+   `chemical.options`, and otherwise states what would have to be true. */
+const RUNG_ICON = { monitor: '👁', cultural: '🌾', mechanical: '✋', biological: '🐞', chemical: '⚗' }
+
+function IpmPlan({ lang, m, d, kind }) {
+  const ladder = m?.ipm_ladder || []
+  const action = m?.threshold?.action
+  /* A crossed threshold points at chemistry only when the server actually
+     offered a verified, unblocked option. Otherwise it points at the highest
+     rung that is open — pointing a farmer at a locked door is not advice. */
+  const chemOffered = (m?.chemical?.options || []).some(o => !o.blocked)
+  const openRungs = ladder.filter(r => !r.withheld && r.key !== 'monitor')
+  const highestOpen = openRungs.length ? openRungs[openRungs.length - 1].key : 'monitor'
+  const pointed = action === 'chemical' ? (chemOffered ? 'chemical' : highestOpen)
+    : action === 'cultural+bio' ? (ladder.find(r => r.key === 'cultural') ? 'cultural' : highestOpen)
+    : 'monitor'
+  const [sel, setSel] = useState(pointed)
+  useEffect(() => { setSel(pointed) }, [pointed, m?.target])
+  if (!ladder.length) return null
+  const rung = ladder.find(r => r.key === sel) || ladder[0]
+  const ref = m?.etl_reference || m?.threshold
+  const chemAvail = m?.chemical_availability
+
+  return (
+    <Card className="ipm-plan" id="ipm-act">
+      <div className="row between">
+        <div className="card-title">🪜 {bi(lang, 'Your IPM plan', 'तुमचा IPM आराखडा')}</div>
+        <span className="tiny muted">{bi(lang, 'cheapest first', 'आधी स्वस्त उपाय')}</span>
+      </div>
+      <div className="ipm-rungs" role="tablist">
+        {ladder.map(r => (
+          <button key={r.key} type="button" role="tab" aria-selected={r.key === sel}
+                  className={'ipm-rung' + (r.key === sel ? ' is-sel' : '') + (r.withheld ? ' is-shut' : '')
+                             + (r.key === pointed ? ' is-pointed' : '')}
+                  onClick={() => setSel(r.key)}>
+            <span className="ipm-rung__ic">{r.withheld ? '🔒' : (RUNG_ICON[r.key] || '•')}</span>
+            <span className="ipm-rung__l">{bi(lang, RUNG_LABEL[r.key]?.[0] || r.key, RUNG_LABEL[r.key]?.[1] || r.key)}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="ipm-rung__panel" role="tabpanel">
+        <div className="row between" style={{ alignItems: 'flex-start', gap: 8 }}>
+          <b className="small">{bi(lang, rung.title, rung.title_mr)}</b>
+          {rung.key === pointed && <span className="badge ok">{bi(lang, 'Start here', 'इथून सुरू करा')}</span>}
+        </div>
+        {rung.cost != null && (
+          <div className="tiny faint" style={{ marginTop: 2 }}>
+            {rung.cost === 0 ? bi(lang, 'Costs nothing', 'खर्च नाही') : `≈ ${fmtMoney(rung.cost)}/acre`}
+          </div>
+        )}
+        {rung.key === 'monitor' && rung === ladder[0] ? (
+          <p className="small muted" style={{ marginTop: 8 }}>
+            {bi(lang, 'These steps are in today’s checklist above. The next rung opens only if your count or inspection shows the problem is building.',
+                      'या पायऱ्या वरच्या आजच्या यादीत आहेत. मोजणी किंवा पाहणीत प्रादुर्भाव वाढताना दिसला तरच पुढची पायरी उघडते.')}
+          </p>
+        ) : (
+        <div style={{ marginTop: 8 }}>
+          {rung.items.map((it, i) => (
+            <div className="evid" key={i}>
+              <span className={rung.withheld ? 'cross' : 'tick'}>{rung.withheld ? '✗' : '✓'}</span>
+              <span>{bi(lang, it.text, it.text_mr)}{it.cost ? ` — ${fmtMoney(it.cost)}` : ''}</span>
+            </div>
+          ))}
+        </div>
+        )}
+
+        {rung.key === 'chemical' && rung.withheld && (
+          <div className="note" style={{ marginTop: 10 }}>
+            <b>{bi(lang, 'What would open this rung', 'ही पायरी कधी उघडेल')}</b>
+            <div className="evid" style={{ marginTop: 6 }}>
+              <span className="tick">{m?.threshold?.chemical_authorised ? '✓' : '1'}</span>
+              <span>{kind === 'pest'
+                ? (ref?.etl_effective != null
+                    ? bi(lang, `A saved count at or above ${ref.etl_effective} ${ref.unit}`,
+                               `${ref.etl_effective} ${ref.unit} किंवा अधिक नोंदवलेली मोजणी`)
+                    : bi(lang, 'A saved count over a published threshold', 'प्रकाशित मर्यादेपेक्षा जास्त नोंदवलेली मोजणी'))
+                : bi(lang, 'A field inspection showing the disease is established, not a photograph alone',
+                           'फक्त फोटो नव्हे, तर रोग पसरल्याचे दाखवणारी शेत पाहणी')}</span>
+            </div>
+            <div className="evid">
+              <span className="tick">{chemOffered ? '✓' : '2'}</span>
+              <span>{bi(lang, 'A label claim for this crop and target verified by a named person against the CIB&RC register',
+                              'या पिकासाठी व लक्ष्यासाठी CIB&RC नोंदणीशी जुळवून नावानिशी तपासलेला लेबल दावा')}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {chemAvail && !chemAvail.verified_available && (
+        <details className="method-fold" style={{ marginTop: 10 }}>
+          <summary>⚗ {bi(lang, 'No verified chemical recommendation', 'तपासलेली रासायनिक शिफारस नाही')}</summary>
+          <p className="small">{bi(lang, chemAvail.message, chemAvail.message_mr)}</p>
+          {chemAvail.why && <p className="small muted">{chemAvail.why}</p>}
+          <Prov label="Process" value={chemAvail.verification_process} />
+        </details>
+      )}
+      <Prov label="Principle" value={m.ladder_principle} />
+    </Card>
+  )
+}
+
+const RUNG_LABEL = {
+  monitor: ['Watch', 'पाहणी'], cultural: ['Cultural', 'मशागत'], mechanical: ['Mechanical', 'यांत्रिक'],
+  biological: ['Biological', 'जैविक'], chemical: ['Chemical', 'रासायनिक'],
 }

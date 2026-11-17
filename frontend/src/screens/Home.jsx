@@ -21,7 +21,7 @@ import React, { useEffect, useState } from 'react'
 import { api } from '../api'
 import {
   Band, Card, ErrorNote, Gauge, Loading, Prov, Why,
-  bi, fmtDate, levelLabel,
+  bi, fmtDate, levelLabel, useDayTicks,
 } from '../ui'
 import { QuickActions } from './Sections'
 import WeatherCard from './WeatherCard'
@@ -73,7 +73,7 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
             <div className="hdr-greet">{GREET(hour, lang)}, {first} 👋</div>
             <div className="hdr-sub">
               {plot ? `${plot.name} · ${plot.area_acre} ${lang === 'mr' ? 'एकर' : (Number(plot.area_acre) === 1 ? 'acre' : 'acres')}`
-                    : (lang === 'mr' ? 'अजून शेत नोंदवलेले नाही' : 'No field registered yet')}
+                    : (bi(lang, 'No field registered yet', 'अजून शेत नोंदवलेले नाही'))}
             </div>
           </div>
           {/* The brand header above owns the alert bell and the account sheet
@@ -125,7 +125,7 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
             {data ? (
 <Card>
               <div className="row between" style={{ marginBottom: 12 }}>
-                <div className="card-title">{lang === 'mr' ? 'शेत आरोग्य' : 'Farm Health'}</div>
+                <div className="card-title">{bi(lang, 'Farm Health', 'शेत आरोग्य')}</div>
                 <Band band={data.health.band}
                       label={bi(lang, data.health.band_label, data.health.band_label_mr)} />
               </div>
@@ -145,9 +145,9 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
               </div>
 
               <div className="tiles">
-                {[['weather', '🌦', lang === 'mr' ? 'हवामान' : 'Weather'],
-                  ['pest', '🐛', lang === 'mr' ? 'कीड' : 'Pest'],
-                  ['disease', '🍂', lang === 'mr' ? 'रोग' : 'Disease']].map(([k, ic, label]) => {
+                {[['weather', '🌦', bi(lang, 'Weather', 'हवामान')],
+                  ['pest', '🐛', bi(lang, 'Pest', 'कीड')],
+                  ['disease', '🍂', bi(lang, 'Disease', 'रोग')]].map(([k, ic, label]) => {
                   const comp = data.health.components[k]
                   return (
                     <div className="tile" key={k}>
@@ -163,7 +163,7 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
                 })}
               </div>
 
-              <Why label={lang === 'mr' ? 'हा आकडा कसा काढला?' : 'How is this number built?'}>
+              <Why label={bi(lang, 'How is this number built?', 'हा आकडा कसा काढला?')}>
                 <p style={{ marginBottom: 8 }}>{data.score_meaning}</p>
                 <p className="mono tiny" style={{ marginBottom: 8 }}>
                   score = 100 − disease − pest − weather − nearby
@@ -192,7 +192,7 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
             {todo?.next_action && (
               <>
                 <h2 className="sect-title">
-                  {lang === 'mr' ? 'सर्वात आधी हे करा' : 'My next best action'}
+                  {bi(lang, 'My next best action', 'सर्वात आधी हे करा')}
                 </h2>
                 <button className={`nba ${todo.next_action.tone || ''}`}
                         onClick={() => act(todo.next_action, go)}>
@@ -236,33 +236,18 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
                 <>
             <h2 className="sect-title">
               {nba
-                ? (lang === 'mr' ? 'आज आणखी' : 'Also due today')
-                : (lang === 'mr' ? 'आज काय करावे?' : 'What should I do today?')}
+                ? (bi(lang, 'Also due today', 'आज आणखी'))
+                : (bi(lang, 'What should I do today?', 'आज काय करावे?'))}
             </h2>
             {rest.length > 0 ? (
-              <div className="today">
-                {rest.map((it, i) => (
-                  <button key={i} className={`todo ${it.tone}`} onClick={() => act(it, go)}>
-                    <span className="ic">{it.icon}</span>
-                    <span className="grow">
-                      <span className="nm" style={{ display: 'block' }}>
-                        {bi(lang, it.title, it.title_mr)}
-                      </span>
-                      <span className="sub" style={{ display: 'block' }}>
-                        {bi(lang, it.detail, it.detail_mr)}
-                      </span>
-                    </span>
-                    <span className="go">›</span>
-                  </button>
-                ))}
-              </div>
+              <TodayList lang={lang} items={rest} plotId={plot?.id} go={go} />
             ) : (
               <Card>
                 <div className="row" style={{ gap: 12 }}>
                   <div style={{ fontSize: 26 }}>✅</div>
                   <div className="grow small">
                     {bi(lang, todo?.all_clear_note, todo?.all_clear_note_mr)
-                      || (lang === 'mr' ? 'आज काहीही करण्याची गरज नाही.' : 'Nothing needs a decision today.')}
+                      || (bi(lang, 'Nothing needs a decision today.', 'आज काहीही करण्याची गरज नाही.'))}
                   </div>
                 </div>
               </Card>
@@ -276,7 +261,7 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
                 now in the language the rest of the screen is in. */}
             {todo?.method && (
               <details className="method-fold">
-                <summary>{lang === 'mr' ? 'ही यादी कशी बनते' : 'How this list is built'}</summary>
+                <summary>{bi(lang, 'How this list is built', 'ही यादी कशी बनते')}</summary>
                 <p className="small muted">{bi(lang, todo.method, todo.method_mr)}</p>
               </details>
             )}
@@ -285,15 +270,15 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
             {fc?.forecast?.length > 0 && (
               <Card>
                 <div className="row between" style={{ marginBottom: 10 }}>
-                  <div className="card-title">{lang === 'mr' ? 'पुढे काय येत आहे?' : "What's Coming"}</div>
+                  <div className="card-title">{bi(lang, "What's Coming", 'पुढे काय येत आहे?')}</div>
                   <button className="btn sm quiet" onClick={() => go('forecast')}>
-                    {lang === 'mr' ? 'तपशील' : 'Details'} ›
+                    {bi(lang, 'Details', 'तपशील')} ›
                   </button>
                 </div>
                 <div className="fcast">
                   {fc.forecast.map(d => (
                     <div className={`d ${d.level}`} key={d.date}>
-                      <div className="dy">{d.offset === 0 ? (lang === 'mr' ? 'आज' : 'Today') : fmtDate(d.date, lang)}</div>
+                      <div className="dy">{d.offset === 0 ? (bi(lang, 'Today', 'आज')) : fmtDate(d.date, lang)}</div>
                       <div className="lv">{levelLabel(d.level, lang)}</div>
                     </div>
                   ))}
@@ -306,7 +291,7 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
                   </ul>
                 </div>
                 <details className="method-fold">
-                  <summary>{lang === 'mr' ? 'हे कसे मोजले' : 'How this is scored'}</summary>
+                  <summary>{bi(lang, 'How this is scored', 'हे कसे मोजले')}</summary>
                   <p className="small muted">
                     {bi(lang, fc.headline.method, fc.headline.method_mr)}
                   </p>
@@ -318,18 +303,16 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
             <Card>
               <div className="row between" style={{ marginBottom: 10 }}>
                 <div className="card-title">
-                  {lang === 'mr' ? 'पीक आरोग्य पासपोर्ट' : 'Crop Health Passport'}
+                  {bi(lang, 'Crop Health Passport', 'पीक आरोग्य पासपोर्ट')}
                 </div>
                 <button className="btn sm quiet" onClick={() => go('history')}>
-                  {lang === 'mr' ? 'इतिहास' : 'History'} ›
+                  {bi(lang, 'History', 'इतिहास')} ›
                 </button>
               </div>
               <Passport pass={pass} data={data} todo={todo} plot={plot}
                         stage={stage} lang={lang} go={go} />
               <p className="tiny faint" style={{ marginTop: 10, lineHeight: 1.5 }}>
-                {lang === 'mr'
-                  ? 'या पिकाच्या हंगामातील प्रत्येक तपासणी, मोजणी, निर्णय आणि फवारणीची नोंद — काढणीच्या वेळी हाच पुरावा असतो.'
-                  : 'Every scan, count, decision and application this season. At harvest, this is the record that shows what was used and when.'}
+                {bi(lang, 'Every scan, count, decision and application this season. At harvest, this is the record that shows what was used and when.', 'या पिकाच्या हंगामातील प्रत्येक तपासणी, मोजणी, निर्णय आणि फवारणीची नोंद — काढणीच्या वेळी हाच पुरावा असतो.')}
               </p>
             </Card>
 
@@ -345,23 +328,78 @@ export default function Home({ lang, me, plot, plots, onPlot, go, unread, onBell
             <button className="card tappable hiw-link" onClick={() => go('howItWorks')}>
               <span className="hiw-link__ic"><Icon name="radar" size={18} /></span>
               <span className="hiw-link__txt">
-                <b>{lang === 'mr' ? 'प्रहरी कसे काम करते' : 'How PRAHARI works'}</b>
+                <b>{bi(lang, 'How PRAHARI works', 'प्रहरी कसे काम करते')}</b>
                 <span className="small muted">
-                  {lang === 'mr'
-                    ? 'शोधापासून कृतीपर्यंत — सात पायऱ्या'
-                    : 'Prediction to action, in seven steps'}
+                  {bi(lang, 'Prediction to action, in seven steps', 'शोधापासून कृतीपर्यंत — सात पायऱ्या')}
                 </span>
               </span>
               <Icon name="chevron" size={14} />
             </button>
 
             <div className="tiny faint center" style={{ padding: '18px 8px 4px', lineHeight: 1.6 }}>
-              {lang === 'mr'
-                ? 'प्रहरी हे पूर्वसूचना देणारे साधन आहे. निर्णय शेवटी तुमचा — आणि शंका असल्यास कृषी सहाय्यकाचा सल्ला घ्या.'
-                : 'PRAHARI is an early-warning tool. The decision is yours — and when it is unclear, ask your Krishi Sahayak.'}
+              {bi(lang, 'PRAHARI is an early-warning tool. The decision is yours — and when it is unclear, ask your Krishi Sahayak.', 'प्रहरी हे पूर्वसूचना देणारे साधन आहे. निर्णय शेवटी तुमचा — आणि शंका असल्यास कृषी सहाय्यकाचा सल्ला घ्या.')}
             </div>
           </>
         )}
+      </div>
+    </>
+  )
+}
+
+/* What a row's button says, from the server's own action. */
+const VERB = {
+  scan: ['Scan now', 'स्कॅन करा'], traps: ['Count trap', 'सापळा मोजा'],
+  decide: ['Open plan', 'आराखडा पहा'], rescan: ['Re-scan', 'पुन्हा स्कॅन'],
+  community: ['See reports', 'नोंदी पहा'], history: ['Open record', 'नोंद पहा'],
+}
+
+/* Today's remaining work, as a checklist that remembers itself for the day.
+   Each row has the one button that does it; a tick (kept on this phone only)
+   moves it to the bottom, so the list shrinks as the farmer works through it.
+   A tick is a note to self — it records nothing on the server and is never
+   counted as having done the work. */
+function TodayList({ lang, items, plotId, go }) {
+  const [ticks, toggle] = useDayTicks(`home.${plotId || 'none'}`)
+  const keyOf = (it, i) => `${it.key || 'item'}-${i}-${(it.title || '').slice(0, 24)}`
+  const rows = items.map((it, i) => ({ it, k: keyOf(it, i) }))
+  const open = rows.filter(r => !ticks.includes(r.k))
+  const done = rows.filter(r => ticks.includes(r.k))
+  return (
+    <>
+      <div className="today-progress">
+        <div className="ipm-progress" aria-hidden="true">
+          <i style={{ width: `${Math.round(100 * done.length / rows.length)}%` }} />
+        </div>
+        <span className="tiny muted">{done.length}/{rows.length} {bi(lang, 'done today', 'आज झाले')}</span>
+      </div>
+      <div className="today">
+        {[...open, ...done].map(({ it, k }) => {
+          const on = ticks.includes(k)
+          const verb = VERB[it.action?.do]
+          return (
+            <div key={k} className={`todo ${it.tone} todo--row${on ? ' is-done' : ''}`}>
+              <button type="button" className="todo__tick" aria-pressed={on}
+                      aria-label={bi(lang, 'Mark done for today', 'आजसाठी झाले')}
+                      onClick={() => toggle(k)}>{on ? '✓' : ''}</button>
+              <button type="button" className="todo__main" onClick={() => act(it, go)}>
+                <span className="ic">{it.icon}</span>
+                <span className="grow">
+                  <span className="nm" style={{ display: 'block' }}>{bi(lang, it.title, it.title_mr)}</span>
+                  {!on && it.detail && (
+                    <span className="sub todo__sub" style={{ display: 'block' }}>
+                      {bi(lang, it.detail, it.detail_mr)}
+                    </span>
+                  )}
+                </span>
+              </button>
+              {verb && !on && (
+                <button type="button" className="btn sm todo__go" onClick={() => act(it, go)}>
+                  {bi(lang, verb[0], verb[1])}
+                </button>
+              )}
+            </div>
+          )
+        })}
       </div>
     </>
   )
@@ -402,8 +440,8 @@ function daysAgo(iso) {
 function ago(iso, lang) {
   const d = daysAgo(iso)
   if (d === null) return null
-  if (d === 0) return lang === 'mr' ? 'आज' : 'today'
-  if (d === 1) return lang === 'mr' ? 'काल' : 'yesterday'
+  if (d === 0) return bi(lang, 'today', 'आज')
+  if (d === 1) return bi(lang, 'yesterday', 'काल')
   return lang === 'mr' ? `${d} दिवसांपूर्वी` : `${d}d ago`
 }
 
@@ -452,12 +490,12 @@ function Passport({ pass, data, todo, plot, stage, lang, go }) {
      no screen of its own, the destination is the field history, which lists
      it — that is a real answer, not a placeholder route. */
   const cells = [
-    ['📷', n('scan'), lang === 'mr' ? 'तपासण्या' : 'Scans', 'history'],
-    ['🪤', n('count'), lang === 'mr' ? 'मोजण्या' : 'Counts', 'traps'],
-    ['⚖️', (pass?.threshold_checks || []).length, lang === 'mr' ? 'पातळी' : 'Checks', 'decide'],
-    ['🧪', (pass?.applications || []).length, lang === 'mr' ? 'फवारण्या' : 'Sprays', 'expenses'],
-    ['🔁', n('followup'), lang === 'mr' ? 'पुनर्तपासणी' : 'Follow-ups', 'history'],
-    ['✅', n('expert'), lang === 'mr' ? 'तज्ज्ञ' : 'Expert', 'history'],
+    ['📷', n('scan'), bi(lang, 'Scans', 'तपासण्या'), 'history'],
+    ['🪤', n('count'), bi(lang, 'Counts', 'मोजण्या'), 'traps'],
+    ['⚖️', (pass?.threshold_checks || []).length, bi(lang, 'Checks', 'पातळी'), 'decide'],
+    ['🧪', (pass?.applications || []).length, bi(lang, 'Sprays', 'फवारण्या'), 'expenses'],
+    ['🔁', n('followup'), bi(lang, 'Follow-ups', 'पुनर्तपासणी'), 'history'],
+    ['✅', n('expert'), bi(lang, 'Expert', 'तज्ज्ञ'), 'history'],
   ]
   const recorded = cells.reduce((a, c) => a + (c[1] || 0), 0)
 
@@ -482,7 +520,7 @@ function Passport({ pass, data, todo, plot, stage, lang, go }) {
       {/* THREE THINGS, THE ONES A FARMER ASKS FIRST */}
       <div className="pp-grid">
         <div className="pp-cell">
-          <span className="pp-cell__k">{lang === 'mr' ? 'आरोग्य' : 'Health'}</span>
+          <span className="pp-cell__k">{bi(lang, 'Health', 'आरोग्य')}</span>
           {health ? (
             <>
               <b className="pp-cell__v">{Math.round(health.score)}<em>/100</em></b>
@@ -500,7 +538,7 @@ function Passport({ pass, data, todo, plot, stage, lang, go }) {
         </div>
 
         <div className="pp-cell">
-          <span className="pp-cell__k">{lang === 'mr' ? 'मुख्य धोका' : 'Top threat'}</span>
+          <span className="pp-cell__k">{bi(lang, 'Top threat', 'मुख्य धोका')}</span>
           {threat ? (
             <>
               <b className="pp-cell__v pp-cell__sm">{threat.em} {bi(lang, threat.name, threat.name_mr)}</b>
@@ -518,7 +556,7 @@ function Passport({ pass, data, todo, plot, stage, lang, go }) {
         </div>
 
         <div className="pp-cell">
-          <span className="pp-cell__k">{lang === 'mr' ? 'शेवटची पाहणी' : 'Last checked'}</span>
+          <span className="pp-cell__k">{bi(lang, 'Last checked', 'शेवटची पाहणी')}</span>
           {lastOn ? (
             <>
               <b className="pp-cell__v pp-cell__sm">{ago(lastOn, lang)}</b>
@@ -535,7 +573,7 @@ function Passport({ pass, data, todo, plot, stage, lang, go }) {
         <button className="pp-next" onClick={() => act(next, go)}>
           <span className={`pp-next__tone ${next.tone}`}>{next.icon}</span>
           <span className="pp-next__txt">
-            <em>{lang === 'mr' ? 'पुढे काय' : 'Do next'}</em>
+            <em>{bi(lang, 'Do next', 'पुढे काय')}</em>
             <b>{bi(lang, next.title, next.title_mr)}</b>
           </span>
           <span className="pp-next__go">›</span>
@@ -544,7 +582,7 @@ function Passport({ pass, data, todo, plot, stage, lang, go }) {
         <div className="pp-next is-clear">
           <span className="pp-next__tone calm">✓</span>
           <span className="pp-next__txt">
-            <em>{lang === 'mr' ? 'पुढे काय' : 'Do next'}</em>
+            <em>{bi(lang, 'Do next', 'पुढे काय')}</em>
             <b>{bi(lang, 'Nothing needs doing today. Keep walking the field.',
                         'आज विशेष काही नाही. नेहमीप्रमाणे शेतात फेरी मारा.')}</b>
           </span>
@@ -579,15 +617,13 @@ function FirstField({ lang, go }) {
       <div className="center" style={{ padding: '18px 4px' }}>
         <div style={{ fontSize: 34 }}>🌱</div>
         <h2 className="h2" style={{ marginTop: 8 }}>
-          {lang === 'mr' ? 'तुमचे पहिले शेत नोंदवा' : 'Register your first field'}
+          {bi(lang, 'Register your first field', 'तुमचे पहिले शेत नोंदवा')}
         </h2>
         <p className="small muted" style={{ marginTop: 6 }}>
-          {lang === 'mr'
-            ? 'शेताचे ठिकाण, पीक आणि पेरणीची तारीख दिल्यावर प्रहरी त्या ठिकाणच्या खऱ्या हवामानावर धोका मोजू लागते.'
-            : 'Give PRAHARI a location, a crop and a sowing date, and it starts forecasting risk from the real weather at that exact spot.'}
+          {bi(lang, 'Give PRAHARI a location, a crop and a sowing date, and it starts forecasting risk from the real weather at that exact spot.', 'शेताचे ठिकाण, पीक आणि पेरणीची तारीख दिल्यावर प्रहरी त्या ठिकाणच्या खऱ्या हवामानावर धोका मोजू लागते.')}
         </p>
         <button className="btn block" style={{ marginTop: 16 }} onClick={() => go('addField')}>
-          {lang === 'mr' ? 'शेत जोडा' : 'Add a field'}
+          {bi(lang, 'Add a field', 'शेत जोडा')}
         </button>
       </div>
     </Card>

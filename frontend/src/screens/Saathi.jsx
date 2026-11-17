@@ -68,7 +68,9 @@ const SECTION_LABEL = {
    the engine actually exists — a microphone that does nothing is worse than no
    microphone. A farmer who dictates still sees the text and still presses
    send, because a question misheard and asked anyway is a wasted answer. */
-const SR_LANG = { mr: 'mr-IN', hi: 'hi-IN', en: 'en-IN' }
+// bn-IN is requested from the browser's own recogniser; it has not been tested
+// with Bengali speakers, so no Bengali voice support is claimed anywhere.
+const SR_LANG = { mr: 'mr-IN', hi: 'hi-IN', en: 'en-IN', bn: 'bn-IN' }
 
 /* Looked up when the component mounts, not when the module loads. Some
    browsers only expose the constructor on a secure origin and after the page

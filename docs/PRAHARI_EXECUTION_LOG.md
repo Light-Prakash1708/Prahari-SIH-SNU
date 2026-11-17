@@ -76,3 +76,47 @@ The fix is migration `008_weather_days` plus `WeatherService._archive_days` / `_
 Verified by 5 new tests. Suite: 532 passed.
 
 Recommendation, not changed by me: set `WEATHER_DEMO_FALLBACK=false` on Render, so a short window shows "weather unavailable" instead of generated weather.
+
+## 2026-11-17 — Summit readiness sprint (branch `summit-readiness`)
+
+Full findings: `docs/PRAHARI_SUMMIT_READINESS.md`. Demo: `docs/PRAHARI_SUMMIT_DEMO_SCRIPT.md`. Bengal crops: `docs/BENGAL_CROP_VALIDATION.md`.
+
+**Production settings:**
+- `WEATHER_DEMO_FALLBACK=false` was set on the live service through the Render API, which redeployed `7ef5943`.
+- The code now ignores that flag when `APP_ENV=production`.
+
+**Production weather is still blocked:**
+- Open-Meteo answers 429 to Render's shared IP even on a first request, so no cell has been archived yet. The logs show `missing: 20, found: 0`.
+- Disease risk on production therefore reports that the model cannot run.
+- The fix is a history-weather plan (finding 2).
+
+**Staging:**
+- Created `prahari-staging` (free plan, `APP_ENV=demo`, demo mode, synthetic SQLite, generated weather).
+- Judge mode (`app/judge.py`, `/api/demo/judge`, `/api/demo/judge/reset`) exists only when `DEMO_MODE=true`.
+
+**Bengal:**
+- 11 Hooghly / Purba Bardhaman blocks added (`farms: null`).
+- No snapping of distant fields to Nashik.
+- Region-aware Gi* and spread front.
+- Taluka/block list served from `/api/reference`.
+- Bengali UI dictionary (draft) and a bundled Bengali font.
+- `bn` accepted as an account language.
+- The assistant and dictation no longer fall back to Marathi for Bengali users.
+
+**Decision screen:**
+- Inline count with a server preview (`/api/management/{plot}/threshold-preview`, which writes nothing).
+- `etl_reference` in the payload, so the threshold is known before the first count. It used to render "undefined".
+- Day-persistent checklist with an action button on each row.
+- Visible IPM plan with the conditions that would unlock the chemical rung.
+- Duplicate cards removed.
+- Home's agenda is now an actionable checklist.
+
+**Sign-up:** show/hide password.
+
+**Verified:**
+- 548 backend tests passed, including 16 new ones in `tests/test_summit_readiness.py`.
+- Ruff is clean.
+- Frontend build: 166.6 kB gzipped JS.
+- Playwright renders at 390 px in English and Bengali.
+
+**Push:** none. Nothing is pushed until the owner says so. Staging and production both build from `main`.

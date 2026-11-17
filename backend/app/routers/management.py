@@ -52,6 +52,39 @@ def management(plot_id: str, target: str | None = Query(None),
     return mgmt.build(db, get_runtime(), plot, target, lang)
 
 
+@router.get("/{plot_id}/threshold-preview",
+            summary="What a count WOULD mean, without recording it")
+def threshold_preview(plot_id: str, target: str = Query(...),
+                      count: float = Query(..., ge=0, le=100000),
+                      user: dict[str, Any] = Depends(current_user),
+                      db: Database = Depends(db_dep)):
+    """The farmer types a count and sees, before saving, where it lands against
+    the published threshold for this crop at today's stage. Nothing is written,
+    no decision is issued and no chemical is named: the band shown is the one
+    `etl.decide` would return, and only a SAVED count can move the decision or
+    open the chemical gate.
+
+    Errors: 403 — not your field; 404 — no published threshold for this pest on
+    this crop (the screen then says so instead of inventing one)."""
+    from .. import etl
+    from ..errors import not_found
+    plot = visible_plot(db, user, plot_id)
+    row = reference.threshold_for(target, plot["crop"])
+    if not row:
+        raise not_found("threshold", f"{target} on {plot['crop']}")
+    out = etl.decide(row, count, (get_runtime().risk.crop_stage(plot) or {}).get("stage"))
+    return {
+        "preview": True, "recorded": False,
+        "count": out["count"], "unit": out["unit"],
+        "etl_effective": out["etl_effective"], "stage": out["stage"],
+        "percent_of_threshold": out["percent_of_threshold"], "band": out["band"],
+        "title": out["title"], "title_mr": out["title_mr"],
+        "source": out["source"], "source_status": out["source_status"],
+        "note": ("A preview of where this count would land. It is not recorded and it "
+                 "authorises nothing until you save it."),
+    }
+
+
 @router.post("/{plot_id}/assessment", status_code=201,
              summary="Record a field assessment for a disease")
 def record_assessment(plot_id: str, data: DiseaseAssessmentIn,

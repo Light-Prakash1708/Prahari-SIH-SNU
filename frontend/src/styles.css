@@ -67,8 +67,8 @@
   --shadow-lg: 0 4px 12px rgba(11,61,34,.10), 0 24px 56px rgba(11,61,34,.14);
 
   --r-sm: 10px; --r: 14px; --r-lg: 20px; --r-xl: 26px; --r-pill: 999px;
-  --sans: 'Source Sans 3', 'Noto Sans Devanagari', system-ui, -apple-system, sans-serif;
-  --display: 'Archivo', 'Noto Sans Devanagari', system-ui, sans-serif;
+  --sans: 'Source Sans 3', 'Noto Sans Devanagari', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif;
+  --display: 'Archivo', 'Noto Sans Devanagari', 'Noto Sans Bengali', system-ui, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
   --tap: 48px;
   --shell: 480px;

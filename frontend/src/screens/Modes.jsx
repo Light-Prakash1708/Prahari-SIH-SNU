@@ -14,7 +14,7 @@
    role, no demo bypass reaching production — the seeded credentials below are
    printed ONLY when the server reports demo_mode, because outside a demo they
    do not exist. */
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { api, auth } from '../api'
 import { Card, bi } from '../ui'
 import Icon from '../shell/Icon'
@@ -158,10 +158,76 @@ export default function Modes({ lang, me, health, go }) {
           </Card>
         )}
 
+        {health?.config?.demo_mode && demoOpen && (
+          <JudgePanel lang={lang} openDemo={openDemo} busy={busy} />
+        )}
+
         <button className="btn block ghost" onClick={() => auth.clear()}>
           {lang === 'mr' ? 'साइन आउट' : 'Sign out'}
         </button>
       </div>
     </>
+  )
+}
+
+/* ── judge mode ─────────────────────────────────────────────────────────────
+   Only on a demo/staging deployment (the server reports demo_mode and the
+   route 404s anywhere else). The eight cases, which console each needs, what
+   should happen, and the honesty line to say out loud — read from the server so
+   the script and the running build cannot drift apart. Reset restores the
+   starting state without deleting anything. */
+function JudgePanel({ lang, openDemo, busy }) {
+  const [g, setG] = useState(null)
+  const [state, setState] = useState(null)
+  const [resetting, setResetting] = useState(false)
+  const load = () => api.judge().then(setG).catch(() => setG(null))
+  useEffect(() => { load() }, [])
+  if (!g) return null
+
+  const reset = async () => {
+    setResetting(true); setState(null)
+    try { setState(await api.judgeReset()); await load() }
+    catch (e) { setState({ error: e?.message || 'reset failed' }) }
+    finally { setResetting(false) }
+  }
+
+  return (
+    <Card className="md-demo-card">
+      <div className="row between">
+        <div className="card-title">🎓 {bi(lang, 'Judge mode', 'परीक्षक मोड')}</div>
+        <span className="badge grey">{bi(lang, 'staging · synthetic', 'स्टेजिंग · कृत्रिम')}</span>
+      </div>
+      <p className="tiny muted" style={{ marginTop: 6, lineHeight: 1.5 }}>{g.environment}</p>
+      <ol className="judge-list">
+        {g.cases.map(c => (
+          <li key={c.key} className="judge-case">
+            <div className="row between" style={{ gap: 8, alignItems: 'flex-start' }}>
+              <b className="small">{c.n}. {c.title}</b>
+              <button className="btn sm ghost" disabled={!!busy}
+                      onClick={() => { if (c.role === 'farmer') window.history.replaceState(null, '', '#/' + c.route); openDemo(c.role) }}>
+                {c.role}
+              </button>
+            </div>
+            <div className="tiny" style={{ marginTop: 4 }}><b>{bi(lang, 'Do', 'करा')}:</b> {c.do}</div>
+            <div className="tiny" style={{ marginTop: 2 }}><b>{bi(lang, 'Expect', 'अपेक्षित')}:</b> {c.expect}</div>
+            <div className="tiny faint" style={{ marginTop: 2 }}>⚖ {c.honesty}</div>
+          </li>
+        ))}
+      </ol>
+      {!g.readiness.fpo_view_has_counts && (
+        <div className="note warn" style={{ marginTop: 8 }}>
+          {bi(lang, 'The FPO has fewer than 3 members, so its counts are suppressed. Reset fixes this.',
+                    'FPO मध्ये ३ पेक्षा कमी सदस्य आहेत. रीसेट करा.')}
+        </div>
+      )}
+      <button className="btn block" style={{ marginTop: 10 }} disabled={resetting} onClick={reset}>
+        {resetting ? '…' : bi(lang, '↺ Reset the demo', '↺ डेमो रीसेट करा')}
+      </button>
+      {state && (
+        <p className="tiny" style={{ marginTop: 8, color: state.error ? 'var(--bad)' : 'var(--ok)' }}>
+          {state.error || state.note}
+        </p>
+      )}
+    </Card>
   )
 }

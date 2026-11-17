@@ -56,8 +56,8 @@
   --d-ink:    #E9FBF0;
   --d-muted:  #8FBBA6;
 
-  --sans:    'Plus Jakarta Sans', 'Noto Sans Devanagari', system-ui, -apple-system, sans-serif;
-  --display: 'Plus Jakarta Sans', 'Noto Sans Devanagari', system-ui, sans-serif;
+  --sans:    'Plus Jakarta Sans', 'Noto Sans Devanagari', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif;
+  --display: 'Plus Jakarta Sans', 'Noto Sans Devanagari', 'Noto Sans Bengali', system-ui, sans-serif;
 
   /* Saurjya's radii are rounder than the original system's */
   --r-sm: 12px; --r: 16px; --r-lg: 22px; --r-xl: 28px; --r-pill: 999px;

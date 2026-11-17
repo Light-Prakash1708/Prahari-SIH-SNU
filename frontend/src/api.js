@@ -337,6 +337,11 @@ export const api = {
     return get(`/api/management/${plot_id}?${q}`, { cache: true })
   },
   assessDisease: (plot_id, body) => send(`/api/management/${plot_id}/assessment`, body),
+  /* Where a count WOULD land against the published threshold. Writes nothing
+     and authorises nothing; never cached, because it answers a number being
+     typed right now. */
+  thresholdPreview: (plot_id, target, count) => get(
+    `/api/management/${plot_id}/threshold-preview?target=${encodeURIComponent(target)}&count=${encodeURIComponent(count)}`),
 
   // admin — staff, the chemical gate, the audit trail
   adminOverview: () => get('/api/admin/overview', { cache: false }),
@@ -457,4 +462,7 @@ export const api = {
   scenarios: () => get('/api/demo/scenarios', { cache: false }),
   setScenario: (key, plot_id) =>
     send(`/api/demo/scenario?key=${key}${plot_id ? `&plot_id=${plot_id}` : ''}`),
+  // judge mode — staging only; 404 anywhere DEMO_MODE is off
+  judge: () => get('/api/demo/judge', { cache: false }),
+  judgeReset: () => send('/api/demo/judge/reset', {}),
 }

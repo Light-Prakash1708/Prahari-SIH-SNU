@@ -689,7 +689,8 @@ def structured(*, provider: str, key: str, model: str | None, task: str,
                 "quota": True}
 
     blob = json.dumps(facts, ensure_ascii=False, indent=1, default=str)
-    language = {"mr": "Marathi (Devanagari script)", "hi": "Hindi", "en": "English"}.get(
+    language = {"mr": "Marathi (Devanagari script)", "hi": "Hindi", "en": "English",
+                "bn": "Bengali (Bangla script), writing every number with the digits 0-9"}.get(
         lang, "Marathi (Devanagari script)")
     system = STRUCTURED_SYSTEM.format(
         language=language, keys=json.dumps(list(keys), ensure_ascii=False))
@@ -773,7 +774,8 @@ def rephrase(*, provider: str, key: str, model: str | None, question: str,
                 "quota": True}
 
     blob = json.dumps(facts, ensure_ascii=False, indent=1, default=str)
-    language = {"mr": "Marathi (Devanagari script)", "hi": "Hindi", "en": "English"}.get(
+    language = {"mr": "Marathi (Devanagari script)", "hi": "Hindi", "en": "English",
+                "bn": "Bengali (Bangla script), writing every number with the digits 0-9"}.get(
         lang, "Marathi (Devanagari script)")
     prompt = (f"FARMER'S QUESTION:\n{question}\n\n"
               f"FACTS PRAHARI RETRIEVED (this is everything you may use):\n{blob}")

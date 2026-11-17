@@ -35,6 +35,28 @@ def haversine(a: dict[str, float], b: dict[str, float]) -> float:
 
 def getis_ord(talukas: list[dict[str, Any]], counts: dict[str, int],
               band_km: float = 22.0) -> list[dict[str, Any]]:
+    """Gi* within each region separately, over the units that have a farm count.
+
+    Two rules added when West Bengal blocks joined the Nashik talukas:
+    · A unit with no sourced farm-household count (`farms` null) cannot have an
+      incidence, so it is left out of the statistic rather than given a
+      denominator nobody measured.
+    · Regions 1,600 km apart are not neighbours, and pooling them would let
+      Bengal's zeros drag down Nashik's mean. Each region is its own study area.
+    """
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for t in talukas:
+        if t.get("farms"):
+            groups.setdefault(t.get("region") or "default", []).append(t)
+    out: list[dict[str, Any]] = []
+    for units in groups.values():
+        out.extend(_getis_ord_region(units, counts, band_km))
+    out.sort(key=lambda r: -r["z"])
+    return out
+
+
+def _getis_ord_region(talukas: list[dict[str, Any]], counts: dict[str, int],
+                      band_km: float) -> list[dict[str, Any]]:
     """Gi*(i) = [Σⱼ wᵢⱼxⱼ − x̄Σⱼwᵢⱼ] / [S√((nΣⱼwᵢⱼ² − (Σⱼwᵢⱼ)²)/(n−1))]
 
     x is incidence per 1,000 farm households — a raw count would simply rank
@@ -85,6 +107,12 @@ def spread_front(talukas: list[dict[str, Any]],
     if len(pts) < 3:
         return None
     index = min(pts, key=lambda p: p["first"])
+    # A front is fitted inside the index unit's own region only: a "velocity"
+    # regressed across Nashik and Hooghly would be a number about nothing.
+    region = index["t"].get("region")
+    pts = [p for p in pts if p["t"].get("region") == region]
+    if len(pts) < 3:
+        return None
     for p in pts:
         p["km"] = haversine(index["t"], p["t"])
 

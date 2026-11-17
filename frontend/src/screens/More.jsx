@@ -31,12 +31,12 @@ export function Forecast({ lang, plot, go }) {
     <>
       <div className="topbar">
         <button className="icon-btn" onClick={() => go('home')} aria-label="Back">‹</button>
-        <h1 className="grow">{lang === 'mr' ? 'धोक्याचा अंदाज' : 'Risk Forecast'}</h1>
+        <h1 className="grow">{bi(lang, 'Risk Forecast', 'धोक्याचा अंदाज')}</h1>
       </div>
       <div className="pad stack" style={{ paddingTop: 14 }}>
         <Seg value={tab} onChange={setTab} options={[
-          { value: 'disease', label: lang === 'mr' ? 'रोगाचा धोका' : 'Disease Risk' },
-          { value: 'pest', label: lang === 'mr' ? 'किडीचा धोका' : 'Pest Risk' },
+          { value: 'disease', label: bi(lang, 'Disease Risk', 'रोगाचा धोका') },
+          { value: 'pest', label: bi(lang, 'Pest Risk', 'किडीचा धोका') },
         ]} />
 
         {!data && !err && <Loading lines={3} />}
@@ -47,7 +47,7 @@ export function Forecast({ lang, plot, go }) {
             <Card>
               <div className="row between" style={{ marginBottom: 12 }}>
                 <div>
-                  <div className="card-title">{lang === 'mr' ? 'पुढील ४ दिवस' : 'Next 4 days'}</div>
+                  <div className="card-title">{bi(lang, 'Next 4 days', 'पुढील ४ दिवस')}</div>
                   <div className="tiny faint">{plot?.crop_label || plot?.crop} · {plot?.taluka_name}</div>
                 </div>
                 <span className={`badge ${data.headline.level === 'high' ? 'bad'
@@ -59,7 +59,7 @@ export function Forecast({ lang, plot, go }) {
               <div className="fcast">
                 {data.forecast.map(d => (
                   <div className={`d ${d.level}`} key={d.date}>
-                    <div className="dy">{d.offset === 0 ? (lang === 'mr' ? 'आज' : 'Today') : fmtDate(d.date, lang)}</div>
+                    <div className="dy">{d.offset === 0 ? (bi(lang, 'Today', 'आज')) : fmtDate(d.date, lang)}</div>
                     <div className="lv">{levelLabel(d.level, lang)}</div>
                   </div>
                 ))}
@@ -76,11 +76,11 @@ export function Forecast({ lang, plot, go }) {
 
             <Card>
               <div className="card-title" style={{ marginBottom: 10 }}>
-                {lang === 'mr' ? 'हवामान घटक' : 'Contributing weather'}
+                {bi(lang, 'Contributing weather', 'हवामान घटक')}
               </div>
-              {[['rh90_hours', lang === 'mr' ? 'आर्द्रता ९०%+ तास' : 'Hours at RH ≥ 90%', 'h'],
-                ['rain_mm', lang === 'mr' ? 'पाऊस' : 'Rainfall', 'mm'],
-                ['tmin', lang === 'mr' ? 'रात्रीचे किमान तापमान' : 'Night minimum', '°C']].map(([k, label, unit]) => (
+              {[['rh90_hours', bi(lang, 'Hours at RH ≥ 90%', 'आर्द्रता ९०%+ तास'), 'h'],
+                ['rain_mm', bi(lang, 'Rainfall', 'पाऊस'), 'mm'],
+                ['tmin', bi(lang, 'Night minimum', 'रात्रीचे किमान तापमान'), '°C']].map(([k, label, unit]) => (
                 <div className="row between" key={k} style={{ padding: '9px 0', borderBottom: '1px solid var(--rule-soft)' }}>
                   <span className="small">{label}</span>
                   <span className="row" style={{ gap: 8 }}>
@@ -111,11 +111,11 @@ export function Forecast({ lang, plot, go }) {
                 {b.detail && <p className="small" style={{ marginTop: 9 }}>{b.detail}</p>}
                 {b.scout && (
                   <div className="note" style={{ marginTop: 10 }}>
-                    🔍 <b>{lang === 'mr' ? 'काय पहावे' : 'What to look for'}:</b> {bi(lang, b.scout, b.scout_mr)}
+                    🔍 <b>{bi(lang, 'What to look for', 'काय पहावे')}:</b> {bi(lang, b.scout, b.scout_mr)}
                   </div>
                 )}
                 {b.provenance?.source && (
-                  <Why label={lang === 'mr' ? 'हे मॉडेल काय आहे?' : 'What model is this?'}>
+                  <Why label={bi(lang, 'What model is this?', 'हे मॉडेल काय आहे?')}>
                     <div style={{ fontWeight: 700 }}>{b.provenance.name}</div>
                     <p className="small" style={{ marginTop: 5 }}>{b.provenance.rule}</p>
                     <Prov label="Source" value={b.provenance.source} extra={b.provenance.source_type} />
@@ -129,7 +129,7 @@ export function Forecast({ lang, plot, go }) {
 
         {risk && tab === 'pest' && (
           <>
-            {board.length === 0 && <Empty icon="🐛" title={lang === 'mr' ? 'या पिकासाठी कीड मॉडेल नाही' : 'No pest model for this crop'} />}
+            {board.length === 0 && <Empty icon="🐛" title={bi(lang, 'No pest model for this crop', 'या पिकासाठी कीड मॉडेल नाही')} />}
             {board.map(b => (
               <Card key={b.id}>
                 <div className="row between">
@@ -142,17 +142,17 @@ export function Forecast({ lang, plot, go }) {
                   </div>
                   <span className={`badge ${b.damaging ? 'bad' : 'grey'}`}>
                     {b.damaging
-                      ? (lang === 'mr' ? 'नुकसानकारक अवस्था' : 'Damaging stage')
-                      : (lang === 'mr' ? 'फवारणी पोहोचणार नाही' : 'Spray cannot reach it')}
+                      ? (bi(lang, 'Damaging stage', 'नुकसानकारक अवस्था'))
+                      : (bi(lang, 'Spray cannot reach it', 'फवारणी पोहोचणार नाही'))}
                   </span>
                 </div>
                 <div className="note" style={{ marginTop: 10 }}>
-                  <b>{lang === 'mr' ? 'सध्याची अवस्था' : 'Current life stage'}:</b> {b.stage}
+                  <b>{bi(lang, 'Current life stage', 'सध्याची अवस्था')}:</b> {b.stage}
                   {b.gdd != null && <span className="mono tiny"> · {b.gdd} GDD</span>}
                 </div>
                 {b.etl != null && (
                   <div className="row between small" style={{ marginTop: 10 }}>
-                    <span className="muted">{lang === 'mr' ? 'आर्थिक मर्यादा' : 'Economic threshold'}</span>
+                    <span className="muted">{bi(lang, 'Economic threshold', 'आर्थिक मर्यादा')}</span>
                     <b>{b.etl} {b.unit}</b>
                   </div>
                 )}
@@ -160,7 +160,7 @@ export function Forecast({ lang, plot, go }) {
                       extra={b.etl_status === 'draft' ? 'transcribed, pending verification' : undefined} />
                 <button className="btn sm ghost" style={{ marginTop: 10 }}
                         onClick={() => go('decide', { target: b.id })}>
-                  {lang === 'mr' ? 'फवारणी करू का?' : 'Should I spray?'}
+                  {bi(lang, 'Should I spray?', 'फवारणी करू का?')}
                 </button>
               </Card>
             ))}
@@ -198,7 +198,7 @@ export function Traps({ lang, plot, go, online }) {
     <>
       <div className="topbar">
         <button className="icon-btn" onClick={() => go('home')} aria-label="Back">‹</button>
-        <h1 className="grow">{lang === 'mr' ? 'कीड सापळा' : 'Pest Trap Monitor'}</h1>
+        <h1 className="grow">{bi(lang, 'Pest Trap Monitor', 'कीड सापळा')}</h1>
         <button className="btn sm" onClick={() => setAddOpen(true)}>＋</button>
       </div>
       <div className="pad stack" style={{ paddingTop: 14 }}>
@@ -207,12 +207,10 @@ export function Traps({ lang, plot, go, online }) {
 
         {traps?.length === 0 && (
           <Empty icon="🪤"
-                 title={lang === 'mr' ? 'अजून सापळा नाही' : 'No traps installed'}
-                 body={lang === 'mr'
-                   ? 'सापळ्याची मोजणी हाच एकमेव पुरावा आहे ज्यावरून फवारणी योग्य आहे का ते ठरते.'
-                   : 'A trap count is the only evidence that can justify an intervention. A photograph alone cannot.'}
+                 title={bi(lang, 'No traps installed', 'अजून सापळा नाही')}
+                 body={bi(lang, 'A trap count is the only evidence that can justify an intervention. A photograph alone cannot.', 'सापळ्याची मोजणी हाच एकमेव पुरावा आहे ज्यावरून फवारणी योग्य आहे का ते ठरते.')}
                  action={<button className="btn" onClick={() => setAddOpen(true)}>
-                   {lang === 'mr' ? 'सापळा जोडा' : 'Add a trap'}</button>} />
+                   {bi(lang, 'Add a trap', 'सापळा जोडा')}</button>} />
         )}
 
         {traps?.length > 0 && (
@@ -228,17 +226,17 @@ export function Traps({ lang, plot, go, online }) {
             <Card>
               <div className="row between" style={{ alignItems: 'flex-start' }}>
                 <div>
-                  <div className="tiny muted">{lang === 'mr' ? 'आजची मोजणी' : "Today's count"}</div>
+                  <div className="tiny muted">{bi(lang, "Today's count", 'आजची मोजणी')}</div>
                   <div className="row" style={{ alignItems: 'baseline', gap: 8, marginTop: 2 }}>
                     <span className="num" style={{ fontSize: 40 }}>{latest ? latest.count : '—'}</span>
                     {latest && <span className={`badge ${over ? 'bad' : 'ok'}`}>
-                      {over ? (lang === 'mr' ? 'जास्त' : 'High') : (lang === 'mr' ? 'ठीक' : 'Below ETL')}
+                      {over ? (bi(lang, 'High', 'जास्त')) : (bi(lang, 'Below ETL', 'ठीक'))}
                     </span>}
                   </div>
                   <div className="tiny faint">{trap.etl_unit}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div className="tiny muted">{lang === 'mr' ? 'मर्यादा' : 'ETL'}</div>
+                  <div className="tiny muted">{bi(lang, 'ETL', 'मर्यादा')}</div>
                   <div className="num" style={{ fontSize: 22 }}>{trap.etl ?? '—'}</div>
                 </div>
               </div>
@@ -263,11 +261,9 @@ export function Traps({ lang, plot, go, online }) {
 
               {over && (
                 <div className="note bad" style={{ marginTop: 10 }}>
-                  <b>{lang === 'mr' ? 'मर्यादा ओलांडली' : 'Threshold crossed'}</b>
+                  <b>{bi(lang, 'Threshold crossed', 'मर्यादा ओलांडली')}</b>
                   <div style={{ marginTop: 4 }}>
-                    {lang === 'mr'
-                      ? 'एकात्मिक कीड व्यवस्थापन पहा — रासायनिक पर्याय फक्त तपासलेली शिफारस असल्यासच दिसेल.'
-                      : 'Open the IPM options. A chemical appears only if a verified label claim exists for this crop and pest.'}
+                    {bi(lang, 'Open the IPM options. A chemical appears only if a verified label claim exists for this crop and pest.', 'एकात्मिक कीड व्यवस्थापन पहा — रासायनिक पर्याय फक्त तपासलेली शिफारस असल्यासच दिसेल.')}
                   </div>
                 </div>
               )}
@@ -276,10 +272,10 @@ export function Traps({ lang, plot, go, online }) {
             </Card>
 
             <button className="btn block" onClick={() => setCountOpen(true)}>
-              📷 {lang === 'mr' ? 'मोजणी नोंदवा' : 'Add a trap count'}
+              📷 {bi(lang, 'Add a trap count', 'मोजणी नोंदवा')}
             </button>
             <button className="btn block ghost" onClick={() => go('decide', { target: trap.pest })}>
-              {lang === 'mr' ? 'व्यवस्थापन पर्याय पहा' : 'View IPM options'}
+              {bi(lang, 'View IPM options', 'व्यवस्थापन पर्याय पहा')}
             </button>
           </>
         )}
@@ -321,23 +317,21 @@ function AddTrapSheet({ open, onClose, lang, plot, onSaved }) {
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title={lang === 'mr' ? 'सापळा जोडा' : 'Install a trap'}>
+    <Sheet open={open} onClose={onClose} title={bi(lang, 'Install a trap', 'सापळा जोडा')}>
       {pests.length === 0
         ? <p className="small muted">
-            {lang === 'mr'
-              ? 'या पिकासाठी प्रहरीकडे प्रकाशित आर्थिक मर्यादा असलेली कोणतीही कीड नाही, त्यामुळे सापळ्याची मोजणी कशाशीही तुलना करता येणार नाही.'
-              : 'PRAHARI has no pest with a published economic threshold for this crop, so a trap count could not be judged against anything.'}
+            {bi(lang, 'PRAHARI has no pest with a published economic threshold for this crop, so a trap count could not be judged against anything.', 'या पिकासाठी प्रहरीकडे प्रकाशित आर्थिक मर्यादा असलेली कोणतीही कीड नाही, त्यामुळे सापळ्याची मोजणी कशाशीही तुलना करता येणार नाही.')}
           </p>
         : (
           <>
             <label className="field">
-              <span className="lbl">{lang === 'mr' ? 'कीड' : 'Pest'}</span>
+              <span className="lbl">{bi(lang, 'Pest', 'कीड')}</span>
               <select className="input" value={f.pest || ''} onChange={e => setF(x => ({ ...x, pest: e.target.value }))}>
                 {pests.map(p => <option key={p.id} value={p.id}>{bi(lang, p.name, p.name_mr)} — ETL {p.etl} {p.unit}</option>)}
               </select>
             </label>
             <label className="field">
-              <span className="lbl">{lang === 'mr' ? 'सापळ्याचा प्रकार' : 'Trap type'}</span>
+              <span className="lbl">{bi(lang, 'Trap type', 'सापळ्याचा प्रकार')}</span>
               <select className="input" value={f.trap_type}
                       onChange={e => setF(x => ({ ...x, trap_type: e.target.value }))}>
                 <option value="pheromone">Pheromone</option>
@@ -348,7 +342,7 @@ function AddTrapSheet({ open, onClose, lang, plot, onSaved }) {
             </label>
             {err && <ErrorNote error={err} lang={lang} />}
             <button className="btn block" disabled={busy || !f.pest} onClick={save}>
-              {busy ? '…' : (lang === 'mr' ? 'सापळा नोंदवा' : 'Install trap')}
+              {busy ? '…' : (bi(lang, 'Install trap', 'सापळा नोंदवा'))}
             </button>
           </>
         )}
@@ -377,11 +371,9 @@ function TrapCountSheet({ open, onClose, lang, trap, onSaved }) {
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title={lang === 'mr' ? 'सापळा मोजणी' : 'Trap count'}>
+    <Sheet open={open} onClose={onClose} title={bi(lang, 'Trap count', 'सापळा मोजणी')}>
       <div className="note info" style={{ marginBottom: 14 }}>
-        {lang === 'mr'
-          ? 'फोटो जोडता येतो, पण प्रहरी फोटोवरून किडे मोजण्याचा दावा करत नाही — तुमचा आकडा हाच नोंद होतो.'
-          : 'You may attach a photograph of the trap, but PRAHARI does not claim to count insects from it. Your own number is what gets recorded.'}
+        {bi(lang, 'You may attach a photograph of the trap, but PRAHARI does not claim to count insects from it. Your own number is what gets recorded.', 'फोटो जोडता येतो, पण प्रहरी फोटोवरून किडे मोजण्याचा दावा करत नाही — तुमचा आकडा हाच नोंद होतो.')}
       </div>
 
       <label className="field">
@@ -394,7 +386,7 @@ function TrapCountSheet({ open, onClose, lang, trap, onSaved }) {
       </label>
 
       <label className="field">
-        <span className="lbl">{lang === 'mr' ? 'सापळ्याचा फोटो (ऐच्छिक)' : 'Photograph of the trap (optional)'}</span>
+        <span className="lbl">{bi(lang, 'Photograph of the trap (optional)', 'सापळ्याचा फोटो (ऐच्छिक)')}</span>
         <input className="input" type="file" accept="image/*"
                onChange={e => setPhoto(e.target.files?.[0] || null)} />
       </label>
@@ -409,7 +401,7 @@ function TrapCountSheet({ open, onClose, lang, trap, onSaved }) {
       )}
 
       <button className="btn block" disabled={busy || count === ''} onClick={save}>
-        {busy ? '…' : (lang === 'mr' ? 'नोंदवा' : 'Save count')}
+        {busy ? '…' : (bi(lang, 'Save count', 'नोंदवा'))}
       </button>
     </Sheet>
   )
@@ -428,15 +420,13 @@ export function Alerts({ lang, plot, go, onRead }) {
 
   return (
     <>
-      <div className="topbar"><h1 className="grow">{lang === 'mr' ? 'सूचना' : 'Alerts'}</h1></div>
+      <div className="topbar"><h1 className="grow">{bi(lang, 'Alerts', 'सूचना')}</h1></div>
       <div className="pad stack" style={{ paddingTop: 14 }}>
         {err && <ErrorNote error={err} lang={lang} />}
         {!data && !err && <Loading lines={4} />}
         {data?.notifications?.length === 0 && (
-          <Empty icon="🔔" title={lang === 'mr' ? 'कोणतीही सूचना नाही' : 'No alerts yet'}
-                 body={lang === 'mr'
-                   ? 'धोका वाढला, मर्यादा ओलांडली किंवा तज्ज्ञांचा निकाल आला की इथे दिसेल.'
-                   : 'You will see risk warnings, threshold crossings and expert verdicts here.'} />
+          <Empty icon="🔔" title={bi(lang, 'No alerts yet', 'कोणतीही सूचना नाही')}
+                 body={bi(lang, 'You will see risk warnings, threshold crossings and expert verdicts here.', 'धोका वाढला, मर्यादा ओलांडली किंवा तज्ज्ञांचा निकाल आला की इथे दिसेल.')} />
         )}
         {data?.notifications?.map(n => (
           <Card key={n.id} className="tight" style={{
@@ -495,17 +485,15 @@ export function Rescan({ lang, followup, go }) {
     <>
       <div className="topbar">
         <button className="icon-btn" onClick={() => go('home')} aria-label="Back">‹</button>
-        <h1 className="grow">{lang === 'mr' ? 'पुन्हा तपासणी' : 'Follow-up scan'}</h1>
+        <h1 className="grow">{bi(lang, 'Follow-up scan', 'पुन्हा तपासणी')}</h1>
       </div>
       <div className="pad stack" style={{ paddingTop: 14 }}>
         {!out && (
           <>
             <Card>
-              <div className="card-title">{lang === 'mr' ? 'उपाय लागू पडला का?' : 'Did the action work?'}</div>
+              <div className="card-title">{bi(lang, 'Did the action work?', 'उपाय लागू पडला का?')}</div>
               <p className="small muted" style={{ marginTop: 7 }}>
-                {lang === 'mr'
-                  ? 'त्याच शेतातील बाधित पानाचा फोटो काढा. प्रहरी पहिल्या फोटोशी तुलना करून दिशा सांगेल — टक्केवारी नाही, कारण दोन वेगळ्या पानांच्या हातातल्या फोटोंवरून तेवढी अचूकता मिळत नाही.'
-                  : 'Photograph an affected leaf in the same field. PRAHARI compares it with the first scan and reports the DIRECTION of change — never a percentage, because two hand-held photographs of different leaves cannot support one.'}
+                {bi(lang, 'Photograph an affected leaf in the same field. PRAHARI compares it with the first scan and reports the DIRECTION of change — never a percentage, because two hand-held photographs of different leaves cannot support one.', 'त्याच शेतातील बाधित पानाचा फोटो काढा. प्रहरी पहिल्या फोटोशी तुलना करून दिशा सांगेल — टक्केवारी नाही, कारण दोन वेगळ्या पानांच्या हातातल्या फोटोंवरून तेवढी अचूकता मिळत नाही.')}
               </p>
               <label className="field" style={{ marginTop: 14 }}>
                 <input className="input" type="file" accept="image/*"
@@ -513,7 +501,7 @@ export function Rescan({ lang, followup, go }) {
               </label>
               {err && <ErrorNote error={err} lang={lang} />}
               <button className="btn block" disabled={busy || !file} onClick={submit}>
-                {busy ? '…' : (lang === 'mr' ? 'तुलना करा' : 'Compare with the first scan')}
+                {busy ? '…' : (bi(lang, 'Compare with the first scan', 'तुलना करा'))}
               </button>
             </Card>
 
@@ -524,12 +512,10 @@ export function Rescan({ lang, followup, go }) {
                 measured is never counted as evidence a treatment worked. */}
             <Card>
               <div className="card-title">
-                {lang === 'mr' ? 'फोटो काढणे शक्य नाही?' : 'Cannot take a comparable photo?'}
+                {bi(lang, 'Cannot take a comparable photo?', 'फोटो काढणे शक्य नाही?')}
               </div>
               <p className="small muted" style={{ marginTop: 7, marginBottom: 12 }}>
-                {lang === 'mr'
-                  ? 'तुम्ही स्वतः काय पाहिले ते सांगा. ही नोंद "शेतकऱ्याने सांगितलेली" म्हणून ठेवली जाते — मोजलेली तुलना म्हणून नाही.'
-                  : 'Tell PRAHARI what you saw. It is stored as SELF-REPORTED, not as a measured comparison.'}
+                {bi(lang, 'Tell PRAHARI what you saw. It is stored as SELF-REPORTED, not as a measured comparison.', 'तुम्ही स्वतः काय पाहिले ते सांगा. ही नोंद "शेतकऱ्याने सांगितलेली" म्हणून ठेवली जाते — मोजलेली तुलना म्हणून नाही.')}
               </p>
               <div className="chips">
                 {[['better', '🟢', 'Better', 'सुधारले'],
@@ -553,7 +539,7 @@ export function Rescan({ lang, followup, go }) {
               <div className="ans">
                 {out.comparison
                   ? bi(lang, out.comparison.label, out.comparison.label_mr)
-                  : (lang === 'mr' ? 'तुलना करता आली नाही' : 'Could not be compared')}
+                  : (bi(lang, 'Could not be compared', 'तुलना करता आली नाही'))}
               </div>
               <p className="why">{out.comparison?.say || out.note || out.message}</p>
             </div>
@@ -562,12 +548,10 @@ export function Rescan({ lang, followup, go }) {
             {out.measured === false && (
               <Card style={{ borderColor: 'var(--warn-line)', background: 'var(--warn-bg)' }}>
                 <div className="card-title" style={{ color: 'var(--warn)' }}>
-                  {lang === 'mr' ? 'शेतकऱ्याने सांगितलेली नोंद' : 'Self-reported'}
+                  {bi(lang, 'Self-reported', 'शेतकऱ्याने सांगितलेली नोंद')}
                 </div>
                 <p className="small" style={{ marginTop: 7 }}>
-                  {lang === 'mr'
-                    ? 'ही नोंद तुमच्या निरीक्षणावर आधारित आहे. दोन फोटोंची मोजलेली तुलना नाही — त्यामुळे उपाय लागू पडल्याचा पुरावा म्हणून ती धरली जात नाही.'
-                    : 'This is your own account, not a measured comparison of two photographs, so it is not counted as evidence that the treatment worked.'}
+                  {bi(lang, 'This is your own account, not a measured comparison of two photographs, so it is not counted as evidence that the treatment worked.', 'ही नोंद तुमच्या निरीक्षणावर आधारित आहे. दोन फोटोंची मोजलेली तुलना नाही — त्यामुळे उपाय लागू पडल्याचा पुरावा म्हणून ती धरली जात नाही.')}
                 </p>
               </Card>
             )}
@@ -575,11 +559,11 @@ export function Rescan({ lang, followup, go }) {
             {out.comparison && (
               <Card>
                 <div className="row between small" style={{ padding: '6px 0' }}>
-                  <span className="muted">{lang === 'mr' ? 'पहिल्या फोटोतले डाग' : 'Lesions in the first scan'}</span>
+                  <span className="muted">{bi(lang, 'Lesions in the first scan', 'पहिल्या फोटोतले डाग')}</span>
                   <b>{out.comparison.lesions_before}</b>
                 </div>
                 <div className="row between small" style={{ padding: '6px 0' }}>
-                  <span className="muted">{lang === 'mr' ? 'आताच्या फोटोतले डाग' : 'Lesions now'}</span>
+                  <span className="muted">{bi(lang, 'Lesions now', 'आताच्या फोटोतले डाग')}</span>
                   <b>{out.comparison.lesions_after}</b>
                 </div>
                 <Prov label="Why no percentage" value={out.comparison.why_no_percentage} />
@@ -597,7 +581,7 @@ export function Rescan({ lang, followup, go }) {
             )}
 
             <button className="btn block" onClick={() => go('home')}>
-              {lang === 'mr' ? 'ठीक आहे' : 'Done'}
+              {bi(lang, 'Done', 'ठीक आहे')}
             </button>
           </>
         )}
@@ -655,7 +639,7 @@ export function Profile({ lang, onLang, me, plots, go, health, demo, onScenario 
 
   return (
     <>
-      <div className="topbar"><h1 className="grow">{lang === 'mr' ? 'प्रोफाइल' : 'Profile'}</h1></div>
+      <div className="topbar"><h1 className="grow">{bi(lang, 'Profile', 'प्रोफाइल')}</h1></div>
       <div className="pad stack" style={{ paddingTop: 14 }}>
         <Card>
           <div className="row" style={{ gap: 14 }}>
@@ -672,7 +656,7 @@ export function Profile({ lang, onLang, me, plots, go, health, demo, onScenario 
                 {me?.profile?.taluka_name || me?.profile?.taluka} · {me?.user?.phone || me?.user?.email}
               </div>
               <div className="tiny faint" style={{ marginTop: 3 }}>
-                {plots?.length || 0} {lang === 'mr' ? 'शेते नोंदवली' : 'field(s) registered'}
+                {plots?.length || 0} {bi(lang, 'field(s) registered', 'शेते नोंदवली')}
               </div>
             </div>
           </div>
@@ -680,15 +664,15 @@ export function Profile({ lang, onLang, me, plots, go, health, demo, onScenario 
 
         {ledger?.summary && (
           <Card>
-            <div className="card-title">{lang === 'mr' ? 'टाळलेल्या फवारण्या' : 'Sprays avoided'}</div>
+            <div className="card-title">{bi(lang, 'Sprays avoided', 'टाळलेल्या फवारण्या')}</div>
             <div className="row between" style={{ marginTop: 12 }}>
               <div>
                 <div className="num" style={{ fontSize: 30 }}>{ledger.summary.avoided}</div>
-                <div className="tiny muted">{lang === 'mr' ? 'फवारण्या टाळल्या' : 'applications avoided'}</div>
+                <div className="tiny muted">{bi(lang, 'applications avoided', 'फवारण्या टाळल्या')}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div className="num" style={{ fontSize: 24, color: 'var(--ok)' }}>{fmtMoney(ledger.summary.saved)}</div>
-                <div className="tiny muted">{lang === 'mr' ? 'अंदाजे बचत' : 'estimated saving'}</div>
+                <div className="tiny muted">{bi(lang, 'estimated saving', 'अंदाजे बचत')}</div>
               </div>
             </div>
             <Prov label="Compared against" value={ledger.summary.baseline} />
@@ -699,9 +683,9 @@ export function Profile({ lang, onLang, me, plots, go, health, demo, onScenario 
         {me?.user?.role === 'farmer' && <FpoCard lang={lang} />}
 
         <Card>
-          <div className="card-title" style={{ marginBottom: 10 }}>{lang === 'mr' ? 'भाषा' : 'Language'}</div>
+          <div className="card-title" style={{ marginBottom: 10 }}>{bi(lang, 'Language', 'भाषा')}</div>
           <div className="row" style={{ gap: 8 }}>
-            {[['mr', 'मराठी'], ['hi', 'हिंदी'], ['en', 'English']].map(([code, label]) => (
+            {[['bn', 'বাংলা'], ['mr', 'मराठी'], ['hi', 'हिंदी'], ['en', 'English']].map(([code, label]) => (
               <button key={code} className="chip" aria-pressed={lang === code}
                       onClick={() => { persistLang(code); onLang(code) }}>{label}</button>
             ))}
@@ -711,7 +695,7 @@ export function Profile({ lang, onLang, me, plots, go, health, demo, onScenario 
         {demo?.scenarios && (
           <Card style={{ borderColor: 'var(--warn-line)' }}>
             <div className="row between" style={{ marginBottom: 4 }}>
-              <div className="card-title">{lang === 'mr' ? 'डेमो परिस्थिती' : 'Demo scenarios'}</div>
+              <div className="card-title">{bi(lang, 'Demo scenarios', 'डेमो परिस्थिती')}</div>
               <span className="badge warn">DEMO MODE</span>
             </div>
             <p className="tiny faint" style={{ marginBottom: 12 }}>{demo.separation}</p>
@@ -732,7 +716,7 @@ export function Profile({ lang, onLang, me, plots, go, health, demo, onScenario 
         {health && (
           <Card>
             <div className="card-title" style={{ marginBottom: 8 }}>
-              {lang === 'mr' ? 'यंत्रणेची स्थिती' : 'System status'}
+              {bi(lang, 'System status', 'यंत्रणेची स्थिती')}
             </div>
             {Object.entries({
               Weather: `${health.checks?.weather?.provider} (${health.checks?.weather?.kind})`,
@@ -754,7 +738,7 @@ export function Profile({ lang, onLang, me, plots, go, health, demo, onScenario 
         )}
 
         <button className="btn block quiet" onClick={signOut}>
-          {lang === 'mr' ? 'साइन आउट' : 'Sign out'}
+          {bi(lang, 'Sign out', 'साइन आउट')}
         </button>
 
         <p className="tiny faint center" style={{ padding: '10px 6px 0', lineHeight: 1.6 }}>

@@ -1,5 +1,22 @@
 # PRAHARI · upgrade status
 
+## Summit readiness (17 Nov 2026) — known state
+
+**Production:**
+- Never serves generated weather.
+- A new field's disease risk cannot run yet: Open-Meteo rate-limits Render's IP, and WeatherAPI's free tier has 1 day of history. Needs a paid history plan.
+- The free database expires on 16 Dec 2026.
+- The free instance cold-starts in about 50 s.
+- Photos are not persisted (local storage, no disk).
+
+**Bengal:**
+- Bengali UI is a draft that needs native review.
+- 11 West Bengal blocks are mapped, with no farm counts, so they are excluded from Gi*.
+- Potato and paddy are NOT built. See `docs/BENGAL_CROP_VALIDATION.md`.
+
+**Other:** Hindi shows English. Judge mode runs on staging only.
+
+
 PHASE: all — delivered in one pass
 STATUS: complete. 237 backend tests pass, frontend builds, walked through a browser.
 

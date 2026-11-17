@@ -162,7 +162,8 @@ def _ensure_demo_field(db: Database, user_id: str) -> None:
     from ..schemas import PlotIn
     from .plots import create_plot
     farmer = db.one("SELECT id, taluka FROM farmers WHERE user_id = :u", {"u": user_id})
-    if not farmer or db.one("SELECT id FROM plots WHERE farmer_id = :f", {"f": farmer["id"]}):
+    if not farmer or db.one("SELECT id FROM plots WHERE farmer_id = :f AND archived = 0",
+                            {"f": farmer["id"]}):
         return
     from ..clock import today
     user = db.one("SELECT * FROM users WHERE id = :u", {"u": user_id})

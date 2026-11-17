@@ -14,7 +14,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator, model_validato
 
 PHONE_RE = re.compile(r"^(\+91)?[6-9]\d{9}$")
 Role = Literal["farmer", "officer", "expert", "admin", "fpo"]
-Lang = Literal["mr", "hi", "en"]
+Lang = Literal["mr", "hi", "en", "bn"]
 
 
 class ErrorBody(BaseModel):

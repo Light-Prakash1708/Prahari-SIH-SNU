@@ -8,6 +8,7 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api'
 import { Card, Empty, ErrorNote, Loading, Prov, Sheet, bi, fmtDate } from '../ui'
+import { UnitOptions, useUnits } from '../units'
 
 /* id, English, Marathi, and the glyph — a fourth element rather than a second
    table, so a crop cannot end up named in one place and drawn in another.
@@ -17,11 +18,6 @@ export const CROPS = [
   ['onion', 'Onion', 'कांदा', '🧅'], ['maize', 'Maize', 'मका', '🌽'],
   ['cotton', 'Cotton', 'कापूस', '🌱'], ['soybean', 'Soybean', 'सोयाबीन', '🌿'],
   ['pigeonpea', 'Pigeonpea', 'तूर', '🫘'],
-]
-const TALUKAS = [
-  ['pimpalgaon', 'Pimpalgaon Baswant'], ['niphad', 'Niphad'], ['dindori', 'Dindori'],
-  ['lasalgaon', 'Lasalgaon'], ['nashik', 'Nashik'], ['sinnar', 'Sinnar'],
-  ['igatpuri', 'Igatpuri'], ['yeola', 'Yeola'], ['chandvad', 'Chandvad'], ['malegaon', 'Malegaon'],
 ]
 
 export function Fields({ lang, plots, plot, onPlot, go, reload, asCropSection = false }) {
@@ -62,11 +58,11 @@ export function Fields({ lang, plots, plot, onPlot, go, reload, asCropSection = 
       <div className="topbar">
         <h1 className="grow">
           {asCropSection
-            ? (lang === 'mr' ? 'माझी पिके' : 'My Crops')
-            : (lang === 'mr' ? 'माझी शेते' : 'My Fields')}
+            ? (bi(lang, 'My Crops', 'माझी पिके'))
+            : (bi(lang, 'My Fields', 'माझी शेते'))}
         </h1>
         <button className="btn sm" onClick={() => go('addField')}>
-          ＋ {lang === 'mr' ? 'शेत' : 'Field'}
+          ＋ {bi(lang, 'Field', 'शेत')}
         </button>
       </div>
       {asCropSection && plots?.length > 0 && (
@@ -78,12 +74,10 @@ export function Fields({ lang, plots, plot, onPlot, go, reload, asCropSection = 
       <div className="pad stack" style={{ paddingTop: 14 }}>
         {!plots?.length && (
           <Empty icon="🌾"
-                 title={lang === 'mr' ? 'अजून शेत नाही' : 'No fields yet'}
-                 body={lang === 'mr'
-                   ? 'शेत नोंदवल्यावर प्रहरी त्या ठिकाणच्या खऱ्या हवामानावर धोका मोजू लागते. वेगवेगळ्या पिकांची अनेक शेते जोडता येतात.'
-                   : 'Register a field and PRAHARI starts forecasting risk from the real weather at that exact spot. You can add as many as you farm, each with its own crop.'}
+                 title={bi(lang, 'No fields yet', 'अजून शेत नाही')}
+                 body={bi(lang, 'Register a field and PRAHARI starts forecasting risk from the real weather at that exact spot. You can add as many as you farm, each with its own crop.', 'शेत नोंदवल्यावर प्रहरी त्या ठिकाणच्या खऱ्या हवामानावर धोका मोजू लागते. वेगवेगळ्या पिकांची अनेक शेते जोडता येतात.')}
                  action={<button className="btn" onClick={() => go('addField')}>
-                   {lang === 'mr' ? 'शेत जोडा' : 'Add a field'}</button>} />
+                   {bi(lang, 'Add a field', 'शेत जोडा')}</button>} />
         )}
 
         {/* One line that answers "is anything wrong anywhere" before any card
@@ -299,7 +293,7 @@ function FieldCard({ p, f, lang, active, onOpen, onNewCrop, go, onPlot }) {
           )}
           {p.sown_on && (
             <span className="muted">
-              {' · '}{lang === 'mr' ? 'पेरणी ' : 'sown '}{fmtDate(p.sown_on, lang)}
+              {' · '}{bi(lang, 'sown ', 'पेरणी ')}{fmtDate(p.sown_on, lang)}
             </span>
           )}
         </div>
@@ -363,6 +357,7 @@ function FieldCard({ p, f, lang, active, onOpen, onNewCrop, go, onPlot }) {
 
 /* ── registration ──────────────────────────────────────────────────────── */
 export function AddField({ lang, go, reload }) {
+  const units = useUnits()
   const [f, setF] = useState({
     crop: 'tomato', area_acre: '1', location_source: 'manual',
     sown_on: new Date().toISOString().slice(0, 10),
@@ -410,25 +405,25 @@ export function AddField({ lang, go, reload }) {
     <>
       <div className="topbar">
         <button className="icon-btn" onClick={() => go('fields')} aria-label="Back">‹</button>
-        <h1 className="grow">{lang === 'mr' ? 'शेत जोडा' : 'Add a field'}</h1>
+        <h1 className="grow">{bi(lang, 'Add a field', 'शेत जोडा')}</h1>
       </div>
       <form className="pad" style={{ paddingTop: 16 }} onSubmit={submit}>
         <Card>
           <label className="field">
-            <span className="lbl">{lang === 'mr' ? 'शेताचे नाव' : 'Field name'}</span>
+            <span className="lbl">{bi(lang, 'Field name', 'शेताचे नाव')}</span>
             <input className="input" required value={f.name || ''} onChange={set('name')}
-                   placeholder={lang === 'mr' ? 'उदा. टोमॅटो प्लॉट १' : 'e.g. Tomato block 1'} />
+                   placeholder={bi(lang, 'e.g. Tomato block 1', 'उदा. टोमॅटो प्लॉट १')} />
           </label>
 
           <div className="grid2">
             <label className="field">
-              <span className="lbl">{lang === 'mr' ? 'पीक' : 'Crop'}</span>
+              <span className="lbl">{bi(lang, 'Crop', 'पीक')}</span>
               <select className="input" value={f.crop} onChange={set('crop')}>
                 {CROPS.map(([id, en, mr]) => <option key={id} value={id}>{lang === 'mr' ? mr : en}</option>)}
               </select>
             </label>
             <label className="field">
-              <span className="lbl">{lang === 'mr' ? 'क्षेत्र (एकर)' : 'Area (acres)'}</span>
+              <span className="lbl">{bi(lang, 'Area (acres)', 'क्षेत्र (एकर)')}</span>
               <input className="input" type="number" min="0.1" step="0.1" required
                      value={f.area_acre} onChange={set('area_acre')} />
             </label>
@@ -436,12 +431,12 @@ export function AddField({ lang, go, reload }) {
 
           <div className="grid2">
             <label className="field">
-              <span className="lbl">{lang === 'mr' ? 'पेरणीची तारीख' : 'Sowing date'}</span>
+              <span className="lbl">{bi(lang, 'Sowing date', 'पेरणीची तारीख')}</span>
               <input className="input" type="date" required value={f.sown_on} onChange={set('sown_on')}
                      max={new Date().toISOString().slice(0, 10)} />
             </label>
             <label className="field">
-              <span className="lbl">{lang === 'mr' ? 'वाण (ऐच्छिक)' : 'Variety (optional)'}</span>
+              <span className="lbl">{bi(lang, 'Variety (optional)', 'वाण (ऐच्छिक)')}</span>
               <input className="input" value={f.variety || ''} onChange={set('variety')} />
             </label>
           </div>
@@ -449,23 +444,21 @@ export function AddField({ lang, go, reload }) {
 
         <Card style={{ marginTop: 14 }}>
           <div className="card-title" style={{ marginBottom: 4 }}>
-            {lang === 'mr' ? 'शेताचे ठिकाण' : 'Where is the field?'}
+            {bi(lang, 'Where is the field?', 'शेताचे ठिकाण')}
           </div>
           <p className="small muted" style={{ marginBottom: 12 }}>
-            {lang === 'mr'
-              ? 'प्रहरी याच ठिकाणचे खरे हवामान वापरून धोका मोजते. शेतात उभे असाल तर GPS सर्वात अचूक.'
-              : 'PRAHARI forecasts risk from the real weather at this exact spot. GPS is best if you are standing in the field.'}
+            {bi(lang, 'PRAHARI forecasts risk from the real weather at this exact spot. GPS is best if you are standing in the field.', 'प्रहरी याच ठिकाणचे खरे हवामान वापरून धोका मोजते. शेतात उभे असाल तर GPS सर्वात अचूक.')}
           </p>
 
           <button type="button" className="btn ghost block" onClick={locate} disabled={geo === 'working'}>
             📍 {geo === 'working'
-              ? (lang === 'mr' ? 'ठिकाण शोधत आहे…' : 'Finding your location…')
-              : (lang === 'mr' ? 'माझे सध्याचे ठिकाण वापरा' : 'Use my current location')}
+              ? (bi(lang, 'Finding your location…', 'ठिकाण शोधत आहे…'))
+              : (bi(lang, 'Use my current location', 'माझे सध्याचे ठिकाण वापरा'))}
           </button>
 
           {f.lat != null && (
             <div className="note" style={{ marginTop: 10 }}>
-              ✓ {lang === 'mr' ? 'ठिकाण नोंदले' : 'Location captured'}: <span className="mono">{f.lat}, {f.lng}</span>
+              ✓ {bi(lang, 'Location captured', 'ठिकाण नोंदले')}: <span className="mono">{f.lat}, {f.lng}</span>
               {geo?.accuracy && <div className="tiny faint" style={{ marginTop: 3 }}>
                 {lang === 'mr' ? `अचूकता सुमारे ${geo.accuracy} मीटर` : `Accurate to about ${geo.accuracy} m`}
               </div>}
@@ -473,32 +466,30 @@ export function AddField({ lang, go, reload }) {
           )}
           {geo === 'failed' && (
             <div className="note warn" style={{ marginTop: 10 }}>
-              {lang === 'mr'
-                ? 'ठिकाण मिळाले नाही. खाली तालुका निवडा — प्रहरी तालुका केंद्राचे हवामान वापरेल.'
-                : 'Could not get a location. Choose a taluka below — PRAHARI will use the taluka centroid instead, and will say so.'}
+              {bi(lang, 'Could not get a location. Choose a taluka below — PRAHARI will use the taluka centroid instead, and will say so.', 'ठिकाण मिळाले नाही. खाली तालुका निवडा — प्रहरी तालुका केंद्राचे हवामान वापरेल.')}
             </div>
           )}
 
           <label className="field" style={{ marginTop: 14 }}>
-            <span className="lbl">{lang === 'mr' ? 'तालुका' : 'Taluka'}</span>
+            <span className="lbl">{bi(lang, 'Taluka', 'तालुका')}</span>
             <select className="input" value={f.taluka || ''} onChange={set('taluka')}>
-              <option value="">{lang === 'mr' ? 'माझ्या खात्याचा तालुका' : 'Use my account taluka'}</option>
-              {TALUKAS.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              <option value="">{bi(lang, 'Use my account taluka', 'माझ्या खात्याचा तालुका')}</option>
+              <UnitOptions units={units} lang={lang} />
             </select>
           </label>
           <label className="field">
-            <span className="lbl">{lang === 'mr' ? 'गाव (ऐच्छिक)' : 'Village (optional)'}</span>
+            <span className="lbl">{bi(lang, 'Village (optional)', 'गाव (ऐच्छिक)')}</span>
             <input className="input" value={f.village || ''} onChange={set('village')} />
           </label>
         </Card>
 
         <Card style={{ marginTop: 14 }}>
           <div className="card-title" style={{ marginBottom: 10 }}>
-            {lang === 'mr' ? 'शेतीची माहिती (ऐच्छिक)' : 'Farming details (optional)'}
+            {bi(lang, 'Farming details (optional)', 'शेतीची माहिती (ऐच्छिक)')}
           </div>
           <div className="grid2">
             <label className="field">
-              <span className="lbl">{lang === 'mr' ? 'जमीन' : 'Soil'}</span>
+              <span className="lbl">{bi(lang, 'Soil', 'जमीन')}</span>
               <select className="input" value={f.soil || ''} onChange={set('soil')}>
                 <option value="">—</option>
                 <option value="medium black">Medium black</option>
@@ -508,7 +499,7 @@ export function AddField({ lang, go, reload }) {
               </select>
             </label>
             <label className="field">
-              <span className="lbl">{lang === 'mr' ? 'सिंचन' : 'Irrigation'}</span>
+              <span className="lbl">{bi(lang, 'Irrigation', 'सिंचन')}</span>
               <select className="input" value={f.irrigation || ''} onChange={set('irrigation')}>
                 <option value="">—</option>
                 <option value="drip">Drip</option>
@@ -519,13 +510,11 @@ export function AddField({ lang, go, reload }) {
             </label>
           </div>
           <label className="field">
-            <span className="lbl">{lang === 'mr' ? 'तुमच्या पंपाची क्षमता (लिटर)' : 'Your knapsack sprayer (litres)'}</span>
+            <span className="lbl">{bi(lang, 'Your knapsack sprayer (litres)', 'तुमच्या पंपाची क्षमता (लिटर)')}</span>
             <input className="input" type="number" min="5" max="200" value={f.tank_litres || 15}
                    onChange={set('tank_litres')} />
             <span className="hint">
-              {lang === 'mr'
-                ? 'मात्रा याच पंपाच्या हिशेबात सांगितली जाईल.'
-                : 'Doses are worked out in your own tank size, not in litres per hectare.'}
+              {bi(lang, 'Doses are worked out in your own tank size, not in litres per hectare.', 'मात्रा याच पंपाच्या हिशेबात सांगितली जाईल.')}
             </span>
           </label>
         </Card>
@@ -533,7 +522,7 @@ export function AddField({ lang, go, reload }) {
         {err && <div style={{ marginTop: 14 }}><ErrorNote error={err} lang={lang} /></div>}
 
         <button className="btn block" style={{ marginTop: 16 }} disabled={busy} type="submit">
-          {busy ? '…' : (lang === 'mr' ? 'शेत नोंदवा' : 'Register field')}
+          {busy ? '…' : (bi(lang, 'Register field', 'शेत नोंदवा'))}
         </button>
       </form>
     </>
@@ -553,7 +542,7 @@ export function History({ lang, plot, go }) {
     <>
       <div className="topbar">
         <button className="icon-btn" onClick={() => go('home')} aria-label="Back">‹</button>
-        <h1 className="grow">{lang === 'mr' ? 'शेत आरोग्य पासपोर्ट' : 'Field Health Passport'}</h1>
+        <h1 className="grow">{bi(lang, 'Field Health Passport', 'शेत आरोग्य पासपोर्ट')}</h1>
       </div>
       <div className="pad stack" style={{ paddingTop: 14 }}>
         {!data && !err && <Loading lines={4} />}
@@ -568,7 +557,7 @@ export function History({ lang, plot, go }) {
               {data.health_scores?.length > 1 && (
                 <div style={{ marginTop: 14 }}>
                   <div className="tiny muted" style={{ marginBottom: 6 }}>
-                    {lang === 'mr' ? 'पीक आरोग्य गुण' : 'Crop health score over time'}
+                    {bi(lang, 'Crop health score over time', 'पीक आरोग्य गुण')}
                   </div>
                   <ScoreLine scores={data.health_scores} />
                 </div>
@@ -578,7 +567,7 @@ export function History({ lang, plot, go }) {
             {data.timeline?.length > 0 ? (
               <Card>
                 <div className="card-title" style={{ marginBottom: 12 }}>
-                  {lang === 'mr' ? 'या शेतात काय घडले' : 'Everything that happened to this field'}
+                  {bi(lang, 'Everything that happened to this field', 'या शेतात काय घडले')}
                 </div>
                 <div className="tl">
                   {data.timeline.map(e => (
@@ -591,7 +580,7 @@ export function History({ lang, plot, go }) {
                 </div>
               </Card>
             ) : (
-              <Empty icon="📋" title={lang === 'mr' ? 'अजून काही नोंदी नाहीत' : 'Nothing recorded yet'} />
+              <Empty icon="📋" title={bi(lang, 'Nothing recorded yet', 'अजून काही नोंदी नाहीत')} />
             )}
 
             <Prov label="Note" value={data.note} />

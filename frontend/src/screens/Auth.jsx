@@ -6,24 +6,13 @@
    entirely on the server. Nothing here filters anything. */
 import React, { useEffect, useState } from 'react'
 import { api, auth, setLang } from '../api'
-import { ErrorNote } from '../ui'
+import { ErrorNote, bi } from '../ui'
 import Icon from '../shell/Icon'
 import '../shell/auth.css'
+import { UnitOptions, useUnits } from '../units'
 
 const LOGO = '/brand/logo.png'
 
-const TALUKAS = [
-  ['pimpalgaon', 'Pimpalgaon Baswant', 'पिंपळगाव बसवंत'],
-  ['niphad', 'Niphad', 'निफाड'],
-  ['dindori', 'Dindori', 'दिंडोरी'],
-  ['lasalgaon', 'Lasalgaon', 'लासलगाव'],
-  ['nashik', 'Nashik', 'नाशिक'],
-  ['sinnar', 'Sinnar', 'सिन्नर'],
-  ['igatpuri', 'Igatpuri', 'इगतपुरी'],
-  ['yeola', 'Yeola', 'येवला'],
-  ['chandvad', 'Chandvad', 'चांदवड'],
-  ['malegaon', 'Malegaon', 'मालेगाव'],
-]
 
 const COPY = {
   mr: {
@@ -38,6 +27,22 @@ const COPY = {
     passHint: 'किमान ८ अक्षरे', chooseTaluka: 'तालुका निवडा',
     resetSent: 'खाते असल्यास, रीसेट कोड पाठवला आहे.',
     back: 'मागे', newPass: 'नवीन पासवर्ड', code: 'रीसेट कोड',
+    showPass: 'पासवर्ड दाखवा', hidePass: 'पासवर्ड लपवा',
+  },
+  /* DRAFT — for review with src/i18n/bn.js. */
+  bn: {
+    tag: 'স্ক্যান · শনাক্ত · সুরক্ষা',
+    sub: 'আপনার জমির দিকে কী আসছে তা দেখতে সাইন ইন করুন, আর দরকার হলে তবেই ব্যবস্থা নিন।',
+    secure: 'এনক্রিপ্ট করা সেশন · তথ্য সুরক্ষিত',
+    signIn: 'সাইন ইন', signUp: 'নতুন অ্যাকাউন্ট', reset: 'পাসওয়ার্ড ভুলে গেছেন?',
+    mobile: 'মোবাইল নম্বর বা ইমেল', pass: 'পাসওয়ার্ড', name: 'পুরো নাম',
+    taluka: 'ব্লক', village: 'গ্রাম (ইচ্ছামতো)', lang: 'ভাষা',
+    haveAccount: 'আগে থেকেই অ্যাকাউন্ট আছে? সাইন ইন করুন', noAccount: 'নতুন? অ্যাকাউন্ট খুলুন',
+    submitIn: 'সাইন ইন করুন', submitUp: 'অ্যাকাউন্ট খুলুন',
+    passHint: 'অন্তত ৮টি অক্ষর', chooseTaluka: 'আপনার ব্লক বেছে নিন',
+    resetSent: 'অ্যাকাউন্ট থাকলে, তাতে রিসেট কোড পাঠানো হয়েছে।',
+    back: 'পিছনে', newPass: 'নতুন পাসওয়ার্ড', code: 'রিসেট কোড',
+    showPass: 'পাসওয়ার্ড দেখান', hidePass: 'পাসওয়ার্ড লুকান',
   },
   en: {
     tag: 'Scan · Detect · Protect',
@@ -45,24 +50,27 @@ const COPY = {
     secure: 'Encrypted session · Privacy first',
     signIn: 'Sign in', signUp: 'Create account', reset: 'Forgot password?',
     mobile: 'Mobile number or email', pass: 'Password', name: 'Full name',
-    taluka: 'Taluka', village: 'Village (optional)', lang: 'Language',
+    taluka: 'Taluka / block', village: 'Village (optional)', lang: 'Language',
     haveAccount: 'Already registered? Sign in', noAccount: 'New here? Create an account',
     submitIn: 'Sign in', submitUp: 'Create account',
-    passHint: 'At least 8 characters', chooseTaluka: 'Choose your taluka',
+    passHint: 'At least 8 characters', chooseTaluka: 'Choose your taluka or block',
     resetSent: 'If that account exists, a reset code has been sent to it.',
     back: 'Back', newPass: 'New password', code: 'Reset code',
+    showPass: 'Show password', hidePass: 'Hide password',
   },
 }
 
 export default function Auth({ lang, onLang, onSignedIn }) {
+  const units = useUnits()
   const [mode, setMode] = useState('in')     // in | up | reset | reset2
   const [form, setForm] = useState({ lang })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
   const [msg, setMsg] = useState(null)
+  const [showPass, setShowPass] = useState(false)
   const c = COPY[lang] || COPY.en
 
-  useEffect(() => { setErr(null); setMsg(null) }, [mode])
+  useEffect(() => { setErr(null); setMsg(null); setShowPass(false) }, [mode])
 
   /* Demo consoles on the front door, when — and only when — the SERVER says
      DEMO_CONSOLE_ACCESS is on. The buttons carry no credential: each asks the
@@ -70,9 +78,10 @@ export default function Auth({ lang, onLang, onSignedIn }) {
      Modes screen makes. With the switch off, /api/ready says so and nothing
      renders here. */
   const [demoOn, setDemoOn] = useState(false)
+  const [demoData, setDemoData] = useState(false)
   const [demoBusy, setDemoBusy] = useState(null)
   useEffect(() => {
-    api.ready().then(h => setDemoOn(!!h?.config?.demo_console_access)).catch(() => setDemoOn(false))
+    api.ready().then(h => { setDemoOn(!!h?.config?.demo_console_access); setDemoData(!!h?.config?.demo_mode) }).catch(() => setDemoOn(false))
   }, [])
   const openDemo = async (role) => {
     setDemoBusy(role); setErr(null)
@@ -111,7 +120,7 @@ export default function Auth({ lang, onLang, onSignedIn }) {
         setMode('reset2')
       } else {
         await api.resetPassword(form.code || '', form.password || '')
-        setMsg(lang === 'mr' ? 'पासवर्ड बदलला. आता साइन इन करा.' : 'Password changed. Sign in now.')
+        setMsg(bi(lang, 'Password changed. Sign in now.', 'पासवर्ड बदलला. आता साइन इन करा.'))
         setMode('in')
       }
     } catch (e2) { setErr(e2) } finally { setBusy(false) }
@@ -194,10 +203,24 @@ export default function Auth({ lang, onLang, onSignedIn }) {
 
             {mode !== 'reset' && field('shield',
               mode === 'reset2' ? c.newPass : c.pass,
-              <input className="px-auth__input" required type="password" minLength={8}
-                     value={form.password || ''} onChange={set('password')}
-                     autoComplete={mode === 'in' ? 'current-password' : 'new-password'}
-                     placeholder="••••••••" />,
+              <>
+                <input className="px-auth__input px-auth__input--eye" required
+                       type={showPass ? 'text' : 'password'} minLength={8}
+                       value={form.password || ''} onChange={set('password')}
+                       autoComplete={mode === 'in' ? 'current-password' : 'new-password'}
+                       autoCapitalize="off" autoCorrect="off" spellCheck={false}
+                       placeholder="••••••••" />
+                {/* Shows the password as typed, on this screen only. A farmer
+                    on a small keyboard checks what they entered before an
+                    account is created with a typo they cannot recall. */}
+                <button type="button" className="px-auth__eye"
+                        onClick={() => setShowPass(v => !v)}
+                        aria-pressed={showPass}
+                        aria-label={showPass ? (c.hidePass || 'Hide password') : (c.showPass || 'Show password')}
+                        title={showPass ? (c.hidePass || 'Hide password') : (c.showPass || 'Show password')}>
+                  <Icon name={showPass ? 'eyeoff' : 'eye'} size={18} />
+                </button>
+              </>,
               mode !== 'in' ? c.passHint : null)}
 
             {mode === 'up' && (
@@ -205,8 +228,7 @@ export default function Auth({ lang, onLang, onSignedIn }) {
                 {field('map', c.taluka,
                   <select className="px-auth__input" required value={form.taluka || ''} onChange={set('taluka')}>
                     <option value="">{c.chooseTaluka}</option>
-                    {TALUKAS.map(([id, en, mr]) =>
-                      <option key={id} value={id}>{lang === 'mr' ? mr : en}</option>)}
+                    <UnitOptions units={units} lang={lang} />
                   </select>)}
                 {field('seedling', c.village,
                   <input className="px-auth__input" value={form.village || ''}
@@ -223,8 +245,8 @@ export default function Auth({ lang, onLang, onSignedIn }) {
                   <Icon name={mode === 'in' ? 'signout' : mode === 'up' ? 'user' : 'shield'} size={16} />
                   {mode === 'in' ? c.submitIn
                     : mode === 'up' ? c.submitUp
-                    : mode === 'reset' ? (lang === 'mr' ? 'कोड पाठवा' : 'Send reset code')
-                    : (lang === 'mr' ? 'पासवर्ड बदला' : 'Change password')}
+                    : mode === 'reset' ? (bi(lang, 'Send reset code', 'कोड पाठवा'))
+                    : (bi(lang, 'Change password', 'पासवर्ड बदला'))}
                 </>
               )}
             </button>
@@ -241,7 +263,7 @@ export default function Auth({ lang, onLang, onSignedIn }) {
           {demoOn && mode === 'in' && (
             <div className="px-auth__demo">
               <div className="px-auth__demo-h">
-                {lang === 'mr' ? 'खाते नसताना पाहा — डेमो' : 'Explore without an account — demo'}
+                {bi(lang, 'Explore without an account — demo', 'खाते नसताना पाहा — डेमो')}
               </div>
               <div className="px-auth__demo-row">
                 {[['farmer', 'Farmer', 'शेतकरी'], ['expert', 'Expert', 'तज्ज्ञ'],
@@ -254,15 +276,16 @@ export default function Auth({ lang, onLang, onSignedIn }) {
                   ))}
               </div>
               <div className="px-auth__demo-note">
-                {lang === 'mr'
-                  ? 'डेमो खाती खरी असतात आणि खरे हवामान वापरतात; ती तुमची नसतात.'
-                  : 'Demo accounts are real accounts on live weather — not yours, and shared.'}
+                {demoData
+                  ? bi(lang, 'This is a demo service: synthetic farmers and generated, labelled weather. The engines are the production ones.',
+                             'ही डेमो सेवा आहे: कृत्रिम शेतकरी आणि तयार केलेले, लेबल असलेले हवामान. इंजिने तीच आहेत.')
+                  : bi(lang, 'Demo accounts are real accounts on live weather — not yours, and shared.', 'डेमो खाती खरी असतात आणि खरे हवामान वापरतात; ती तुमची नसतात.')}
               </div>
             </div>
           )}
 
           <div className="px-auth__chips">
-            {[['mr', 'मराठी'], ['hi', 'हिंदी'], ['en', 'English']].map(([code, label]) => (
+            {[['bn', 'বাংলা'], ['mr', 'मराठी'], ['hi', 'हिंदी'], ['en', 'English']].map(([code, label]) => (
               <button key={code} type="button" className="px-auth__chip" aria-pressed={lang === code}
                       onClick={() => { setLang(code); onLang(code) }}>
                 <Icon name="globe" size={12} /> {label}
@@ -277,9 +300,7 @@ export default function Auth({ lang, onLang, onSignedIn }) {
         </div>
 
         <p className="px-auth__legal">
-          {lang === 'mr'
-            ? 'तुमची शेतीविषयक माहिती तुमचीच आहे. ती दुसऱ्या शेतकऱ्याला दाखवली जात नाही; तालुका पातळीवरील निरीक्षण एकत्रित असते, त्यामुळे कोणतेही एक शेत ओळखता येत नाही.'
-            : 'Your field data is yours: it is never shown to another farmer, and taluka surveillance is aggregated so no individual farm can be identified.'}
+          {bi(lang, 'Your field data is yours: it is never shown to another farmer, and taluka surveillance is aggregated so no individual farm can be identified.', 'तुमची शेतीविषयक माहिती तुमचीच आहे. ती दुसऱ्या शेतकऱ्याला दाखवली जात नाही; तालुका पातळीवरील निरीक्षण एकत्रित असते, त्यामुळे कोणतेही एक शेत ओळखता येत नाही.')}
         </p>
       </div>
     </div>

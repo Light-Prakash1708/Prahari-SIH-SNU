@@ -307,14 +307,19 @@ def build(db: Database, rt, plot: dict[str, Any], target: str | None,
     dx = ({"abstained": bool(dxrow["abstained"]), "abstain_reason": dxrow["abstain_reason"],
            "explain": dxrow["explain"], "id": dxrow["id"]} if dxrow else None)
 
-    threshold = assessment = None
+    threshold = assessment = etl_reference = None
     if kind == "pest":
         check = db.one(
             "SELECT * FROM threshold_checks WHERE plot_id = :p AND pest = :t"
             " ORDER BY checked_at DESC, id DESC LIMIT 1", {"p": plot["id"], "t": chosen})
+        from . import etl
+        tr0 = reference.threshold_for(chosen, plot["crop"])
+        if tr0:
+            # What a count would be weighed against, so the count sheet can
+            # state the threshold BEFORE the first count instead of "undefined".
+            etl_reference = etl.reference(tr0, (rt.risk.crop_stage(plot) or {}).get("stage"))
         if check:
-            from . import etl
-            tr = reference.threshold_for(chosen, plot["crop"])
+            tr = tr0
             threshold = etl.decide(tr, check["count"], check["crop_stage"],
                                    reference.CROPS[plot["crop"]], plot["area_acre"]) if tr else None
             if threshold:
@@ -426,6 +431,7 @@ def build(db: Database, rt, plot: dict[str, Any], target: str | None,
         "target_name_mr": row.get("name_mr"),
         "decision": decision,
         "threshold": threshold,
+        "etl_reference": etl_reference,
         "assessment": assessment,
         "evidence": _evidence,
         "trend": _trend(db, plot, chosen, kind),

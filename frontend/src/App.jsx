@@ -14,7 +14,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, auth, getLang, queue, setLang as persistLang } from './api'
-import { Banners, ErrorNote, Loading } from './ui'
+import { Banners, ErrorNote, Loading, bi } from './ui'
 import Auth from './screens/Auth'
 import Home from './screens/Home'
 import Scan from './screens/Scan'
@@ -195,7 +195,7 @@ export default function App() {
       <div className="shell">
         <div className="hdr" style={{ paddingBottom: 40 }}>
           <div className="hdr-greet">PRAHARI · प्रहरी</div>
-          <div className="hdr-sub">{lang === 'mr' ? 'लोड होत आहे…' : 'Loading…'}</div>
+          <div className="hdr-sub">{bi(lang, 'Loading…', 'लोड होत आहे…')}</div>
         </div>
         <div className="pad pull"><Loading lines={4} /></div>
       </div>
@@ -208,7 +208,7 @@ export default function App() {
         <div className="pad" style={{ paddingTop: 28 }}>
           <ErrorNote error={err} lang={lang} onRetry={() => reload()} />
           <button className="btn block ghost" style={{ marginTop: 14 }} onClick={() => auth.clear()}>
-            {lang === 'mr' ? 'साइन आउट' : 'Sign out'}
+            {bi(lang, 'Sign out', 'साइन आउट')}
           </button>
         </div>
       </div>
@@ -392,15 +392,13 @@ function NoField({ lang, go }) {
         <div className="empty">
           <div className="ic">🌾</div>
           <div className="h3" style={{ marginTop: 8 }}>
-            {lang === 'mr' ? 'आधी शेत नोंदवा' : 'Register a field first'}
+            {bi(lang, 'Register a field first', 'आधी शेत नोंदवा')}
           </div>
           <p className="small muted" style={{ marginTop: 6 }}>
-            {lang === 'mr'
-              ? 'प्रहरीला शेताचे ठिकाण, पीक आणि पेरणीची तारीख हवी — त्याशिवाय हवामानावर आधारित धोका मोजता येत नाही.'
-              : 'PRAHARI needs a location, a crop and a sowing date before it can forecast anything.'}
+            {bi(lang, 'PRAHARI needs a location, a crop and a sowing date before it can forecast anything.', 'प्रहरीला शेताचे ठिकाण, पीक आणि पेरणीची तारीख हवी — त्याशिवाय हवामानावर आधारित धोका मोजता येत नाही.')}
           </p>
           <button className="btn" style={{ marginTop: 16 }} onClick={() => go('addField')}>
-            {lang === 'mr' ? 'शेत जोडा' : 'Add a field'}
+            {bi(lang, 'Add a field', 'शेत जोडा')}
           </button>
         </div>
       </div>

@@ -144,7 +144,11 @@ def taluka_name(tid: str, lang: str = "en") -> str:
     t = TALUKA_BY_ID.get(tid)
     if not t:
         return tid
-    return t.get("mr", t["name"]) if lang == "mr" else t["name"]
+    if lang == "mr":
+        return t.get("mr", t["name"])
+    if lang == "bn":
+        return t.get("bn", t["name"])
+    return t["name"]
 
 
 def crop_has_vision_reference(crop: str) -> bool:
@@ -154,13 +158,28 @@ def crop_has_vision_reference(crop: str) -> bool:
     return bool(CROPS.get(crop, {}).get("vision"))
 
 
-def nearest_taluka(lat: float, lng: float) -> str:
+# How far a field may be from the centre of the nearest covered unit and still
+# be counted in it. Beyond this the field is outside coverage: snapping a
+# Bengal field to a Nashik taluka would put it in the wrong officer's queue,
+# the wrong outbreak cluster and the wrong local prior.
+NEAREST_MAX_KM = 40.0
+
+
+def nearest_taluka(lat: float, lng: float, max_km: float | None = NEAREST_MAX_KM) -> str | None:
     """Field coordinates are mapped to an administrative unit for surveillance
-    aggregation. Approximate by design: the officer console works at taluka
-    resolution and publishing anything finer would expose individual farms."""
-    best, best_d = TALUKAS[0]["id"], float("inf")
+    aggregation. Approximate by design: the officer console works at taluka /
+    block resolution and publishing anything finer would expose individual
+    farms. Returns None when no covered unit is within `max_km`."""
+    import math
+    best, best_d = None, float("inf")
     for t in TALUKAS:
-        d = (t["lat"] - lat) ** 2 + (t["lng"] - lng) ** 2
+        dlat = math.radians(t["lat"] - lat)
+        dlng = math.radians(t["lng"] - lng)
+        a = (math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat))
+             * math.cos(math.radians(t["lat"])) * math.sin(dlng / 2) ** 2)
+        d = 6371.0 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         if d < best_d:
             best, best_d = t["id"], d
+    if max_km is not None and best_d > max_km:
+        return None
     return best

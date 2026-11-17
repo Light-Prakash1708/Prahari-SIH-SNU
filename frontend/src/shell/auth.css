@@ -92,6 +92,16 @@
 .px-auth__inputwrap:focus-within .px-auth__ic { color: var(--accent-color); }
 .px-auth__input::placeholder { color: var(--faint); font-weight: 500; }
 select.px-auth__input { padding-right: 38px; cursor: pointer; }
+.px-auth__input--eye { padding-right: 52px; }
+/* 44 px square: a thumb target, not a mouse target. */
+.px-auth__eye {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 44px; height: 44px; border: 0; background: transparent; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--muted); cursor: pointer;
+}
+.px-auth__eye:hover, .px-auth__eye[aria-pressed="true"] { color: var(--accent-color); }
+.px-auth__eye:focus-visible { outline: 2px solid var(--accent-color); outline-offset: -2px; }
 .px-auth__hint { display: block; font-size: 11.5px; color: var(--muted); margin-top: 5px; }
 
 .px-auth__btn {

@@ -900,7 +900,17 @@ class WeatherService:
         # never tried alongside a live source — it exists only for the moment
         # after every live provider AND the cache have already failed.
         self._demo_fallback: WeatherProvider | None = None
-        if self.s.weather_demo_fallback:
+        if self.s.weather_demo_fallback and self.s.is_production:
+            # Refused, not crashed. A production farmer's risk decision must
+            # never run on generated weather; a missing window is reported as
+            # "the model cannot run" instead. Logged loudly so the setting gets
+            # removed, but the service still starts — taking the whole site
+            # down over a flag that is being ignored would be worse.
+            log.error(
+                "WEATHER_DEMO_FALLBACK is set on a production service and is being "
+                "IGNORED. Generated weather is never served in production. Remove the "
+                "setting; use a separate demo or staging service for presentations.")
+        elif self.s.weather_demo_fallback:
             self._demo_fallback = DemoWeatherProvider(demo_profile_fn)
             log.warning(
                 "WEATHER_DEMO_FALLBACK is ON — if every live provider and the cache "

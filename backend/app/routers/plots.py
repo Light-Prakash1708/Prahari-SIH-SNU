@@ -78,7 +78,17 @@ def create_plot(data: PlotIn, user: dict[str, Any] = Depends(current_user),
 
     taluka = data.taluka
     if not taluka:
-        taluka = reference.nearest_taluka(lat, lng) if lat is not None else farmer["taluka"]
+        if lat is not None:
+            taluka = reference.nearest_taluka(lat, lng)
+            if taluka is None:
+                raise bad_request(
+                    "outside_coverage",
+                    "This field is not within any taluka or block PRAHARI covers yet, so it "
+                    "cannot be placed in local surveillance. Choose your taluka or block "
+                    "explicitly if you are sure it is covered.",
+                    "हे शेत प्रहरीच्या कोणत्याही तालुक्यात येत नाही. तालुका स्वतः निवडा.")
+        else:
+            taluka = farmer["taluka"]
     if taluka not in reference.TALUKA_IDS:
         raise bad_request("unknown_taluka",
                           f"'{taluka}' is not a taluka PRAHARI covers.")
