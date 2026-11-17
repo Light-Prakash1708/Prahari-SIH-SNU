@@ -120,3 +120,22 @@ Full findings: `docs/PRAHARI_SUMMIT_READINESS.md`. Demo: `docs/PRAHARI_SUMMIT_DE
 - Playwright renders at 390 px in English and Bengali.
 
 **Push:** none. Nothing is pushed until the owner says so. Staging and production both build from `main`.
+
+## 2026-11-17 — Production release prepared (not pushed)
+
+**Classification and plan:** `docs/PRODUCTION_UPGRADE_PLAN.md`.
+
+**Verified in production mode** (`APP_ENV=production`, local PostgreSQL 16):
+- Data written by the live code (`7ef5943`) is read intact by the release code.
+- No new migration.
+- Demo and judge routes are absent.
+- Generated weather stays off even with the flag set.
+- Bengal geography works.
+
+**Storage:** the S3/R2 adapter was tested against moto. This found that presigned URLs used the legacy V2 signature, which R2 rejects; they are now forced to SigV4.
+
+**Results:** 551 tests passed; ruff clean; build 167.7 kB.
+
+**Bengali:** labelled as a draft on screen wherever it is chosen.
+
+**Rollback tag:** `pre-summit-release` on `7ef5943`.

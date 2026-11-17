@@ -6,7 +6,7 @@
    entirely on the server. Nothing here filters anything. */
 import React, { useEffect, useState } from 'react'
 import { api, auth, setLang } from '../api'
-import { ErrorNote, bi } from '../ui'
+import { BnDraftNote, ErrorNote, bi } from '../ui'
 import Icon from '../shell/Icon'
 import '../shell/auth.css'
 import { UnitOptions, useUnits } from '../units'
@@ -292,6 +292,7 @@ export default function Auth({ lang, onLang, onSignedIn }) {
               </button>
             ))}
           </div>
+          <BnDraftNote lang={lang} />
 
           <div className="px-auth__foot">
             <Icon name="shield" size={13} />

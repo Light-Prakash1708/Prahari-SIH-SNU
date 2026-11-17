@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react'
 import { api, auth, setLang as persistLang } from '../api'
 import {
   Bars, Card, Empty, ErrorNote, Loading, Prov, Seg, Sheet, Spark, WeatherStrip, Why,
-  bi, fmtDate, fmtMoney, levelLabel,
+  bi, fmtDate, fmtMoney, levelLabel, BnDraftNote,
 } from '../ui'
 
 /* ═══ WHAT IS COMING ═══════════════════════════════════════════════════ */
@@ -690,6 +690,7 @@ export function Profile({ lang, onLang, me, plots, go, health, demo, onScenario 
                       onClick={() => { persistLang(code); onLang(code) }}>{label}</button>
             ))}
           </div>
+          <BnDraftNote lang={lang} />
         </Card>
 
         {demo?.scenarios && (

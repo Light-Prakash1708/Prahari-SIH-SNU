@@ -100,6 +100,15 @@ export function useDayTicks(scope) {
   return [ticks, toggle]
 }
 
+/* Shown wherever a farmer picks Bengali: the translation is a draft awaiting
+   native-speaker review, and advice the server writes is still English. */
+export const BnDraftNote = ({ lang }) => lang !== 'bn' ? null : (
+  <p className="tiny muted" style={{ marginTop: 8, lineHeight: 1.45 }}>
+    বাংলা অনুবাদ খসড়া — পর্যালোচনা চলছে। কিছু বিস্তারিত পরামর্শ এখনও ইংরেজিতে দেখাবে।
+    <span style={{ display: 'block' }}>Bengali is a draft under review; some detailed advice is still in English.</span>
+  </p>
+)
+
 /* ── layout ────────────────────────────────────────────────────────────── */
 export const Card = ({ children, className = '', ...rest }) =>
   <section className={`card ${className}`} {...rest}>{children}</section>

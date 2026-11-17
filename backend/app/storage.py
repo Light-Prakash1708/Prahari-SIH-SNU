@@ -112,11 +112,17 @@ class S3Storage(Storage):
     def __init__(self, settings: Settings):
         self.s = settings
         import boto3  # imported lazily
+        from botocore.config import Config
+        # SigV4 explicitly. Left to its default, botocore presigns some
+        # endpoints with the legacy V2 scheme (?Signature=…&Expires=…), which
+        # Cloudflare R2 does not accept — every photo link would 403 in
+        # production while uploads still appeared to work.
         self.client = boto3.client(
             "s3", endpoint_url=settings.s3_endpoint_url,
             region_name=settings.s3_region,
             aws_access_key_id=settings.s3_access_key,
-            aws_secret_access_key=settings.s3_secret_key)
+            aws_secret_access_key=settings.s3_secret_key,
+            config=Config(signature_version="s3v4"))
         self.bucket = settings.s3_bucket
 
     def put(self, key, data, content_type):
